@@ -33,6 +33,14 @@ class ClientBase(BaseModel):
     cedula_representante: str = Field(..., min_length=1, max_length=50)
     ciudad_domicilio: str = Field(..., min_length=1, max_length=100)
     cupo_plataforma: Decimal = Field(..., gt=0, description="Credit limit from platform")
+    # New optional fields for contract template
+    direccion_comercial: Optional[str] = None
+    tipo_identificacion_representante: Optional[str] = Field(default='CC', max_length=10)
+    nombre_contrato_marco: Optional[str] = Field(default='Compra de Cartera', max_length=100)
+    kam_nombre: Optional[str] = None
+    kam_email: Optional[str] = None
+    destinatario_nombre: Optional[str] = None
+    destinatario_email: Optional[str] = None
 
 
 class ClientCreate(ClientBase):
@@ -93,6 +101,14 @@ class ClientDataSnapshot(BaseModel):
     cupo_plataforma: Decimal
     contract_id: str
     generation_date: str
+    # Additional fields for contract template
+    direccion_comercial: Optional[str] = None
+    tipo_identificacion_representante: Optional[str] = 'CC'
+    nombre_contrato_marco: Optional[str] = 'Compra de Cartera'
+    kam_nombre: Optional[str] = None
+    kam_email: Optional[str] = None
+    destinatario_nombre: Optional[str] = None
+    destinatario_email: Optional[str] = None
 
 
 class ContractGenerationResponse(BaseModel):

@@ -185,6 +185,11 @@ async def import_clients_csv(
         required_columns = ['nit', 'nombre_importador', 'representante_legal',
                           'cedula_representante', 'ciudad_domicilio', 'cupo_plataforma']
 
+        # Optional columns for contract template population
+        optional_columns = ['direccion_comercial', 'tipo_identificacion_representante',
+                           'nombre_contrato_marco', 'kam_nombre', 'kam_email',
+                           'destinatario_nombre', 'destinatario_email']
+
         logger.info(f"CSV columns found: {list(df.columns)}")
 
         missing_columns = [col for col in required_columns if col not in df.columns]
@@ -195,8 +200,11 @@ async def import_clients_csv(
                 detail=f"Missing required columns: {', '.join(missing_columns)}. Found columns: {', '.join(df.columns)}"
             )
 
+        # Get all available columns (required + any present optional columns)
+        available_columns = required_columns + [col for col in optional_columns if col in df.columns]
+
         # Convert to list of dicts
-        clients = df[required_columns].to_dict('records')
+        clients = df[available_columns].to_dict('records')
 
         # Clean data (remove NaN, convert types)
         for client in clients:
@@ -374,8 +382,10 @@ async def download_contract_docx(
         StreamingResponse with DOCX file
     """
     try:
+        logger.info(f"Starting DOCX generation for contract {contract_id}")
         # Generate document
         docx_bytes = await service.generate_contract_document(str(contract_id))
+        logger.info(f"DOCX generated successfully for contract {contract_id}")
 
         # Get contract details for filename
         contract = await service.get_contract_details(str(contract_id))
@@ -390,8 +400,10 @@ async def download_contract_docx(
             }
         )
     except ValueError as e:
+        logger.error(f"ValueError in DOCX download: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        logger.error(f"Unexpected error in DOCX download: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating document: {str(e)}")
 
 
@@ -410,8 +422,10 @@ async def download_contract_pdf(
         StreamingResponse with PDF file
     """
     try:
+        logger.info(f"Starting PDF generation for contract {contract_id}")
         # Generate PDF
         pdf_bytes = await service.generate_contract_pdf(str(contract_id))
+        logger.info(f"PDF generated successfully for contract {contract_id}")
 
         # Get contract details for filename
         contract = await service.get_contract_details(str(contract_id))
@@ -426,12 +440,15 @@ async def download_contract_pdf(
             }
         )
     except ValueError as e:
+        logger.error(f"ValueError in PDF download: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
     except RuntimeError as e:
         # PDF conversion failed, offer DOCX instead
+        logger.error(f"RuntimeError in PDF conversion: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"PDF conversion failed: {str(e)}. Please download DOCX instead."
         )
     except Exception as e:
+        logger.error(f"Unexpected error in PDF download: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")

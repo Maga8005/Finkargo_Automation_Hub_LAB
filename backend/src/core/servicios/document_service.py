@@ -97,6 +97,12 @@ class DocumentService:
         Returns:
             Dictionary mapping placeholders to replacement values
         """
+        # Helper function to safely get string values
+        def safe_get(d: dict, key: str, default: str = '') -> str:
+            """Get value from dict and ensure it's a string"""
+            value = d.get(key, default)
+            return str(value) if value is not None else default
+
         # Extract data_snapshot
         snapshot = contract_data.get('data_snapshot', {})
 
@@ -116,20 +122,22 @@ class DocumentService:
             # Date fields
             '[día]': str(generation_date.day),
             '[mes]': self._get_month_name_spanish(generation_date.month),
-            '[año]': str(generation_date.year),
-            '[•]': str(generation_date.day),  # Additional date placeholder
+            '[•]': str(generation_date.year)[-1],  # Last digit of year for 202[•] format
 
             # Client information
-            '[NOMBRE DEL CLIENTE]': snapshot.get('nombre_importador', ''),
-            '[Nombre del representante legal]': snapshot.get('representante_legal', ''),
-            '[nombre del representante legal]': snapshot.get('representante_legal', ''),
-            '[tipo de identificación]': 'C.C.',  # Default to Colombian ID
-            '[número de identificación]': snapshot.get('cedula_representante', ''),
+            '[NOMBRE DEL CLIENTE]': safe_get(snapshot, 'nombre_importador'),
+            '[NIT]': safe_get(snapshot, 'nit'),
+
+            # Legal representative information
+            '[Nombre del representante legal]': safe_get(snapshot, 'representante_legal'),
+            '[nombre del representante legal]': safe_get(snapshot, 'representante_legal'),
+            '[tipo de identificación]': safe_get(snapshot, 'tipo_identificacion_representante', 'CC'),
+            '[identificación RL]': safe_get(snapshot, 'cedula_representante'),
 
             # Location
-            '[nombre de la ciudad]': snapshot.get('ciudad_domicilio', ''),
+            '[nombre de la ciudad]': safe_get(snapshot, 'ciudad_domicilio'),
             '[Domicilio en que el Importador adelanta sus actividades comerciales]':
-                snapshot.get('ciudad_domicilio', ''),
+                safe_get(snapshot, 'direccion_comercial') or safe_get(snapshot, 'ciudad_domicilio'),
 
             # Financial information
             '[valor Cupo de Operaciones en números]': cupo_formatted,
@@ -138,15 +146,18 @@ class DocumentService:
             '[valor en letras]': cupo_letras,
 
             # Contract information
-            '[nombre del contrato marco]': 'Contrato Marco de Servicios Logísticos',
+            '[nombre del contrato marco]': safe_get(snapshot, 'nombre_contrato_marco', 'Compra de Cartera'),
 
-            # Contact information (placeholders - should be configured)
-            '[nombre del KAM]': 'Key Account Manager',
-            '[e-mail]': snapshot.get('email', 'legal@finkargo.com'),
-            '[nombre del destinatario]': 'Departamento Legal',
+            # KAM Contact information
+            '[nombre del KAM]': safe_get(snapshot, 'kam_nombre', 'Key Account Manager'),
+            '[KAM e-mail]': safe_get(snapshot, 'kam_email', 'kam@finkargo.com'),
+
+            # Recipient Contact information
+            '[nombre del destinatario]': safe_get(snapshot, 'destinatario_nombre', 'Departamento Legal'),
+            '[destinatario e-mail]': safe_get(snapshot, 'destinatario_email', 'legal@finkargo.com'),
 
             # Document ID
-            '[sic]': contract_data.get('contract_id', ''),
+            '[sic]': safe_get(contract_data, 'contract_id'),
         }
 
         return replacements
@@ -209,7 +220,7 @@ class DocumentService:
             amount = int(number)
 
             if amount == 0:
-                return "cero pesos"
+                return "CERO DE"
 
             # Simplified for millions (common range for contracts)
             millions = amount // 1000000
@@ -231,7 +242,7 @@ class DocumentService:
             if units > 0:
                 parts.append(self._simple_number_to_words(units))
 
-            result = " ".join(parts) + " pesos"
+            result = " ".join(parts) + " de"
             return result.upper()
 
         except Exception as e:

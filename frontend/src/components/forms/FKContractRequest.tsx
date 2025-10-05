@@ -33,18 +33,13 @@ const FKContractRequest: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setError('Por favor ingrese un NIT o nombre para buscar');
-      return;
-    }
-
     setSearching(true);
     setError(null);
     setSearchResults([]);
     setSelectedClient(null);
 
     try {
-      const results = await legalService.searchClients({ query: searchQuery });
+      const results = await legalService.searchClients({ query: searchQuery.trim() || undefined });
       setSearchResults(results);
 
       if (results.length === 0) {
@@ -128,7 +123,7 @@ const FKContractRequest: React.FC = () => {
             Buscar Cliente
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Busque por NIT o nombre del importador
+            Busque por NIT o nombre del importador. Deje vacío para ver todos los clientes.
           </Typography>
 
           <Box sx={{ display: 'flex', gap: 2 }}>
@@ -144,7 +139,7 @@ const FKContractRequest: React.FC = () => {
               variant="contained"
               startIcon={searching ? <CircularProgress size={20} /> : <SearchIcon />}
               onClick={handleSearch}
-              disabled={searching || !searchQuery.trim()}
+              disabled={searching}
               sx={{ minWidth: 120 }}
             >
               {searching ? 'Buscando...' : 'Buscar'}

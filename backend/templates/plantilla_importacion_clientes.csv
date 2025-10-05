@@ -1,0 +1,4 @@
+nit,nombre_importador,representante_legal,cedula_representante,ciudad_domicilio,cupo_plataforma,direccion_comercial,tipo_identificacion_representante,nombre_contrato_marco,kam_nombre,kam_email,destinatario_nombre,destinatario_email
+900123456-1,IMPORTADORA EJEMPLO S.A.S.,Juan Pérez García,1234567890,Bogotá,50000000,"Calle 100 #15-20 Oficina 501, Bogotá D.C.",CC,Compra de Cartera,María Rodríguez,maria.rodriguez@finkargo.com,Carlos Méndez,carlos.mendez@ejemplo.com
+900234567-2,COMERCIALIZADORA ABC LTDA,Ana María López,9876543210,Medellín,75000000,"Carrera 43A #14-25 Piso 3, Medellín",CC,Compra de Cartera,Pedro Sánchez,pedro.sanchez@finkargo.com,Laura Gómez,laura.gomez@abc.com
+900345678-3,DISTRIBUIDORA XYZ S.A.,Carlos Ramírez,5555666777,Cali,100000000,"Avenida 5N #23-50, Cali",CC,Compra de Cartera,María Rodríguez,maria.rodriguez@finkargo.com,Roberto Silva,roberto.silva@xyz.com

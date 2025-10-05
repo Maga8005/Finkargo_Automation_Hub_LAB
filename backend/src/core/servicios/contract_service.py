@@ -83,7 +83,15 @@ class ContractService:
             'ciudad_domicilio': client['ciudad_domicilio'],
             'cupo_plataforma': float(client['cupo_plataforma']),
             'contract_id': contract_id,
-            'generation_date': generation_date
+            'generation_date': generation_date,
+            # New fields for complete contract template population
+            'direccion_comercial': client.get('direccion_comercial'),
+            'tipo_identificacion_representante': client.get('tipo_identificacion_representante', 'CC'),
+            'nombre_contrato_marco': client.get('nombre_contrato_marco', 'Compra de Cartera'),
+            'kam_nombre': client.get('kam_nombre'),
+            'kam_email': client.get('kam_email'),
+            'destinatario_nombre': client.get('destinatario_nombre'),
+            'destinatario_email': client.get('destinatario_email'),
         }
 
         # 5. Create contract generation record

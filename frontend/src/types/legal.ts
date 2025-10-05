@@ -15,6 +15,14 @@ export interface Client {
   updated_at?: string;
   is_active?: boolean;
   notes?: string;
+  // New fields for contract template
+  direccion_comercial?: string;
+  tipo_identificacion_representante?: string;
+  nombre_contrato_marco?: string;
+  kam_nombre?: string;
+  kam_email?: string;
+  destinatario_nombre?: string;
+  destinatario_email?: string;
 }
 
 export interface ContractTemplate {
@@ -65,6 +73,14 @@ export interface ClientDataSnapshot {
   cupo_plataforma: number;
   contract_id: string;
   generation_date: string;
+  // Additional fields for contract template
+  direccion_comercial?: string;
+  tipo_identificacion_representante?: string;
+  nombre_contrato_marco?: string;
+  kam_nombre?: string;
+  kam_email?: string;
+  destinatario_nombre?: string;
+  destinatario_email?: string;
 }
 
 export interface DataImport {
