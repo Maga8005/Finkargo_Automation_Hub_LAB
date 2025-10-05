@@ -2,10 +2,9 @@
  * Operations Service - API calls for Operations department
  */
 import apiClient from '../api/clients/apiClient';
-import {
+import type {
   ContractGenerationRequest,
-  ContractGenerationResponse,
-  ContractGenerationDetail,
+  ContractGeneration,
 } from '../types/legal';
 
 const BASE_URL = '/operations';
@@ -16,8 +15,8 @@ export const operationsService = {
    */
   async requestContractGeneration(
     request: ContractGenerationRequest
-  ): Promise<ContractGenerationResponse> {
-    const response = await apiClient.post<ContractGenerationResponse>(
+  ): Promise<ContractGeneration> {
+    const response = await apiClient.post<ContractGeneration>(
       `${BASE_URL}/contracts/generate`,
       request
     );
@@ -27,8 +26,8 @@ export const operationsService = {
   /**
    * Get all approved contracts
    */
-  async getApprovedContracts(): Promise<ContractGenerationDetail[]> {
-    const response = await apiClient.get<ContractGenerationDetail[]>(
+  async getApprovedContracts(): Promise<ContractGeneration[]> {
+    const response = await apiClient.get<ContractGeneration[]>(
       `${BASE_URL}/contracts/approved`
     );
     return response.data;
@@ -37,8 +36,8 @@ export const operationsService = {
   /**
    * Get contract details by ID
    */
-  async getContractDetails(contractId: string): Promise<ContractGenerationDetail> {
-    const response = await apiClient.get<ContractGenerationDetail>(
+  async getContractDetails(contractId: string): Promise<ContractGeneration> {
+    const response = await apiClient.get<ContractGeneration>(
       `${BASE_URL}/contracts/${contractId}`
     );
     return response.data;

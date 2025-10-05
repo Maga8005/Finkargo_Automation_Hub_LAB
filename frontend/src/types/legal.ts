@@ -1,5 +1,6 @@
 /**
  * Legal Contract Automation Types
+ * Updated: Contract workflow types
  */
 
 export interface Client {
