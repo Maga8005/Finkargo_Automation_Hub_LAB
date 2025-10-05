@@ -18,7 +18,10 @@
       "Bash(.venvScriptspython -m uvicorn main:app --reload --host 0.0.0.0 --port 8000)",
       "Bash(.venv/Scripts/python:*)",
       "Bash(git commit:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git checkout:*)",
+      "Bash(timeout:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

@@ -225,25 +225,7 @@ async def import_clients_csv(
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
 
 
-# ==================== Contract Generation Endpoints ====================
-
-@router.post("/contracts/generate", response_model=ContractGenerationResponse, status_code=status.HTTP_201_CREATED)
-async def generate_contract(
-    request: ContractGenerationRequest,
-    service: ContractService = Depends(get_contract_service)
-):
-    """Generate a new asset guarantee contract"""
-    try:
-        # TODO: Get user_id from auth token
-        user_id = None  # NULL for now until auth is implemented
-
-        contract = await service.generate_contract(request, user_id)
-        return contract
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+# ==================== Contract Review Endpoints ====================
 
 # IMPORTANT: Specific routes must come BEFORE parameterized routes
 # Otherwise FastAPI will match "stats" as a contract_id parameter
@@ -280,20 +262,6 @@ async def get_pending_reviews(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/contracts/approved", response_model=List[ContractGenerationDetail])
-async def get_approved_contracts(
-    contract_repo: ContractRepository = Depends(get_contract_repo)
-):
-    """
-    Get all approved contracts for Operations team
-
-    Returns contracts with approved status and document URLs for download
-    """
-    try:
-        contracts = await contract_repo.get_approved_contracts()
-        return contracts
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/contracts", response_model=List[ContractGenerationDetail])

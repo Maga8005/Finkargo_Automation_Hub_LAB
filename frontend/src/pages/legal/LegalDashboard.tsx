@@ -12,14 +12,12 @@ import {
   Tab,
 } from '@mui/material';
 import {
-  Add as AddIcon,
   Assignment as AssignmentIcon,
   RateReview as ReviewIcon,
   CloudUpload as UploadIcon,
   Assessment as StatsIcon,
 } from '@mui/icons-material';
 import { legalService } from '../../services/legalService';
-import FKContractGenerator from '../../components/forms/FKContractGenerator';
 import FKClientDataImport from '../../components/forms/FKClientDataImport';
 import FKReviewQueue from '../../components/forms/FKReviewQueue';
 
@@ -80,7 +78,7 @@ const LegalDashboard: React.FC = () => {
           Departamento Legal
         </Typography>
         <Typography variant="body1" sx={{ color: 'grey.700' }}>
-          Automatización de contratos de garantía de activos
+          Revisión y aprobación de contratos
         </Typography>
       </Box>
 
@@ -163,7 +161,6 @@ const LegalDashboard: React.FC = () => {
       <Card>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={currentTab} onChange={handleTabChange} aria-label="legal tabs">
-            <Tab label="Generar Contrato" icon={<AddIcon />} iconPosition="start" />
             <Tab label="Cola de Revisión" icon={<ReviewIcon />} iconPosition="start" />
             <Tab label="Historial" icon={<AssignmentIcon />} iconPosition="start" />
             <Tab label="Importar Datos" icon={<UploadIcon />} iconPosition="start" />
@@ -171,14 +168,10 @@ const LegalDashboard: React.FC = () => {
         </Box>
 
         <TabPanel value={currentTab} index={0}>
-          <FKContractGenerator />
-        </TabPanel>
-
-        <TabPanel value={currentTab} index={1}>
           <FKReviewQueue />
         </TabPanel>
 
-        <TabPanel value={currentTab} index={2}>
+        <TabPanel value={currentTab} index={1}>
           <Typography variant="h6" gutterBottom>
             Historial de Contratos
           </Typography>
@@ -187,7 +180,7 @@ const LegalDashboard: React.FC = () => {
           </Typography>
         </TabPanel>
 
-        <TabPanel value={currentTab} index={3}>
+        <TabPanel value={currentTab} index={2}>
           <FKClientDataImport />
         </TabPanel>
       </Card>

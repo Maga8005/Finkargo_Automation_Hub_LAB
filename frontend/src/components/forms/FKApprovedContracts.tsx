@@ -25,7 +25,7 @@ import {
   Info as InfoIcon,
   CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
-import { legalService } from '../../services/legalService';
+import { operationsService } from '../../services/operationsService';
 import type { ContractGeneration } from '../../types/legal';
 
 const FKApprovedContracts: React.FC = () => {
@@ -42,7 +42,7 @@ const FKApprovedContracts: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await legalService.getApprovedContracts();
+      const data = await operationsService.getApprovedContracts();
       setContracts(data);
     } catch (err) {
       console.error('Error loading approved contracts:', err);
