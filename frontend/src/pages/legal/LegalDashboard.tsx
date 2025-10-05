@@ -16,6 +16,7 @@ import {
   RateReview as ReviewIcon,
   CloudUpload as UploadIcon,
   Assessment as StatsIcon,
+  Today as TodayIcon,
 } from '@mui/icons-material';
 import { legalService } from '../../services/legalService';
 import FKClientDataImport from '../../components/forms/FKClientDataImport';
@@ -142,7 +143,7 @@ const LegalDashboard: React.FC = () => {
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <AddIcon sx={{ fontSize: 40, color: 'info.main' }} />
+                <TodayIcon sx={{ fontSize: 40, color: 'info.main' }} />
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 700 }}>
                     {stats.generated_today}
