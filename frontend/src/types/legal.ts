@@ -47,6 +47,7 @@ export interface ContractGeneration {
   review_notes?: string;
   pdf_url?: string;
   pdf_storage_path?: string;
+  approved_document_url?: string;
   template_id: string;
   template_version: string;
   data_snapshot: ClientDataSnapshot;

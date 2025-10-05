@@ -10,6 +10,7 @@ import os
 import tempfile
 from pathlib import Path
 import logging
+from supabase import Client
 
 logger = logging.getLogger(__name__)
 
@@ -17,16 +18,18 @@ logger = logging.getLogger(__name__)
 class DocumentService:
     """Service for generating contract documents from templates"""
 
-    def __init__(self, template_dir: str = None):
+    def __init__(self, template_dir: str = None, supabase_client: Client = None):
         """
         Initialize DocumentService
 
         Args:
             template_dir: Directory containing Word templates
+            supabase_client: Supabase client for storage operations
         """
         if template_dir is None:
             template_dir = Path(__file__).parent.parent.parent.parent / "templates"
         self.template_dir = Path(template_dir)
+        self.supabase = supabase_client
 
     def generate_contract_document(
         self,
@@ -284,39 +287,152 @@ class DocumentService:
 
     def convert_to_pdf(self, docx_bytes: bytes) -> bytes:
         """
-        Convert DOCX to PDF
+        Convert DOCX to PDF using LibreOffice headless mode
+
+        This method works on Windows, Linux, and Mac without requiring Microsoft Word.
+        LibreOffice must be installed on the system.
 
         Args:
             docx_bytes: DOCX file content as bytes
 
         Returns:
             PDF file content as bytes
-        """
-        try:
-            from docx2pdf import convert
 
+        Raises:
+            RuntimeError: If LibreOffice is not installed or conversion fails
+        """
+        import subprocess
+        import platform
+
+        try:
             # Save DOCX to temp file
             with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as docx_tmp:
                 docx_tmp.write(docx_bytes)
                 docx_path = docx_tmp.name
 
-            # Generate PDF path
-            pdf_path = docx_path.replace('.docx', '.pdf')
+            # Create output directory for PDF
+            output_dir = os.path.dirname(docx_path)
+            pdf_filename = os.path.basename(docx_path).replace('.docx', '.pdf')
+            pdf_path = os.path.join(output_dir, pdf_filename)
 
-            # Convert using docx2pdf (requires MS Word on Windows)
-            convert(docx_path, pdf_path)
+            # Detect LibreOffice path based on OS
+            system = platform.system()
+            if system == 'Windows':
+                # Common Windows installation paths
+                libreoffice_paths = [
+                    r'C:\Program Files\LibreOffice\program\soffice.exe',
+                    r'C:\Program Files (x86)\LibreOffice\program\soffice.exe',
+                ]
+            elif system == 'Darwin':  # macOS
+                libreoffice_paths = [
+                    '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+                ]
+            else:  # Linux and others
+                libreoffice_paths = [
+                    '/usr/bin/libreoffice',
+                    '/usr/bin/soffice',
+                ]
+
+            # Find LibreOffice executable
+            soffice_path = None
+            for path in libreoffice_paths:
+                if os.path.exists(path):
+                    soffice_path = path
+                    break
+
+            if not soffice_path:
+                raise RuntimeError(
+                    "LibreOffice not found. Please install LibreOffice: "
+                    "https://www.libreoffice.org/download/download/"
+                )
+
+            # Convert DOCX to PDF using LibreOffice headless mode
+            cmd = [
+                soffice_path,
+                '--headless',
+                '--convert-to', 'pdf',
+                '--outdir', output_dir,
+                docx_path
+            ]
+
+            # Run conversion
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30  # 30 second timeout
+            )
+
+            if result.returncode != 0:
+                raise RuntimeError(f"LibreOffice conversion failed: {result.stderr}")
+
+            # Check if PDF was created
+            if not os.path.exists(pdf_path):
+                raise RuntimeError("PDF file was not created")
 
             # Read PDF bytes
             with open(pdf_path, 'rb') as pdf_file:
                 pdf_bytes = pdf_file.read()
 
             # Cleanup
-            os.unlink(docx_path)
-            os.unlink(pdf_path)
+            try:
+                os.unlink(docx_path)
+                os.unlink(pdf_path)
+            except Exception:
+                pass  # Ignore cleanup errors
 
             return pdf_bytes
 
+        except subprocess.TimeoutExpired:
+            logger.error("PDF conversion timed out")
+            raise RuntimeError("PDF conversion timed out (> 30 seconds)")
         except Exception as e:
             logger.error(f"Error converting to PDF: {e}")
-            # If PDF conversion fails, we can still provide the DOCX
             raise RuntimeError(f"PDF conversion failed: {str(e)}")
+
+    def upload_to_storage(self, pdf_bytes: bytes, contract_id: str) -> str:
+        """
+        Upload approved contract PDF to Supabase Storage
+
+        Args:
+            pdf_bytes: PDF file content as bytes
+            contract_id: Contract UUID for file naming
+
+        Returns:
+            str: Public URL of uploaded file
+
+        Raises:
+            RuntimeError: If upload fails or Supabase client not configured
+        """
+        if not self.supabase:
+            raise RuntimeError("Supabase client not configured for storage operations")
+
+        try:
+            # Define storage path: contracts/{contract_id}/{contract_id}_approved.pdf
+            file_path = f"contracts/{contract_id}/{contract_id}_approved.pdf"
+            bucket_name = "contract-documents"
+
+            logger.info(f"Uploading contract {contract_id} to Supabase Storage")
+
+            # Upload file to Supabase Storage
+            response = self.supabase.storage.from_(bucket_name).upload(
+                path=file_path,
+                file=pdf_bytes,
+                file_options={
+                    "content-type": "application/pdf",
+                    "upsert": "true"  # Overwrite if exists (in case of reapproval)
+                }
+            )
+
+            logger.info(f"Upload response: {response}")
+
+            # Get public URL for the uploaded file
+            public_url = self.supabase.storage.from_(bucket_name).get_public_url(file_path)
+
+            logger.info(f"Contract {contract_id} uploaded successfully to: {public_url}")
+
+            return public_url
+
+        except Exception as e:
+            logger.error(f"Error uploading to storage: {e}")
+            raise RuntimeError(f"Failed to upload contract to storage: {str(e)}")

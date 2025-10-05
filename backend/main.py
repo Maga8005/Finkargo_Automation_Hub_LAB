@@ -15,12 +15,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Include routers
-app.include_router(legal_routes.router)
-
 # Parse CORS origins from JSON string
 cors_origins = json.loads(settings.CORS_ORIGINS) if isinstance(settings.CORS_ORIGINS, str) else settings.CORS_ORIGINS
 
+print(f"CORS Origins configured: {cors_origins}")
+
+# IMPORTANT: Add CORS middleware BEFORE including routers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -28,6 +28,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers AFTER middleware
+app.include_router(legal_routes.router)
 
 @app.get("/api/health")
 async def health_check():

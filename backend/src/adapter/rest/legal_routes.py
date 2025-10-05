@@ -1,18 +1,23 @@
 """
 Legal Contract Automation - FastAPI Routes
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, status
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, status, Path
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
+from uuid import UUID
 import pandas as pd
 import io
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 from src.config.supabase_client import get_supabase_client
 from src.repositorio.client_repository import ClientRepository
 from src.repositorio.contract_repository import ContractRepository
 from src.repositorio.template_repository import TemplateRepository
 from src.core.servicios.contract_service import ContractService
+from src.core.servicios.document_service import DocumentService
 from src.interface.legal_dtos import (
     ClientCreate,
     ClientResponse,
@@ -55,8 +60,12 @@ def get_contract_service(
     contract_repo: ContractRepository = Depends(get_contract_repo),
     template_repo: TemplateRepository = Depends(get_template_repo),
 ):
-    """Get contract service"""
-    return ContractService(client_repo, contract_repo, template_repo)
+    """Get contract service with document service"""
+    # Create DocumentService with Supabase client for storage operations
+    supabase = get_supabase_client()
+    document_service = DocumentService(supabase_client=supabase)
+
+    return ContractService(client_repo, contract_repo, template_repo, document_service)
 
 
 # ==================== Client Endpoints ====================
@@ -69,7 +78,7 @@ async def create_client(
     """Create a new client"""
     try:
         # TODO: Get user_id from auth token
-        user_id = "00000000-0000-0000-0000-000000000000"  # Placeholder
+        user_id = None  # NULL for now until auth is implemented
 
         client = await client_repo.create(client_data, user_id)
         return client
@@ -139,28 +148,51 @@ async def import_clients_csv(
     """
     try:
         # TODO: Get user_id from auth token
-        user_id = "00000000-0000-0000-0000-000000000000"
+        user_id = None  # NULL for now until auth is implemented
 
         # Read file
         contents = await file.read()
 
         # Determine file type and read accordingly
         if file.filename.endswith('.csv'):
-            df = pd.read_csv(io.BytesIO(contents))
+            # Try multiple encodings for CSV files (common issue with Spanish characters)
+            encodings = ['utf-8', 'latin-1', 'windows-1252', 'iso-8859-1']
+            df = None
+            last_error = None
+
+            for encoding in encodings:
+                try:
+                    df = pd.read_csv(io.BytesIO(contents), encoding=encoding)
+                    break  # Success, exit loop
+                except UnicodeDecodeError as e:
+                    last_error = e
+                    continue
+
+            if df is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Could not decode CSV file. Please ensure it's encoded in UTF-8, Latin-1, or Windows-1252. Error: {str(last_error)}"
+                )
         elif file.filename.endswith(('.xlsx', '.xls')):
             df = pd.read_excel(io.BytesIO(contents))
         else:
             raise HTTPException(status_code=400, detail="File must be CSV or Excel (.xlsx, .xls)")
 
+        # Strip whitespace from column names (common CSV issue)
+        df.columns = df.columns.str.strip()
+
         # Validate required columns
         required_columns = ['nit', 'nombre_importador', 'representante_legal',
                           'cedula_representante', 'ciudad_domicilio', 'cupo_plataforma']
 
+        logger.info(f"CSV columns found: {list(df.columns)}")
+
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
+            logger.error(f"Missing columns: {missing_columns}. Found: {list(df.columns)}")
             raise HTTPException(
                 status_code=400,
-                detail=f"Missing required columns: {', '.join(missing_columns)}"
+                detail=f"Missing required columns: {', '.join(missing_columns)}. Found columns: {', '.join(df.columns)}"
             )
 
         # Convert to list of dicts
@@ -189,6 +221,7 @@ async def import_clients_csv(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Import failed with exception: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
 
 
@@ -202,7 +235,7 @@ async def generate_contract(
     """Generate a new asset guarantee contract"""
     try:
         # TODO: Get user_id from auth token
-        user_id = "00000000-0000-0000-0000-000000000000"
+        user_id = None  # NULL for now until auth is implemented
 
         contract = await service.generate_contract(request, user_id)
         return contract
@@ -212,38 +245,25 @@ async def generate_contract(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/contracts/{contract_id}", response_model=ContractGenerationDetail)
-async def get_contract(
-    contract_id: str,
+# IMPORTANT: Specific routes must come BEFORE parameterized routes
+# Otherwise FastAPI will match "stats" as a contract_id parameter
+
+@router.get("/contracts/stats", response_model=ContractStats)
+async def get_contract_stats(
     service: ContractService = Depends(get_contract_service)
 ):
-    """Get contract details by ID"""
-    contract = await service.get_contract_details(contract_id)
-    if not contract:
-        raise HTTPException(status_code=404, detail="Contract not found")
-    return contract
-
-
-@router.post("/contracts/{contract_id}/review", response_model=ContractReviewResponse)
-async def review_contract(
-    contract_id: str,
-    review: ContractReviewRequest,
-    service: ContractService = Depends(get_contract_service)
-):
-    """Review a contract (approve or reject)"""
+    """Get contract generation statistics"""
     try:
-        # TODO: Get user_id from auth token (must be Legal role)
-        reviewer_id = "00000000-0000-0000-0000-000000000000"
-
-        contract = await service.review_contract(
-            contract_id=contract_id,
-            action=review.action,
-            reviewer_id=reviewer_id,
-            notes=review.notes
+        stats = await service.get_contract_stats()
+        return ContractStats(
+            total_generated=stats.get('total_generated', 0),
+            pending_review=stats.get('pending_review', 0),
+            approved=stats.get('approved', 0),
+            rejected=stats.get('rejected', 0),
+            generated_today=stats.get('generated_today', 0),
+            generated_this_week=0,  # TODO: Calculate
+            generated_this_month=0   # TODO: Calculate
         )
-        return contract
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -255,6 +275,22 @@ async def get_pending_reviews(
     """Get all contracts pending legal review"""
     try:
         contracts = await service.get_pending_reviews()
+        return contracts
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/contracts/approved", response_model=List[ContractGenerationDetail])
+async def get_approved_contracts(
+    contract_repo: ContractRepository = Depends(get_contract_repo)
+):
+    """
+    Get all approved contracts for Operations team
+
+    Returns contracts with approved status and document URLs for download
+    """
+    try:
+        contracts = await contract_repo.get_approved_contracts()
         return contracts
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -289,35 +325,51 @@ async def get_contract_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/contracts/stats", response_model=ContractStats)
-async def get_contract_stats(
+@router.get("/contracts/{contract_id}", response_model=ContractGenerationDetail)
+async def get_contract(
+    contract_id: UUID = Path(..., description="Contract UUID"),
     service: ContractService = Depends(get_contract_service)
 ):
-    """Get contract generation statistics"""
-    try:
-        stats = await service.get_contract_stats()
-        return ContractStats(
-            total_generated=stats.get('total_generated', 0),
-            pending_review=stats.get('pending_review', 0),
-            approved=stats.get('approved', 0),
-            rejected=stats.get('rejected', 0),
-            generated_today=stats.get('generated_today', 0),
-            generated_this_week=0,  # TODO: Calculate
-            generated_this_month=0   # TODO: Calculate
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Get contract details by ID"""
+    contract = await service.get_contract_details(str(contract_id))
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    return contract
 
 
 @router.get("/contracts/{contract_id}/preview")
 async def preview_contract(
-    contract_id: str,
+    contract_id: UUID = Path(..., description="Contract UUID"),
     service: ContractService = Depends(get_contract_service)
 ):
     """Get populated contract content for preview"""
     try:
-        content = await service.populate_template(contract_id)
+        content = await service.populate_template(str(contract_id))
         return {"content": content}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/contracts/{contract_id}/review", response_model=ContractReviewResponse)
+async def review_contract(
+    contract_id: UUID = Path(..., description="Contract UUID"),
+    review: ContractReviewRequest = None,
+    service: ContractService = Depends(get_contract_service)
+):
+    """Review a contract (approve or reject)"""
+    try:
+        # TODO: Get user_id from auth token (must be Legal role)
+        reviewer_id = None  # NULL for now until auth is implemented
+
+        contract = await service.review_contract(
+            contract_id=str(contract_id),
+            action=review.action,
+            reviewer_id=reviewer_id,
+            notes=review.notes
+        )
+        return contract
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -341,7 +393,7 @@ async def get_active_template(
 
 @router.get("/contracts/{contract_id}/download/docx")
 async def download_contract_docx(
-    contract_id: str,
+    contract_id: UUID = Path(..., description="Contract UUID"),
     service: ContractService = Depends(get_contract_service)
 ):
     """
@@ -355,10 +407,10 @@ async def download_contract_docx(
     """
     try:
         # Generate document
-        docx_bytes = await service.generate_contract_document(contract_id)
+        docx_bytes = await service.generate_contract_document(str(contract_id))
 
         # Get contract details for filename
-        contract = await service.get_contract_details(contract_id)
+        contract = await service.get_contract_details(str(contract_id))
         filename = f"{contract['contract_id']}.docx"
 
         # Return as streaming response
@@ -377,7 +429,7 @@ async def download_contract_docx(
 
 @router.get("/contracts/{contract_id}/download/pdf")
 async def download_contract_pdf(
-    contract_id: str,
+    contract_id: UUID = Path(..., description="Contract UUID"),
     service: ContractService = Depends(get_contract_service)
 ):
     """
@@ -391,10 +443,10 @@ async def download_contract_pdf(
     """
     try:
         # Generate PDF
-        pdf_bytes = await service.generate_contract_pdf(contract_id)
+        pdf_bytes = await service.generate_contract_pdf(str(contract_id))
 
         # Get contract details for filename
-        contract = await service.get_contract_details(contract_id)
+        contract = await service.get_contract_details(str(contract_id))
         filename = f"{contract['contract_id']}.pdf"
 
         # Return as streaming response

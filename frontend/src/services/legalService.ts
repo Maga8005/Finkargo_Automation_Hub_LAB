@@ -99,6 +99,14 @@ export const legalService = {
   },
 
   /**
+   * Get approved contracts for Operations
+   */
+  getApprovedContracts: async (): Promise<ContractGeneration[]> => {
+    const response = await apiClient.get<ContractGeneration[]>('/legal/contracts/approved');
+    return response.data;
+  },
+
+  /**
    * Get contract history with filters
    */
   getContractHistory: async (filters?: {

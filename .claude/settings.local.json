@@ -12,7 +12,13 @@
       "Bash(./venv/Scripts/python:*)",
       "Bash(npm run dev:*)",
       "Bash(dir:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(findstr:*)",
+      "Bash(pip install:*)",
+      "Bash(.venvScriptspython -m uvicorn main:app --reload --host 0.0.0.0 --port 8000)",
+      "Bash(.venv/Scripts/python:*)",
+      "Bash(git commit:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

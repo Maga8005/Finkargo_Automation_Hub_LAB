@@ -9,6 +9,7 @@ import FKMainLayout from './components/ui/FKMainLayout';
 import HomePage from './pages/HomePage';
 import DepartmentPage from './pages/DepartmentPage';
 import LegalDashboard from './pages/legal/LegalDashboard';
+import OperationsDashboard from './pages/operations/OperationsDashboard';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
           <Route path="/" element={<FKMainLayout />}>
             <Route index element={<HomePage />} />
             <Route path="department/legal" element={<LegalDashboard />} />
+            <Route path="department/operations" element={<OperationsDashboard />} />
             <Route path="department/:departmentId" element={<DepartmentPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

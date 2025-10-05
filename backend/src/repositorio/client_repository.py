@@ -25,13 +25,15 @@ class ClientRepository:
 
         Args:
             client_data: Client data to create
-            user_id: ID of user creating the record
+            user_id: ID of user creating the record (optional)
 
         Returns:
             dict: Created client record
         """
         data = client_data.model_dump()
-        data['imported_by'] = user_id
+        # Only set imported_by if user_id is provided
+        if user_id:
+            data['imported_by'] = user_id
 
         response = self.db.table('clients').insert(data).execute()
         return response.data[0] if response.data else None
@@ -149,7 +151,10 @@ class ClientRepository:
 
         for client in clients:
             try:
-                client['imported_by'] = user_id
+                # Only set imported_by if user_id is provided
+                if user_id:
+                    client['imported_by'] = user_id
+                # Otherwise, don't include the field at all to avoid NULL constraint issues
 
                 # Try to upsert (insert or update on conflict)
                 response = self.db.table('clients')\
@@ -164,7 +169,12 @@ class ClientRepository:
 
             except Exception as e:
                 failed += 1
-                errors.append(f"Error importing NIT {client.get('nit', 'unknown')}: {str(e)}")
+                error_msg = str(e)
+                # Extract just the relevant part of the error
+                if 'violates foreign key constraint' in error_msg:
+                    errors.append(f"Error importing NIT {client.get('nit', 'unknown')}: Authentication required")
+                else:
+                    errors.append(f"Error importing NIT {client.get('nit', 'unknown')}: {error_msg}")
 
         return {
             'total': len(clients),

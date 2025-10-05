@@ -103,6 +103,7 @@ class ContractGenerationResponse(BaseModel):
     status: ContractStatus
     generated_at: datetime
     pdf_url: Optional[str] = None
+    approved_document_url: Optional[str] = None
     data_snapshot: Dict[str, Any]
 
     class Config:
@@ -115,12 +116,13 @@ class ContractGenerationDetail(BaseModel):
     contract_id: str
     client_nit: str
     status: ContractStatus
-    generated_by: str
+    generated_by: Optional[str] = None  # Nullable until auth is implemented
     generated_at: datetime
     reviewed_by: Optional[str] = None
     reviewed_at: Optional[datetime] = None
     review_notes: Optional[str] = None
     pdf_url: Optional[str] = None
+    approved_document_url: Optional[str] = None
     template_version: str
     data_snapshot: Dict[str, Any]
     created_at: datetime
@@ -148,8 +150,8 @@ class ContractReviewResponse(BaseModel):
     """Response after contract review"""
     contract_id: str
     status: ContractStatus
-    reviewed_by: str
-    reviewed_at: datetime
+    reviewed_by: Optional[str] = None  # Nullable until auth is implemented
+    reviewed_at: Optional[datetime] = None  # Nullable until auth is implemented
     review_notes: Optional[str] = None
 
     class Config:

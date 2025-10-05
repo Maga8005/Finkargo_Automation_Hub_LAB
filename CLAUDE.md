@@ -548,3 +548,4 @@ When using this template:
 7. **Documentation**: Document all deployment steps in session notes with date-first naming
 
 This template is battle-tested and production-ready. Follow it closely for a smooth development and deployment experience.
+- add logging to debug errors

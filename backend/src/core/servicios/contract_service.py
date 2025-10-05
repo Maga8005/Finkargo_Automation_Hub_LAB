@@ -112,6 +112,8 @@ class ContractService:
         """
         Review a contract (approve or reject)
 
+        When approved, generates PDF and uploads to Supabase Storage for Operations.
+
         Args:
             contract_id: Contract UUID
             action: approve or reject
@@ -136,12 +138,38 @@ class ContractService:
         # Determine new status
         new_status = ContractStatus.APPROVED if action == ContractReviewAction.APPROVE else ContractStatus.REJECTED
 
+        # If approved, generate and upload PDF for Operations
+        approved_document_url = None
+        if action == ContractReviewAction.APPROVE:
+            try:
+                # Generate DOCX document
+                docx_bytes = self.document_service.generate_contract_document(
+                    contract_data=contract
+                )
+
+                # Convert to PDF
+                pdf_bytes = self.document_service.convert_to_pdf(docx_bytes)
+
+                # Upload to Supabase Storage
+                approved_document_url = self.document_service.upload_to_storage(
+                    pdf_bytes=pdf_bytes,
+                    contract_id=contract['id']
+                )
+
+            except Exception as e:
+                # Log error but don't fail approval if upload fails
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to upload approved contract PDF: {e}")
+                # Continue with approval but without document URL
+
         # Update contract
         updated_contract = await self.contract_repo.update_status(
             contract_id=contract_id,
             status=new_status,
             reviewed_by=reviewer_id,
-            review_notes=notes
+            review_notes=notes,
+            approved_document_url=approved_document_url
         )
 
         return updated_contract

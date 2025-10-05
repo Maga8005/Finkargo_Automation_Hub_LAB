@@ -84,7 +84,8 @@ class ContractRepository:
         contract_id: str,
         status: ContractStatus,
         reviewed_by: Optional[str] = None,
-        review_notes: Optional[str] = None
+        review_notes: Optional[str] = None,
+        approved_document_url: Optional[str] = None
     ) -> Optional[dict]:
         """
         Update contract status (for review workflow)
@@ -94,6 +95,7 @@ class ContractRepository:
             status: New status
             reviewed_by: User ID of reviewer
             review_notes: Review notes/comments
+            approved_document_url: Supabase Storage URL for approved PDF
 
         Returns:
             Optional[dict]: Updated contract record
@@ -109,6 +111,9 @@ class ContractRepository:
 
         if review_notes:
             update_data['review_notes'] = review_notes
+
+        if approved_document_url:
+            update_data['approved_document_url'] = approved_document_url
 
         response = self.db.table('contract_generations')\
             .update(update_data)\
@@ -150,6 +155,21 @@ class ContractRepository:
             .select('*')\
             .eq('status', 'under_review')\
             .order('generated_at', desc=True)\
+            .execute()
+
+        return response.data if response.data else []
+
+    async def get_approved_contracts(self) -> List[dict]:
+        """
+        Get all approved contracts with document URLs for Operations team
+
+        Returns:
+            List[dict]: Approved contracts with document URLs
+        """
+        response = self.db.table('contract_generations')\
+            .select('*')\
+            .eq('status', 'approved')\
+            .order('reviewed_at', desc=True)\
             .execute()
 
         return response.data if response.data else []
