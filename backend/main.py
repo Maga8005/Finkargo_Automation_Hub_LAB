@@ -4,6 +4,7 @@ Finkargo Automation Hub - FastAPI Backend Entry Point
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.config.settings import get_settings
+from src.adapter.rest import legal_routes
 import json
 
 settings = get_settings()
@@ -13,6 +14,9 @@ app = FastAPI(
     description="Automation Hub for Finkargo Internal Processes",
     version="1.0.0"
 )
+
+# Include routers
+app.include_router(legal_routes.router)
 
 # Parse CORS origins from JSON string
 cors_origins = json.loads(settings.CORS_ORIGINS) if isinstance(settings.CORS_ORIGINS, str) else settings.CORS_ORIGINS

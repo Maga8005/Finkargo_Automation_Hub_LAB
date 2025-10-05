@@ -1,0 +1,322 @@
+"""
+Document Generation Service for Legal Contracts
+Handles Word template population and PDF conversion
+"""
+from docx import Document
+from docx.shared import Pt, RGBColor
+from datetime import datetime
+from typing import Dict, Any, Optional
+import os
+import tempfile
+from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class DocumentService:
+    """Service for generating contract documents from templates"""
+
+    def __init__(self, template_dir: str = None):
+        """
+        Initialize DocumentService
+
+        Args:
+            template_dir: Directory containing Word templates
+        """
+        if template_dir is None:
+            template_dir = Path(__file__).parent.parent.parent.parent / "templates"
+        self.template_dir = Path(template_dir)
+
+    def generate_contract_document(
+        self,
+        contract_data: Dict[str, Any],
+        template_name: str = "FK COL - GM - Activos.docx"
+    ) -> bytes:
+        """
+        Generate contract document from template and data
+
+        Args:
+            contract_data: Dictionary containing all contract data including client info
+            template_name: Name of the Word template file
+
+        Returns:
+            bytes: Generated DOCX file content
+        """
+        template_path = self.template_dir / template_name
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"Template not found: {template_path}")
+
+        # Load template
+        doc = Document(str(template_path))
+
+        # Prepare replacement data
+        replacements = self._prepare_replacements(contract_data)
+
+        # Replace placeholders in paragraphs
+        for para in doc.paragraphs:
+            self._replace_in_paragraph(para, replacements)
+
+        # Replace placeholders in tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        self._replace_in_paragraph(para, replacements)
+
+        # Save to temporary file and read bytes
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp:
+            tmp_path = tmp.name
+
+        # Save document
+        doc.save(tmp_path)
+
+        # Read bytes
+        with open(tmp_path, 'rb') as f:
+            content = f.read()
+
+        # Clean up
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass  # Ignore cleanup errors on Windows
+
+        return content
+
+    def _prepare_replacements(self, contract_data: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Prepare replacement dictionary from contract data
+
+        Args:
+            contract_data: Raw contract data from database
+
+        Returns:
+            Dictionary mapping placeholders to replacement values
+        """
+        # Extract data_snapshot
+        snapshot = contract_data.get('data_snapshot', {})
+
+        # Get current date info
+        now = datetime.now()
+        generation_date = contract_data.get('generated_at', now)
+        if isinstance(generation_date, str):
+            generation_date = datetime.fromisoformat(generation_date.replace('Z', '+00:00'))
+
+        # Format currency
+        cupo_plataforma = float(snapshot.get('cupo_plataforma', 0))
+        cupo_formatted = f"${cupo_plataforma:,.0f}".replace(',', '.')
+        cupo_letras = self._number_to_words_spanish(cupo_plataforma)
+
+        # Build replacements dictionary
+        replacements = {
+            # Date fields
+            '[día]': str(generation_date.day),
+            '[mes]': self._get_month_name_spanish(generation_date.month),
+            '[año]': str(generation_date.year),
+            '[•]': str(generation_date.day),  # Additional date placeholder
+
+            # Client information
+            '[NOMBRE DEL CLIENTE]': snapshot.get('nombre_importador', ''),
+            '[Nombre del representante legal]': snapshot.get('representante_legal', ''),
+            '[nombre del representante legal]': snapshot.get('representante_legal', ''),
+            '[tipo de identificación]': 'C.C.',  # Default to Colombian ID
+            '[número de identificación]': snapshot.get('cedula_representante', ''),
+
+            # Location
+            '[nombre de la ciudad]': snapshot.get('ciudad_domicilio', ''),
+            '[Domicilio en que el Importador adelanta sus actividades comerciales]':
+                snapshot.get('ciudad_domicilio', ''),
+
+            # Financial information
+            '[valor Cupo de Operaciones en números]': cupo_formatted,
+            '[valor Cupo de Operaciones en letras]': cupo_letras,
+            '[valor en números]': cupo_formatted,
+            '[valor en letras]': cupo_letras,
+
+            # Contract information
+            '[nombre del contrato marco]': 'Contrato Marco de Servicios Logísticos',
+
+            # Contact information (placeholders - should be configured)
+            '[nombre del KAM]': 'Key Account Manager',
+            '[e-mail]': snapshot.get('email', 'legal@finkargo.com'),
+            '[nombre del destinatario]': 'Departamento Legal',
+
+            # Document ID
+            '[sic]': contract_data.get('contract_id', ''),
+        }
+
+        return replacements
+
+    def _replace_in_paragraph(self, paragraph, replacements: Dict[str, str]):
+        """
+        Replace placeholders in a paragraph while preserving formatting
+
+        Args:
+            paragraph: python-docx Paragraph object
+            replacements: Dictionary of placeholder -> value mappings
+        """
+        # Get full text
+        full_text = paragraph.text
+
+        # Check if any replacements are needed
+        needs_replacement = any(placeholder in full_text for placeholder in replacements.keys())
+
+        if not needs_replacement:
+            return
+
+        # Perform replacements
+        for placeholder, value in replacements.items():
+            if placeholder in full_text:
+                full_text = full_text.replace(placeholder, value)
+
+        # Clear existing runs and add new text
+        # This approach preserves paragraph formatting but not run-level formatting
+        for run in paragraph.runs:
+            run.text = ''
+
+        if paragraph.runs:
+            paragraph.runs[0].text = full_text
+        else:
+            paragraph.add_run(full_text)
+
+    def _get_month_name_spanish(self, month: int) -> str:
+        """Get Spanish month name"""
+        months = {
+            1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril',
+            5: 'mayo', 6: 'junio', 7: 'julio', 8: 'agosto',
+            9: 'septiembre', 10: 'octubre', 11: 'noviembre', 12: 'diciembre'
+        }
+        return months.get(month, '')
+
+    def _number_to_words_spanish(self, number: float) -> str:
+        """
+        Convert number to Spanish words (simplified version for large amounts)
+
+        Args:
+            number: Amount to convert
+
+        Returns:
+            String representation in Spanish words
+        """
+        # For MVP, use a simplified conversion
+        # TODO: Implement full number-to-words conversion library
+
+        try:
+            amount = int(number)
+
+            if amount == 0:
+                return "cero pesos"
+
+            # Simplified for millions (common range for contracts)
+            millions = amount // 1000000
+            remainder = amount % 1000000
+            thousands = remainder // 1000
+            units = remainder % 1000
+
+            parts = []
+
+            if millions > 0:
+                if millions == 1:
+                    parts.append("un millón")
+                else:
+                    parts.append(f"{self._simple_number_to_words(millions)} millones")
+
+            if thousands > 0:
+                parts.append(f"{self._simple_number_to_words(thousands)} mil")
+
+            if units > 0:
+                parts.append(self._simple_number_to_words(units))
+
+            result = " ".join(parts) + " pesos"
+            return result.upper()
+
+        except Exception as e:
+            logger.error(f"Error converting number to words: {e}")
+            return f"{number:,.0f} PESOS"
+
+    def _simple_number_to_words(self, n: int) -> str:
+        """
+        Simple number to words conversion (1-999)
+        """
+        if n == 0:
+            return ""
+        if n == 1:
+            return "uno"
+        if n <= 20:
+            ones = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve",
+                   "diez", "once", "doce", "trece", "catorce", "quince", "dieciséis",
+                   "diecisiete", "dieciocho", "diecinueve", "veinte"]
+            return ones[n]
+
+        # For larger numbers, use simplified format
+        hundreds = n // 100
+        remainder = n % 100
+
+        result = ""
+        if hundreds > 0:
+            if hundreds == 1:
+                result = "cien" if remainder == 0 else "ciento"
+            else:
+                hundreds_names = ["", "ciento", "doscientos", "trescientos", "cuatrocientos",
+                                 "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"]
+                result = hundreds_names[hundreds]
+
+        if remainder > 0:
+            if result:
+                result += " "
+            if remainder <= 20:
+                ones = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve",
+                       "diez", "once", "doce", "trece", "catorce", "quince", "dieciséis",
+                       "diecisiete", "dieciocho", "diecinueve", "veinte"]
+                result += ones[remainder]
+            else:
+                tens = remainder // 10
+                units = remainder % 10
+                tens_names = ["", "", "veinte", "treinta", "cuarenta", "cincuenta",
+                             "sesenta", "setenta", "ochenta", "noventa"]
+                result += tens_names[tens]
+                if units > 0:
+                    ones = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"]
+                    result += " y " + ones[units]
+
+        return result
+
+    def convert_to_pdf(self, docx_bytes: bytes) -> bytes:
+        """
+        Convert DOCX to PDF
+
+        Args:
+            docx_bytes: DOCX file content as bytes
+
+        Returns:
+            PDF file content as bytes
+        """
+        try:
+            from docx2pdf import convert
+
+            # Save DOCX to temp file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as docx_tmp:
+                docx_tmp.write(docx_bytes)
+                docx_path = docx_tmp.name
+
+            # Generate PDF path
+            pdf_path = docx_path.replace('.docx', '.pdf')
+
+            # Convert using docx2pdf (requires MS Word on Windows)
+            convert(docx_path, pdf_path)
+
+            # Read PDF bytes
+            with open(pdf_path, 'rb') as pdf_file:
+                pdf_bytes = pdf_file.read()
+
+            # Cleanup
+            os.unlink(docx_path)
+            os.unlink(pdf_path)
+
+            return pdf_bytes
+
+        except Exception as e:
+            logger.error(f"Error converting to PDF: {e}")
+            # If PDF conversion fails, we can still provide the DOCX
+            raise RuntimeError(f"PDF conversion failed: {str(e)}")
