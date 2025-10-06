@@ -19,23 +19,33 @@ const apiClient: AxiosInstance = axios.create({
 
 // Cache session in memory to avoid repeated getSession() calls
 let cachedSession: any = null;
-let sessionCacheTime = 0;
-const CACHE_DURATION = 5000; // 5 seconds
+
+// Initialize session cache immediately
+(async () => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    cachedSession = session;
+    console.log('[apiClient] Initial session loaded:', session ? 'Has token' : 'No session');
+  } catch (error) {
+    console.error('[apiClient] Error loading initial session:', error);
+  }
+})();
 
 // Update cache when auth state changes
 supabase.auth.onAuthStateChange((_event, session) => {
+  console.log('[apiClient] Auth state changed:', _event, session ? 'Has token' : 'No session');
   cachedSession = session;
-  sessionCacheTime = Date.now();
 });
 
 // Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
-    // Use cached session if available and recent
-    const isCacheValid = cachedSession && (Date.now() - sessionCacheTime < CACHE_DURATION);
-
-    if (isCacheValid && cachedSession?.access_token) {
+    // Always use cached session (no time limit)
+    if (cachedSession?.access_token) {
       config.headers.Authorization = `Bearer ${cachedSession.access_token}`;
+      console.log('[apiClient] Request with auth token to:', config.url);
+    } else {
+      console.warn('[apiClient] Request WITHOUT auth token to:', config.url);
     }
 
     return config;

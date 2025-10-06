@@ -14,6 +14,7 @@ from src.repositorio.contract_repository import ContractRepository
 from src.repositorio.template_repository import TemplateRepository
 from src.core.servicios.contract_service import ContractService
 from src.core.servicios.document_service import DocumentService
+from src.adapter.rest.rbac_dependencies import require_operations_role
 from src.interface.legal_dtos import (
     ContractGenerationRequest,
     ContractGenerationResponse,
@@ -58,16 +59,17 @@ def get_contract_service(
 @router.post("/contracts/generate", response_model=ContractGenerationResponse, status_code=status.HTTP_201_CREATED)
 async def request_contract_generation(
     request: ContractGenerationRequest,
-    service: ContractService = Depends(get_contract_service)
+    service: ContractService = Depends(get_contract_service),
+    current_user: dict = Depends(require_operations_role)
 ):
     """
-    Request a new contract generation (Operations initiates)
+    Request a new contract generation (Operations role or Admin required)
 
     This creates a contract in UNDER_REVIEW status for Legal to approve.
     """
     try:
-        # TODO: Get user_id from auth token
-        user_id = None  # NULL for now until auth is implemented
+        # Get user_id from authenticated user (dict)
+        user_id = current_user['id']
 
         contract = await service.generate_contract(request, user_id)
         return contract
@@ -79,10 +81,11 @@ async def request_contract_generation(
 
 @router.get("/contracts/approved", response_model=List[ContractGenerationDetail])
 async def get_approved_contracts(
-    contract_repo: ContractRepository = Depends(get_contract_repo)
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    current_user: dict = Depends(require_operations_role)
 ):
     """
-    Get all approved contracts for Operations team
+    Get all approved contracts for Operations team (Operations role or Admin required)
 
     Returns contracts with approved status and document URLs for download
     """
@@ -96,9 +99,10 @@ async def get_approved_contracts(
 @router.get("/contracts/{contract_id}", response_model=ContractGenerationDetail)
 async def get_contract_details(
     contract_id: UUID = Path(..., description="Contract UUID"),
-    service: ContractService = Depends(get_contract_service)
+    service: ContractService = Depends(get_contract_service),
+    current_user: dict = Depends(require_operations_role)
 ):
-    """Get contract details by ID"""
+    """Get contract details by ID (Operations role or Admin required)"""
     contract = await service.get_contract_details(str(contract_id))
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")
@@ -108,10 +112,11 @@ async def get_contract_details(
 @router.get("/contracts/{contract_id}/download/pdf")
 async def download_approved_contract_pdf(
     contract_id: UUID = Path(..., description="Contract UUID"),
-    contract_repo: ContractRepository = Depends(get_contract_repo)
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    current_user: dict = Depends(require_operations_role)
 ):
     """
-    Download approved contract PDF from storage
+    Download approved contract PDF from storage (Operations role or Admin required)
 
     Args:
         contract_id: Contract UUID

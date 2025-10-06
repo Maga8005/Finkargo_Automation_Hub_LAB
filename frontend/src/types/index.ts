@@ -55,6 +55,8 @@ export interface User {
 
 export enum UserRole {
   ADMIN = 'admin',
+  LEGAL = 'legal',
+  OPERATIONS = 'operations',
   COMMERCIAL = 'commercial',
   ANALYST = 'analyst',
   MESA_CONTROL = 'mesa_control',

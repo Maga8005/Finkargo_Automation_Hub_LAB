@@ -18,6 +18,7 @@ from src.repositorio.contract_repository import ContractRepository
 from src.repositorio.template_repository import TemplateRepository
 from src.core.servicios.contract_service import ContractService
 from src.core.servicios.document_service import DocumentService
+from src.adapter.rest.rbac_dependencies import require_legal_role
 from src.interface.legal_dtos import (
     ClientCreate,
     ClientResponse,
@@ -73,12 +74,13 @@ def get_contract_service(
 @router.post("/clients", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
 async def create_client(
     client_data: ClientCreate,
-    client_repo: ClientRepository = Depends(get_client_repo)
+    client_repo: ClientRepository = Depends(get_client_repo),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Create a new client"""
+    """Create a new client (Legal role or Admin required)"""
     try:
-        # TODO: Get user_id from auth token
-        user_id = None  # NULL for now until auth is implemented
+        # Get user_id from authenticated user (dict)
+        user_id = current_user['id']
 
         client = await client_repo.create(client_data, user_id)
         return client
@@ -92,9 +94,10 @@ async def search_clients(
     nit: Optional[str] = None,
     nombre: Optional[str] = None,
     is_active: Optional[bool] = True,
-    client_repo: ClientRepository = Depends(get_client_repo)
+    client_repo: ClientRepository = Depends(get_client_repo),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Search clients by NIT or name"""
+    """Search clients by NIT or name (Legal role or Admin required)"""
     try:
         search_params = ClientSearchRequest(
             query=query,
@@ -111,9 +114,10 @@ async def search_clients(
 @router.get("/clients/{nit}", response_model=ClientResponse)
 async def get_client_by_nit(
     nit: str,
-    client_repo: ClientRepository = Depends(get_client_repo)
+    client_repo: ClientRepository = Depends(get_client_repo),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Get client by NIT"""
+    """Get client by NIT (Legal role or Admin required)"""
     client = await client_repo.get_by_nit(nit)
     if not client:
         raise HTTPException(status_code=404, detail=f"Client with NIT {nit} not found")
@@ -124,9 +128,10 @@ async def get_client_by_nit(
 async def update_client(
     client_id: str,
     client_data: ClientUpdate,
-    client_repo: ClientRepository = Depends(get_client_repo)
+    client_repo: ClientRepository = Depends(get_client_repo),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Update client data"""
+    """Update client data (Legal role or Admin required)"""
     try:
         client = await client_repo.update(client_id, client_data)
         if not client:
@@ -139,16 +144,17 @@ async def update_client(
 @router.post("/clients/import", response_model=BulkImportResult)
 async def import_clients_csv(
     file: UploadFile = File(...),
-    client_repo: ClientRepository = Depends(get_client_repo)
+    client_repo: ClientRepository = Depends(get_client_repo),
+    current_user: dict = Depends(require_legal_role)
 ):
     """
-    Import clients from CSV or Excel file
+    Import clients from CSV or Excel file (Legal role or Admin required)
 
     Expected columns: nit, nombre_importador, representante_legal, cedula_representante, ciudad_domicilio, cupo_plataforma
     """
     try:
-        # TODO: Get user_id from auth token
-        user_id = None  # NULL for now until auth is implemented
+        # Get user_id from authenticated user (dict)
+        user_id = current_user['id']
 
         # Read file
         contents = await file.read()
@@ -240,9 +246,10 @@ async def import_clients_csv(
 
 @router.get("/contracts/stats", response_model=ContractStats)
 async def get_contract_stats(
-    service: ContractService = Depends(get_contract_service)
+    service: ContractService = Depends(get_contract_service),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Get contract generation statistics"""
+    """Get contract generation statistics (Legal role or Admin required)"""
     try:
         stats = await service.get_contract_stats()
         return ContractStats(
@@ -260,9 +267,10 @@ async def get_contract_stats(
 
 @router.get("/contracts/pending-review", response_model=List[ContractGenerationDetail])
 async def get_pending_reviews(
-    service: ContractService = Depends(get_contract_service)
+    service: ContractService = Depends(get_contract_service),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Get all contracts pending legal review"""
+    """Get all contracts pending legal review (Legal role or Admin required)"""
     try:
         contracts = await service.get_pending_reviews()
         return contracts
@@ -280,9 +288,10 @@ async def get_contract_history(
     date_to: Optional[datetime] = None,
     limit: int = 50,
     offset: int = 0,
-    contract_repo: ContractRepository = Depends(get_contract_repo)
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Get contract generation history with filters"""
+    """Get contract generation history with filters (Legal role or Admin required)"""
     try:
         from src.interface.legal_dtos import ContractStatus as StatusEnum
 
@@ -304,9 +313,10 @@ async def get_contract_history(
 @router.get("/contracts/{contract_id}", response_model=ContractGenerationDetail)
 async def get_contract(
     contract_id: UUID = Path(..., description="Contract UUID"),
-    service: ContractService = Depends(get_contract_service)
+    service: ContractService = Depends(get_contract_service),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Get contract details by ID"""
+    """Get contract details by ID (Legal role or Admin required)"""
     contract = await service.get_contract_details(str(contract_id))
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")
@@ -316,9 +326,10 @@ async def get_contract(
 @router.get("/contracts/{contract_id}/preview")
 async def preview_contract(
     contract_id: UUID = Path(..., description="Contract UUID"),
-    service: ContractService = Depends(get_contract_service)
+    service: ContractService = Depends(get_contract_service),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Get populated contract content for preview"""
+    """Get populated contract content for preview (Legal role or Admin required)"""
     try:
         content = await service.populate_template(str(contract_id))
         return {"content": content}
@@ -332,13 +343,13 @@ async def preview_contract(
 async def review_contract(
     contract_id: UUID = Path(..., description="Contract UUID"),
     review: ContractReviewRequest = None,
-    service: ContractService = Depends(get_contract_service)
+    service: ContractService = Depends(get_contract_service),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Review a contract (approve or reject)"""
+    """Review a contract (approve or reject) - Legal role or Admin required"""
     try:
-        # Get user_id from auth token (optional for now - will work without auth too)
-        # TODO: Add dependency get_current_user when ready to require auth
-        reviewer_id = None  # Will be populated from auth token later
+        # Get user_id from authenticated user (dict)
+        reviewer_id = current_user['id']
 
         contract = await service.review_contract(
             contract_id=str(contract_id),
@@ -357,9 +368,10 @@ async def review_contract(
 
 @router.get("/templates/active")
 async def get_active_template(
-    template_repo: TemplateRepository = Depends(get_template_repo)
+    template_repo: TemplateRepository = Depends(get_template_repo),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Get active contract template"""
+    """Get active contract template (Legal role or Admin required)"""
     template = await template_repo.get_active_template('activos')
     if not template:
         raise HTTPException(status_code=404, detail="No active template found")
@@ -371,10 +383,11 @@ async def get_active_template(
 @router.get("/contracts/{contract_id}/download/docx")
 async def download_contract_docx(
     contract_id: UUID = Path(..., description="Contract UUID"),
-    service: ContractService = Depends(get_contract_service)
+    service: ContractService = Depends(get_contract_service),
+    current_user: dict = Depends(require_legal_role)
 ):
     """
-    Download contract as DOCX file
+    Download contract as DOCX file (Legal role or Admin required)
 
     Args:
         contract_id: Contract UUID
@@ -411,10 +424,11 @@ async def download_contract_docx(
 @router.get("/contracts/{contract_id}/download/pdf")
 async def download_contract_pdf(
     contract_id: UUID = Path(..., description="Contract UUID"),
-    service: ContractService = Depends(get_contract_service)
+    service: ContractService = Depends(get_contract_service),
+    current_user: dict = Depends(require_legal_role)
 ):
     """
-    Download contract as PDF file
+    Download contract as PDF file (Legal role or Admin required)
 
     Args:
         contract_id: Contract UUID

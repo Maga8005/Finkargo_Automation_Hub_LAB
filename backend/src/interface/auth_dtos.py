@@ -18,7 +18,7 @@ class UserRegisterDTO(BaseModel):
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=6, description="User password")
     full_name: str = Field(..., min_length=2, max_length=100, description="User full name")
-    role: str = Field(default="user", description="User role (admin, commercial, analyst, user)")
+    role: str = Field(default="user", description="User role (admin, legal, operations, commercial, analyst, mesa_control, manager, user)")
 
 
 class TokenResponseDTO(BaseModel):
