@@ -8,7 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 import io
 
-from src.config.supabase_client import get_supabase_client
+from src.config.supabase_config import get_supabase_client
 from src.repositorio.client_repository import ClientRepository
 from src.repositorio.contract_repository import ContractRepository
 from src.repositorio.template_repository import TemplateRepository
@@ -25,21 +25,21 @@ router = APIRouter(prefix="/api/operations", tags=["Operations"])
 
 # Dependency to get repositories
 def get_client_repo():
-    """Get client repository"""
-    db = get_supabase_client()
-    return ClientRepository(db)
+    """Get client repository with admin client (bypasses RLS)"""
+    supabase = get_supabase_client()
+    return ClientRepository(supabase.admin_client)
 
 
 def get_contract_repo():
-    """Get contract repository"""
-    db = get_supabase_client()
-    return ContractRepository(db)
+    """Get contract repository with admin client (bypasses RLS)"""
+    supabase = get_supabase_client()
+    return ContractRepository(supabase.admin_client)
 
 
 def get_template_repo():
-    """Get template repository"""
-    db = get_supabase_client()
-    return TemplateRepository(db)
+    """Get template repository with admin client (bypasses RLS)"""
+    supabase = get_supabase_client()
+    return TemplateRepository(supabase.admin_client)
 
 
 def get_contract_service(
@@ -49,7 +49,7 @@ def get_contract_service(
 ):
     """Get contract service with document service"""
     supabase = get_supabase_client()
-    document_service = DocumentService(supabase_client=supabase)
+    document_service = DocumentService(supabase_client=supabase.admin_client)
     return ContractService(client_repo, contract_repo, template_repo, document_service)
 
 

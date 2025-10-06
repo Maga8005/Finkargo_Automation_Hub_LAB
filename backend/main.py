@@ -4,7 +4,7 @@ Finkargo Automation Hub - FastAPI Backend Entry Point
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.config.settings import get_settings
-from src.adapter.rest import legal_routes, operations_routes
+from src.adapter.rest import legal_routes, operations_routes, auth_routes
 import json
 
 settings = get_settings()
@@ -30,6 +30,7 @@ app.add_middleware(
 )
 
 # Include routers AFTER middleware
+app.include_router(auth_routes.router, prefix="/api")
 app.include_router(legal_routes.router)
 app.include_router(operations_routes.router)
 

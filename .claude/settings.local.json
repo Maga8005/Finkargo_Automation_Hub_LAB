@@ -24,7 +24,11 @@
       "Bash(curl:*)",
       "Bash(npx tsc:*)",
       "Bash(netstat:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(venvScriptspython:*)",
+      "Bash(git push:*)",
+      "Bash(git check-ignore:*)"
     ],
     "deny": [],
     "ask": []
