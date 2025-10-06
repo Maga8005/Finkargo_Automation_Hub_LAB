@@ -304,7 +304,7 @@ class ContractService:
             ValueError: If contract not found
             RuntimeError: If PDF conversion fails
         """
-        # First generate DOCX
+        # First generate DOCX from Word template
         docx_bytes = await self.generate_contract_document(contract_id)
 
         # Convert to PDF

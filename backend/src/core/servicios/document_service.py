@@ -11,6 +11,9 @@ import tempfile
 from pathlib import Path
 import logging
 from supabase import Client
+import fitz  # PyMuPDF
+import io
+from PyPDF2 import PdfReader, PdfWriter
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +89,103 @@ class DocumentService:
             pass  # Ignore cleanup errors on Windows
 
         return content
+
+    def generate_contract_pdf_from_template(
+        self,
+        contract_data: Dict[str, Any],
+        template_name: str = "FK COL - GM - Activos.pdf"
+    ) -> bytes:
+        """
+        Generate contract PDF directly from PDF template (preserves formatting and numbering)
+
+        Args:
+            contract_data: Dictionary containing all contract data including client info
+            template_name: Name of the PDF template file
+
+        Returns:
+            bytes: Generated PDF file content
+        """
+        template_path = self.template_dir / template_name
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"PDF template not found: {template_path}")
+
+        logger.info(f"Loading PDF template from: {template_path}")
+
+        # Open the PDF template
+        pdf_document = fitz.open(str(template_path))
+
+        # Prepare replacement data
+        replacements = self._prepare_replacements(contract_data)
+
+        logger.info(f"Replacing {len(replacements)} placeholders in PDF")
+
+        # Log sample replacements for debugging
+        sample_replacements = list(replacements.items())[:3]
+        logger.info(f"Sample replacements: {sample_replacements}")
+
+        # Track total replacements made
+        total_replacements = 0
+
+        # Iterate through all pages
+        for page_num in range(len(pdf_document)):
+            page = pdf_document[page_num]
+
+            # Get all text on the page for debugging
+            page_text = page.get_text()
+            logger.debug(f"Page {page_num + 1} contains {len(page_text)} characters")
+
+            # Replace each placeholder using text block replacement
+            for placeholder, value in replacements.items():
+                # Search for all instances of the placeholder
+                text_instances = page.search_for(placeholder)
+
+                if text_instances:
+                    logger.info(f"Found {len(text_instances)} instances of '{placeholder}' = '{value}' on page {page_num + 1}")
+                    total_replacements += len(text_instances)
+
+                    # Replace each instance
+                    for inst in text_instances:
+                        # Get the rectangle coordinates of the placeholder
+                        placeholder_rect = fitz.Rect(inst)
+
+                        # Calculate the width needed for the replacement text
+                        # Approximate: 1 character = 5.4 points at fontsize 9
+                        fontsize = 9
+                        char_width = fontsize * 0.6  # Approximate width per character
+                        text_width = len(value) * char_width
+
+                        # Create a larger rectangle to cover both placeholder and replacement
+                        # Use the maximum of placeholder width or text width, plus some padding
+                        cover_width = max(placeholder_rect.width, text_width) + 20  # Add 20 points padding
+
+                        cover_rect = fitz.Rect(
+                            placeholder_rect.x0,
+                            placeholder_rect.y0,
+                            placeholder_rect.x0 + cover_width,
+                            placeholder_rect.y1
+                        )
+
+                        # Draw white rectangle to cover the area
+                        page.draw_rect(cover_rect, color=(1, 1, 1), fill=(1, 1, 1))
+
+                        # Insert the replacement text at the original position
+                        page.insert_text(
+                            (placeholder_rect.x0, placeholder_rect.y1 - 2),  # Position at bottom-left
+                            value,
+                            fontsize=fontsize,
+                            color=(0, 0, 0)
+                        )
+
+        logger.info(f"Total replacements made: {total_replacements}")
+
+        # Save to bytes
+        pdf_bytes = pdf_document.tobytes()
+        pdf_document.close()
+
+        logger.info("PDF generation completed successfully")
+
+        return pdf_bytes
 
     def _prepare_replacements(self, contract_data: Dict[str, Any]) -> Dict[str, str]:
         """
