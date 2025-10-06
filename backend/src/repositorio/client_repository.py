@@ -5,6 +5,9 @@ from typing import List, Optional
 from supabase import Client
 from src.interface.legal_dtos import ClientCreate, ClientUpdate, ClientSearchRequest
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ClientRepository:
@@ -145,43 +148,49 @@ class ClientRepository:
         Returns:
             dict: Import results with counts
         """
-        successful = 0
-        failed = 0
-        errors = []
-
-        for client in clients:
-            try:
-                # Only set imported_by if user_id is provided
+        try:
+            # Add imported_by to all clients
+            for client in clients:
                 if user_id:
                     client['imported_by'] = user_id
-                # Otherwise, don't include the field at all to avoid NULL constraint issues
 
-                # Try to upsert (insert or update on conflict)
-                response = self.db.table('clients')\
-                    .upsert(client, on_conflict='nit')\
-                    .execute()
+            # Perform bulk upsert in a single operation
+            response = self.db.table('clients')\
+                .upsert(clients, on_conflict='nit')\
+                .execute()
 
-                if response.data:
-                    successful += 1
-                else:
-                    failed += 1
-                    errors.append(f"Failed to import NIT {client.get('nit', 'unknown')}")
+            if response.data:
+                successful = len(response.data)
+                failed = len(clients) - successful
+                errors = []
 
-            except Exception as e:
-                failed += 1
-                error_msg = str(e)
-                # Extract just the relevant part of the error
-                if 'violates foreign key constraint' in error_msg:
-                    errors.append(f"Error importing NIT {client.get('nit', 'unknown')}: Authentication required")
-                else:
-                    errors.append(f"Error importing NIT {client.get('nit', 'unknown')}: {error_msg}")
+                if failed > 0:
+                    errors.append(f"{failed} records failed to import")
 
-        return {
-            'total': len(clients),
-            'successful': successful,
-            'failed': failed,
-            'errors': errors
-        }
+                return {
+                    'total': len(clients),
+                    'successful': successful,
+                    'failed': failed,
+                    'errors': errors
+                }
+            else:
+                return {
+                    'total': len(clients),
+                    'successful': 0,
+                    'failed': len(clients),
+                    'errors': ['Bulk upsert returned no data']
+                }
+
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Bulk upsert failed: {error_msg}", exc_info=True)
+
+            return {
+                'total': len(clients),
+                'successful': 0,
+                'failed': len(clients),
+                'errors': [f"Bulk import failed: {error_msg}"]
+            }
 
     async def list_all(self, active_only: bool = True) -> List[dict]:
         """

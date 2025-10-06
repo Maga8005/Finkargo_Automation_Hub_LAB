@@ -8,6 +8,8 @@ from typing import Optional
 import logging
 from functools import lru_cache
 from .settings import get_settings
+import jwt
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +119,7 @@ class SupabaseClient:
     def get_user_from_token(self, token: str) -> Optional[dict]:
         """
         Validate JWT token and get user information.
+        Uses local JWT verification for better performance.
 
         Args:
             token (str): JWT access token from Authorization header
@@ -125,14 +128,38 @@ class SupabaseClient:
             dict: User object if valid, None otherwise
         """
         try:
-            # Use auth client to verify token
-            response = self.client.auth.get_user(token)
+            settings = get_settings()
 
-            if response and hasattr(response, 'user'):
-                return response.user
+            # Decode and verify JWT locally
+            payload = jwt.decode(
+                token,
+                settings.SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated"
+            )
 
+            # Check if token is expired
+            exp = payload.get('exp')
+            if exp and datetime.fromtimestamp(exp) < datetime.now():
+                logger.warning("Token is expired")
+                return None
+
+            # Create user object from JWT payload
+            user = type('User', (), {
+                'id': payload.get('sub'),
+                'email': payload.get('email'),
+                'user_metadata': payload.get('user_metadata', {}),
+                'app_metadata': payload.get('app_metadata', {})
+            })()
+
+            return user
+
+        except jwt.ExpiredSignatureError:
+            logger.warning("Token is expired")
             return None
-
+        except jwt.InvalidTokenError as e:
+            logger.error(f"Invalid token: {str(e)}")
+            return None
         except Exception as e:
             logger.error(f"Token validation failed: {str(e)}")
             return None

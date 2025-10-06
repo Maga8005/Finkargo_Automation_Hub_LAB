@@ -39,10 +39,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     console.log('[AuthContext] Initializing authentication...');
 
-    // Set loading to false immediately - we'll rely on onAuthStateChange
-    setLoading(false);
+    // Get initial session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
 
-    // The session will be set by onAuthStateChange listener below
+        if (error) {
+          console.error('[AuthContext] Error getting initial session:', error);
+        }
+
+        console.log('[AuthContext] Initial session:', initialSession ? 'Has session' : 'No session');
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+
+        if (initialSession?.user) {
+          console.log('[AuthContext] Fetching profile for user:', initialSession.user.id);
+          await fetchUserProfile(initialSession.user.id);
+        }
+      } catch (error) {
+        console.error('[AuthContext] Error initializing auth:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -57,8 +78,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } else {
           setUserProfile(null);
         }
-
-        setLoading(false);
       }
     );
 
@@ -98,7 +117,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Sign in handler
    */
   const handleSignIn = async (email: string, password: string): Promise<void> => {
-    setLoading(true);
     console.log('[AuthContext] handleSignIn called for:', email);
     try {
       const { user: signedInUser, session: signedInSession, error } = await supabaseSignIn(email, password);
@@ -113,25 +131,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error(error.message);
       }
 
-      // Update state immediately
-      if (signedInUser && signedInSession) {
-        setUser(signedInUser);
-        setSession(signedInSession);
-        console.log('[AuthContext] User and session set in state');
+      // Don't set state here - let onAuthStateChange handle it
+      // This prevents race conditions
 
-        // Update last login timestamp
+      // Update last login timestamp
+      if (signedInUser) {
         await supabase
           .from('user_profiles')
           .update({ last_login: new Date().toISOString() })
           .eq('id', signedInUser.id);
-
-        await fetchUserProfile(signedInUser.id);
       }
+
+      // onAuthStateChange will fire and update the state
+      // Wait a bit for it to process
+      await new Promise(resolve => setTimeout(resolve, 100));
     } catch (error) {
       console.error('[AuthContext] Sign in error:', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 

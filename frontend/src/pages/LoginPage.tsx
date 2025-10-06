@@ -19,12 +19,20 @@ import { useAuth } from '../hooks/useAuth';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { signIn, loading } = useAuth();
+  const { signIn, loading, isAuthenticated } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Redirect if already authenticated
+  React.useEffect(() => {
+    if (isAuthenticated && !loading) {
+      console.log('[LoginPage] Already authenticated, redirecting to /');
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, loading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,8 +41,9 @@ const LoginPage: React.FC = () => {
 
     try {
       await signIn(email, password);
-      // Navigation will be handled by ProtectedRoute after successful login
-      navigate('/');
+      // Wait for auth state to update
+      console.log('[LoginPage] Sign in successful, waiting for redirect...');
+      // The useEffect above will handle navigation once isAuthenticated becomes true
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error al iniciar sesión';
       setError(errorMessage);
