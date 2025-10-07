@@ -107,7 +107,6 @@ export interface ContractGenerationRequest {
 }
 
 export interface ContractReviewRequest {
-  contract_id: string;
   action: 'approve' | 'reject';
   notes?: string;
 }
