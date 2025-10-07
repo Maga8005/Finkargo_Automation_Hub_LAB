@@ -22,9 +22,7 @@ import {
 import {
   CheckCircle as ApproveIcon,
   Cancel as RejectIcon,
-  Visibility as ViewIcon,
   Refresh as RefreshIcon,
-  Download as DownloadIcon,
   PictureAsPdf as PdfIcon,
   Description as DocIcon,
 } from '@mui/icons-material';
@@ -82,7 +80,8 @@ const FKReviewQueue: React.FC = () => {
     setError(null);
 
     try {
-      await legalService.reviewContract(selectedContract.id, {
+      await legalService.reviewContract(selectedContract.contract_id, {
+        contract_id: selectedContract.contract_id,
         action: reviewAction,
         notes: reviewNotes || undefined,
       });
@@ -225,7 +224,7 @@ const FKReviewQueue: React.FC = () => {
                 <CardContent>
                   <Grid container spacing={2}>
                     {/* Header Row */}
-                    <Grid item xs={12}>
+                    <Grid size={{ xs: 12 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Box>
                           <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -240,7 +239,7 @@ const FKReviewQueue: React.FC = () => {
                     </Grid>
 
                     {/* Client Info */}
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <Typography variant="body2" color="text.secondary">
                         Importador
                       </Typography>
@@ -249,14 +248,14 @@ const FKReviewQueue: React.FC = () => {
                       </Typography>
                     </Grid>
 
-                    <Grid item xs={12} md={3}>
+                    <Grid size={{ xs: 12, md: 3 }}>
                       <Typography variant="body2" color="text.secondary">
                         NIT
                       </Typography>
                       <Typography variant="body1">{contract.client_nit}</Typography>
                     </Grid>
 
-                    <Grid item xs={12} md={3}>
+                    <Grid size={{ xs: 12, md: 3 }}>
                       <Typography variant="body2" color="text.secondary">
                         Cupo
                       </Typography>
@@ -265,14 +264,14 @@ const FKReviewQueue: React.FC = () => {
                       </Typography>
                     </Grid>
 
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <Typography variant="body2" color="text.secondary">
                         Representante Legal
                       </Typography>
                       <Typography variant="body1">{snapshot?.representante_legal}</Typography>
                     </Grid>
 
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                       <Typography variant="body2" color="text.secondary">
                         Ciudad
                       </Typography>
@@ -280,7 +279,7 @@ const FKReviewQueue: React.FC = () => {
                     </Grid>
 
                     {/* Actions */}
-                    <Grid item xs={12}>
+                    <Grid size={{ xs: 12 }}>
                       <Divider sx={{ my: 1 }} />
                       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 2, flexWrap: 'wrap' }}>
                         <Box sx={{ display: 'flex', gap: 1 }}>

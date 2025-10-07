@@ -20,7 +20,6 @@ import {
   CircularProgress,
 } from '@mui/material';
 import {
-  Download as DownloadIcon,
   PictureAsPdf as PdfIcon,
   Info as InfoIcon,
   CheckCircle as CheckCircleIcon,

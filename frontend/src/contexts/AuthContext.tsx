@@ -3,7 +3,8 @@
  * Manages global authentication state using Supabase Auth
  * Based on proven architecture from Finkargo Pre-Approval System
  */
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase, signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut } from '../services/supabase';
 import type { AuthContextType, UserProfile, UserRole } from '../types';

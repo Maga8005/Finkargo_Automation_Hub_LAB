@@ -9,8 +9,8 @@ import {
   CardContent,
   Tabs,
   Tab,
+  Grid,
 } from '@mui/material';
-import Grid from '@mui/material/Grid2';
 import {
   Assignment as AssignmentIcon,
   RateReview as ReviewIcon,

@@ -1,7 +1,6 @@
 /**
  * Finkargo Automation Hub - Main Application Component
  */
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import theme from './theme/theme';

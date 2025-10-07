@@ -181,7 +181,7 @@ const FKContractGenerator: React.FC = () => {
                 >
                   <CardContent>
                     <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}>
+                      <Grid size={{ xs: 12, md: 6 }}>
                         <Typography variant="body2" color="text.secondary">
                           Importador
                         </Typography>
@@ -189,13 +189,13 @@ const FKContractGenerator: React.FC = () => {
                           {client.nombre_importador}
                         </Typography>
                       </Grid>
-                      <Grid item xs={12} md={3}>
+                      <Grid size={{ xs: 12, md: 3 }}>
                         <Typography variant="body2" color="text.secondary">
                           NIT
                         </Typography>
                         <Typography variant="body1">{client.nit}</Typography>
                       </Grid>
-                      <Grid item xs={12} md={3}>
+                      <Grid size={{ xs: 12, md: 3 }}>
                         <Typography variant="body2" color="text.secondary">
                           Cupo
                         </Typography>
@@ -224,7 +224,7 @@ const FKContractGenerator: React.FC = () => {
             </Typography>
 
             <Grid container spacing={3} sx={{ mb: 3 }}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Typography variant="body2" color="text.secondary">
                   Nombre del Importador
                 </Typography>
@@ -233,14 +233,14 @@ const FKContractGenerator: React.FC = () => {
                 </Typography>
               </Grid>
 
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   NIT
                 </Typography>
                 <Typography variant="body1">{selectedClient.nit}</Typography>
               </Grid>
 
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   Cupo Plataforma
                 </Typography>
@@ -249,21 +249,21 @@ const FKContractGenerator: React.FC = () => {
                 </Typography>
               </Grid>
 
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Typography variant="body2" color="text.secondary">
                   Representante Legal
                 </Typography>
                 <Typography variant="body1">{selectedClient.representante_legal}</Typography>
               </Grid>
 
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   Cédula Representante
                 </Typography>
                 <Typography variant="body1">{selectedClient.cedula_representante}</Typography>
               </Grid>
 
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   Ciudad de Domicilio
                 </Typography>
