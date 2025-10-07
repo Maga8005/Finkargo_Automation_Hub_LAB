@@ -384,6 +384,27 @@ Frontend can successfully communicate with backend:
 - ✅ Credentials enabled
 - ✅ All HTTP methods supported
 
+### 5.5 Authentication Fix
+**Issue Encountered**: "Invalid API key" error on login
+
+**Error Message**:
+```
+Failed to load resource: the server responded with a status of 401
+Sign in error: Invalid API key
+```
+
+**Root Cause**: Supabase environment variables in Vercel were not properly configured
+
+**Resolution**:
+1. Verified correct values from local `.env` file
+2. Updated Vercel environment variables:
+   - `VITE_SUPABASE_URL`: https://swkkbpmvsabarntswumm.supabase.co
+   - `VITE_SUPABASE_ANON_KEY`: [full JWT token]
+3. Ensured no extra spaces or truncation in values
+4. Redeployed frontend from Vercel dashboard
+
+✅ **Authentication now working correctly**
+
 ---
 
 ## 📊 Deployment Statistics
@@ -394,7 +415,7 @@ Frontend can successfully communicate with backend:
 
 ### Total Deployments
 - **Backend**: 2 deployments (initial + CORS update)
-- **Frontend**: 3 attempts (2 failures + 1 success)
+- **Frontend**: 4 deployments (2 TypeScript failures + 1 success + 1 auth fix redeploy)
 
 ### Issues Resolved
 1. ✅ Missing PostgreSQL driver (`psycopg2-binary`)
@@ -405,6 +426,7 @@ Frontend can successfully communicate with backend:
 6. ✅ Unused imports cleanup
 7. ✅ Logic bug in FKReviewQueue
 8. ✅ CORS configuration
+9. ✅ Supabase authentication credentials in Vercel
 
 ---
 
@@ -419,6 +441,8 @@ Frontend can successfully communicate with backend:
 ### 2. Vercel Deployment
 - When Root Directory is set, build commands should not use `cd`
 - All environment variables must have `VITE_` prefix
+- **CRITICAL**: Verify environment variables are complete (no truncation) and have no extra spaces
+- Environment variables must be set for all environments (Production, Preview, Development)
 - TypeScript strict mode requires careful type management
 - MUI v7 requires Grid API migration from v6
 
@@ -560,11 +584,11 @@ a1d9d95 - feat: Add psycopg2-binary for PostgreSQL database connectivity
 - ✅ TypeScript compilation clean
 - ✅ Authentication infrastructure ready
 
-**Total Session Duration**: ~2 hours
-**Deployments**: 5 total (2 backend, 3 frontend attempts)
-**Issues Resolved**: 8 major issues
-**Files Modified**: 12 files
-**Commits**: 5 commits
+**Total Session Duration**: ~2.5 hours
+**Deployments**: 6 total (2 backend, 4 frontend)
+**Issues Resolved**: 9 major issues
+**Files Modified**: 14 files
+**Commits**: 6 commits
 
 🎉 **Production deployment complete and verified!**
 
