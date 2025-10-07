@@ -4,7 +4,6 @@ Legal Contract Automation - FastAPI Routes
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, status, Path
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
-from uuid import UUID
 import pandas as pd
 import io
 from datetime import datetime
@@ -368,12 +367,12 @@ async def get_contract_history(
 
 @router.get("/contracts/{contract_id}", response_model=ContractGenerationDetail)
 async def get_contract(
-    contract_id: UUID = Path(..., description="Contract UUID"),
+    contract_id: str = Path(..., description="Contract ID"),
     service: ContractService = Depends(get_contract_service),
     current_user: dict = Depends(require_legal_role)
 ):
     """Get contract details by ID (Legal role or Admin required)"""
-    contract = await service.get_contract_details(str(contract_id))
+    contract = await service.get_contract_details(contract_id)
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")
     return contract
@@ -381,13 +380,13 @@ async def get_contract(
 
 @router.get("/contracts/{contract_id}/preview")
 async def preview_contract(
-    contract_id: UUID = Path(..., description="Contract UUID"),
+    contract_id: str = Path(..., description="Contract ID"),
     service: ContractService = Depends(get_contract_service),
     current_user: dict = Depends(require_legal_role)
 ):
     """Get populated contract content for preview (Legal role or Admin required)"""
     try:
-        content = await service.populate_template(str(contract_id))
+        content = await service.populate_template(contract_id)
         return {"content": content}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -397,7 +396,7 @@ async def preview_contract(
 
 @router.post("/contracts/{contract_id}/review", response_model=ContractReviewResponse)
 async def review_contract(
-    contract_id: UUID = Path(..., description="Contract UUID"),
+    contract_id: str = Path(..., description="Contract ID"),
     review: ContractReviewRequest,
     service: ContractService = Depends(get_contract_service),
     current_user: dict = Depends(require_legal_role)
@@ -408,7 +407,7 @@ async def review_contract(
         reviewer_id = current_user['id']
 
         contract = await service.review_contract(
-            contract_id=str(contract_id),
+            contract_id=contract_id,
             action=review.action,
             reviewer_id=reviewer_id,
             notes=review.notes
@@ -438,7 +437,7 @@ async def get_active_template(
 
 @router.get("/contracts/{contract_id}/download/docx")
 async def download_contract_docx(
-    contract_id: UUID = Path(..., description="Contract UUID"),
+    contract_id: str = Path(..., description="Contract ID"),
     service: ContractService = Depends(get_contract_service),
     current_user: dict = Depends(require_legal_role)
 ):
@@ -454,11 +453,11 @@ async def download_contract_docx(
     try:
         logger.info(f"Starting DOCX generation for contract {contract_id}")
         # Generate document
-        docx_bytes = await service.generate_contract_document(str(contract_id))
+        docx_bytes = await service.generate_contract_document(contract_id)
         logger.info(f"DOCX generated successfully for contract {contract_id}")
 
         # Get contract details for filename
-        contract = await service.get_contract_details(str(contract_id))
+        contract = await service.get_contract_details(contract_id)
         filename = f"{contract['contract_id']}.docx"
 
         # Return as streaming response
@@ -479,7 +478,7 @@ async def download_contract_docx(
 
 @router.get("/contracts/{contract_id}/download/pdf")
 async def download_contract_pdf(
-    contract_id: UUID = Path(..., description="Contract UUID"),
+    contract_id: str = Path(..., description="Contract ID"),
     service: ContractService = Depends(get_contract_service),
     current_user: dict = Depends(require_legal_role)
 ):
@@ -495,11 +494,11 @@ async def download_contract_pdf(
     try:
         logger.info(f"Starting PDF generation for contract {contract_id}")
         # Generate PDF
-        pdf_bytes = await service.generate_contract_pdf(str(contract_id))
+        pdf_bytes = await service.generate_contract_pdf(contract_id)
         logger.info(f"PDF generated successfully for contract {contract_id}")
 
         # Get contract details for filename
-        contract = await service.get_contract_details(str(contract_id))
+        contract = await service.get_contract_details(contract_id)
         filename = f"{contract['contract_id']}.pdf"
 
         # Return as streaming response
