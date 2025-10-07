@@ -402,7 +402,12 @@ async def review_contract(
     current_user: dict = Depends(require_legal_role)
 ):
     """Review a contract (approve or reject) - Legal role or Admin required"""
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
+        logger.info(f"Review request received: contract_id={contract_id}, action={review.action}")
+
         # Get user_id from authenticated user (dict)
         reviewer_id = current_user['id']
 
@@ -412,10 +417,13 @@ async def review_contract(
             reviewer_id=reviewer_id,
             notes=review.notes
         )
+        logger.info(f"Review completed successfully for contract_id={contract_id}")
         return contract
     except ValueError as e:
+        logger.error(f"ValueError in review_contract: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Exception in review_contract: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

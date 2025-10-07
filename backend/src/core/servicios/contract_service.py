@@ -134,46 +134,63 @@ class ContractService:
         Raises:
             ValueError: If contract not found or not in reviewable status
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"Starting review for contract_id={contract_id}, action={action}")
+
         # Get contract - try UUID first, then business contract ID
         contract = await self.contract_repo.get_by_id(contract_id)
         if not contract:
+            logger.info(f"Contract not found by UUID, trying business ID: {contract_id}")
             contract = await self.contract_repo.get_by_contract_id(contract_id)
         if not contract:
+            logger.error(f"Contract {contract_id} not found")
             raise ValueError(f"Contract {contract_id} not found")
+
+        logger.info(f"Found contract: {contract.get('contract_id')}, status: {contract.get('status')}")
 
         # Check if contract is reviewable
         if contract['status'] not in [ContractStatus.GENERATED.value, ContractStatus.UNDER_REVIEW.value]:
+            logger.error(f"Contract cannot be reviewed in status: {contract['status']}")
             raise ValueError(f"Contract cannot be reviewed in status: {contract['status']}")
 
         # Determine new status
         new_status = ContractStatus.APPROVED if action == ContractReviewAction.APPROVE else ContractStatus.REJECTED
+        logger.info(f"Determined new status: {new_status.value}")
 
         # If approved, generate and upload PDF for Operations
         approved_document_url = None
         if action == ContractReviewAction.APPROVE:
+            logger.info("Contract approved - generating PDF document")
             try:
                 # Generate DOCX document
+                logger.info("Generating DOCX document...")
                 docx_bytes = self.document_service.generate_contract_document(
                     contract_data=contract
                 )
+                logger.info(f"DOCX generated successfully, size: {len(docx_bytes)} bytes")
 
                 # Convert to PDF
+                logger.info("Converting DOCX to PDF...")
                 pdf_bytes = self.document_service.convert_to_pdf(docx_bytes)
+                logger.info(f"PDF converted successfully, size: {len(pdf_bytes)} bytes")
 
                 # Upload to Supabase Storage
+                logger.info("Uploading PDF to Supabase Storage...")
                 approved_document_url = self.document_service.upload_to_storage(
                     pdf_bytes=pdf_bytes,
                     contract_id=contract['id']
                 )
+                logger.info(f"PDF uploaded successfully: {approved_document_url}")
 
             except Exception as e:
                 # Log error but don't fail approval if upload fails
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"Failed to upload approved contract PDF: {e}")
+                logger.error(f"Failed to upload approved contract PDF: {e}", exc_info=True)
                 # Continue with approval but without document URL
 
         # Update contract (use the UUID from the fetched contract, not the input which could be business ID)
+        logger.info(f"Updating contract status to {new_status.value}")
         updated_contract = await self.contract_repo.update_status(
             contract_id=contract['id'],
             status=new_status,
@@ -182,6 +199,7 @@ class ContractService:
             approved_document_url=approved_document_url
         )
 
+        logger.info(f"Contract review completed successfully")
         return updated_contract
 
     async def get_contract_details(self, contract_id: str) -> Optional[Dict[str, Any]]:
