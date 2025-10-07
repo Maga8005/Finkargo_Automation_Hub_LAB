@@ -80,7 +80,8 @@ const FKReviewQueue: React.FC = () => {
     setError(null);
 
     try {
-      await legalService.reviewContract(selectedContract.contract_id, {
+      // Use UUID for API operations, display business ID to users
+      await legalService.reviewContract(selectedContract.id, {
         action: reviewAction,
         notes: reviewNotes || undefined,
       });
