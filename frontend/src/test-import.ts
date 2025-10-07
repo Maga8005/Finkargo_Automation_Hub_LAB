@@ -1,5 +1,5 @@
 // Test import
-import { ContractGeneration, ContractGenerationRequest } from './types/legal';
+import type { ContractGeneration, ContractGenerationRequest } from './types/legal';
 
 console.log('Import test successful');
 

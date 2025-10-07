@@ -53,16 +53,26 @@ export interface User {
   departments: string[];
 }
 
-export enum UserRole {
-  ADMIN = 'admin',
-  LEGAL = 'legal',
-  OPERATIONS = 'operations',
-  COMMERCIAL = 'commercial',
-  ANALYST = 'analyst',
-  MESA_CONTROL = 'mesa_control',
-  MANAGER = 'manager',
-  USER = 'user',
-}
+export type UserRole =
+  | 'admin'
+  | 'legal'
+  | 'operations'
+  | 'commercial'
+  | 'analyst'
+  | 'mesa_control'
+  | 'manager'
+  | 'user';
+
+export const UserRole = {
+  ADMIN: 'admin' as const,
+  LEGAL: 'legal' as const,
+  OPERATIONS: 'operations' as const,
+  COMMERCIAL: 'commercial' as const,
+  ANALYST: 'analyst' as const,
+  MESA_CONTROL: 'mesa_control' as const,
+  MANAGER: 'manager' as const,
+  USER: 'user' as const,
+};
 
 /**
  * Authentication context type

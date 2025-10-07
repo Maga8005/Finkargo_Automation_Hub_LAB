@@ -36,12 +36,18 @@ export interface ContractTemplate {
   notes?: string;
 }
 
-export enum ContractStatus {
-  GENERATED = 'generated',
-  UNDER_REVIEW = 'under_review',
-  APPROVED = 'approved',
-  REJECTED = 'rejected',
-}
+export type ContractStatus =
+  | 'generated'
+  | 'under_review'
+  | 'approved'
+  | 'rejected';
+
+export const ContractStatus = {
+  GENERATED: 'generated' as const,
+  UNDER_REVIEW: 'under_review' as const,
+  APPROVED: 'approved' as const,
+  REJECTED: 'rejected' as const,
+};
 
 export interface ContractGeneration {
   id: string;
