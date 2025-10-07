@@ -398,7 +398,7 @@ async def preview_contract(
 @router.post("/contracts/{contract_id}/review", response_model=ContractReviewResponse)
 async def review_contract(
     contract_id: UUID = Path(..., description="Contract UUID"),
-    review: ContractReviewRequest = None,
+    review: ContractReviewRequest,
     service: ContractService = Depends(get_contract_service),
     current_user: dict = Depends(require_legal_role)
 ):

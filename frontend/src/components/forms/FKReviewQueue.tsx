@@ -81,7 +81,6 @@ const FKReviewQueue: React.FC = () => {
 
     try {
       await legalService.reviewContract(selectedContract.contract_id, {
-        contract_id: selectedContract.contract_id,
         action: reviewAction,
         notes: reviewNotes || undefined,
       });
