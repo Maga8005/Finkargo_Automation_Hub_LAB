@@ -1,7 +1,7 @@
 """
 Legal Contract Automation - FastAPI Routes
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, status, Path
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, status, Path, Body
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 import pandas as pd
@@ -397,7 +397,7 @@ async def preview_contract(
 @router.post("/contracts/{contract_id}/review", response_model=ContractReviewResponse)
 async def review_contract(
     contract_id: str = Path(..., description="Contract ID"),
-    review: ContractReviewRequest,
+    review: ContractReviewRequest = Body(...),
     service: ContractService = Depends(get_contract_service),
     current_user: dict = Depends(require_legal_role)
 ):
