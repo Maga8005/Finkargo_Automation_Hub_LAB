@@ -18,3 +18,5 @@ python-docx>=1.0.0
 docx2pdf>=0.1.8
 lxml>=4.9.0
 PyJWT>=2.8.0
+PyMuPDF>=1.23.0
+PyPDF2>=3.0.0
