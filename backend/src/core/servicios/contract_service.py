@@ -123,7 +123,7 @@ class ContractService:
         When approved, generates PDF and uploads to Supabase Storage for Operations.
 
         Args:
-            contract_id: Contract UUID
+            contract_id: Contract UUID or business contract ID (e.g., ACT-2025-033)
             action: approve or reject
             reviewer_id: ID of reviewer
             notes: Review notes
@@ -134,8 +134,10 @@ class ContractService:
         Raises:
             ValueError: If contract not found or not in reviewable status
         """
-        # Get contract
+        # Get contract - try UUID first, then business contract ID
         contract = await self.contract_repo.get_by_id(contract_id)
+        if not contract:
+            contract = await self.contract_repo.get_by_contract_id(contract_id)
         if not contract:
             raise ValueError(f"Contract {contract_id} not found")
 
@@ -171,9 +173,9 @@ class ContractService:
                 logger.error(f"Failed to upload approved contract PDF: {e}")
                 # Continue with approval but without document URL
 
-        # Update contract
+        # Update contract (use the UUID from the fetched contract, not the input which could be business ID)
         updated_contract = await self.contract_repo.update_status(
-            contract_id=contract_id,
+            contract_id=contract['id'],
             status=new_status,
             reviewed_by=reviewer_id,
             review_notes=notes,
