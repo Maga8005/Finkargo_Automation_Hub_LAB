@@ -37,17 +37,13 @@ supabase.auth.onAuthStateChange((_event, session) => {
   cachedSession = session;
 });
 
-// Request interceptor
+// Request interceptor - synchronous, just add token
 apiClient.interceptors.request.use(
   (config) => {
-    // Always use cached session (no time limit)
+    // Use cached session (synchronous)
     if (cachedSession?.access_token) {
       config.headers.Authorization = `Bearer ${cachedSession.access_token}`;
-      console.log('[apiClient] Request with auth token to:', config.url);
-    } else {
-      console.warn('[apiClient] Request WITHOUT auth token to:', config.url);
     }
-
     return config;
   },
   (error) => {
@@ -55,17 +51,51 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor
+// Response interceptor - handle token expiration
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
+    const originalRequest = error.config as any;
+
     if (error.response) {
       // Handle specific error codes
       switch (error.response.status) {
         case 401:
-          // Unauthorized - sign out and redirect to login
-          await supabase.auth.signOut();
-          window.location.href = '/login';
+          // If this is the first 401 and we haven't retried yet
+          if (!originalRequest._retry) {
+            originalRequest._retry = true;
+            console.log('[apiClient] 401 error, attempting to refresh session and retry...');
+
+            try {
+              // Force refresh session
+              const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+
+              if (refreshError || !session) {
+                console.error('[apiClient] Session refresh failed, signing out');
+                await supabase.auth.signOut();
+                window.location.href = '/login';
+                return Promise.reject(error);
+              }
+
+              // Update cached session
+              cachedSession = session;
+              console.log('[apiClient] Session refreshed, retrying request');
+
+              // Retry original request with new token
+              originalRequest.headers.Authorization = `Bearer ${session.access_token}`;
+              return apiClient(originalRequest);
+            } catch (refreshError) {
+              console.error('[apiClient] Error refreshing session:', refreshError);
+              await supabase.auth.signOut();
+              window.location.href = '/login';
+              return Promise.reject(error);
+            }
+          } else {
+            // Already retried, sign out
+            console.error('[apiClient] 401 after retry, signing out');
+            await supabase.auth.signOut();
+            window.location.href = '/login';
+          }
           break;
         case 403:
           console.error('Access forbidden');

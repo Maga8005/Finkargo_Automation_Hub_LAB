@@ -55,3 +55,8 @@ backend/test_contract_output.*
 # Temporary files
 *.tmp
 *.temp
+
+# Data files
+*.csv
+*.xlsx
+*.xls
