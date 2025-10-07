@@ -140,10 +140,21 @@ class ContractService:
         logger.info(f"Starting review for contract_id={contract_id}, action={action}")
 
         # Get contract - try UUID first, then business contract ID
-        contract = await self.contract_repo.get_by_id(contract_id)
+        contract = None
+        try:
+            # Try to get by UUID (will fail if contract_id is not a valid UUID format)
+            contract = await self.contract_repo.get_by_id(contract_id)
+            if contract:
+                logger.info(f"Found contract by UUID: {contract.get('contract_id')}")
+        except Exception as e:
+            # If UUID parsing fails, it's likely a business ID
+            logger.info(f"Contract ID is not a valid UUID (expected for business IDs): {e}")
+
         if not contract:
-            logger.info(f"Contract not found by UUID, trying business ID: {contract_id}")
+            # Try business contract ID (e.g., ACT-2025-033)
+            logger.info(f"Trying to find contract by business ID: {contract_id}")
             contract = await self.contract_repo.get_by_contract_id(contract_id)
+
         if not contract:
             logger.error(f"Contract {contract_id} not found")
             raise ValueError(f"Contract {contract_id} not found")
@@ -211,8 +222,13 @@ class ContractService:
         Returns:
             Optional[Dict[str, Any]]: Contract details
         """
-        # Try UUID first
-        contract = await self.contract_repo.get_by_id(contract_id)
+        # Try UUID first (will raise exception if not valid UUID format)
+        contract = None
+        try:
+            contract = await self.contract_repo.get_by_id(contract_id)
+        except Exception:
+            # Not a valid UUID, try business ID
+            pass
 
         # If not found, try business contract ID (ACT-2025-001)
         if not contract:
@@ -243,7 +259,7 @@ class ContractService:
         Populate contract template with client data
 
         Args:
-            contract_id: Contract UUID
+            contract_id: Contract UUID or business contract ID
 
         Returns:
             str: Populated template content
@@ -251,8 +267,16 @@ class ContractService:
         Raises:
             ValueError: If contract or template not found
         """
-        # Get contract
-        contract = await self.contract_repo.get_by_id(contract_id)
+        # Get contract (supports both UUID and business ID)
+        contract = None
+        try:
+            contract = await self.contract_repo.get_by_id(contract_id)
+        except Exception:
+            pass
+
+        if not contract:
+            contract = await self.contract_repo.get_by_contract_id(contract_id)
+
         if not contract:
             raise ValueError(f"Contract {contract_id} not found")
 
@@ -291,7 +315,7 @@ class ContractService:
         Generate Word document for a contract
 
         Args:
-            contract_id: Contract UUID
+            contract_id: Contract UUID or business contract ID
 
         Returns:
             bytes: DOCX file content
@@ -299,8 +323,16 @@ class ContractService:
         Raises:
             ValueError: If contract not found
         """
-        # Get contract
-        contract = await self.contract_repo.get_by_id(contract_id)
+        # Get contract (supports both UUID and business ID)
+        contract = None
+        try:
+            contract = await self.contract_repo.get_by_id(contract_id)
+        except Exception:
+            pass
+
+        if not contract:
+            contract = await self.contract_repo.get_by_contract_id(contract_id)
+
         if not contract:
             raise ValueError(f"Contract {contract_id} not found")
 
