@@ -320,7 +320,7 @@ class DocumentService:
             amount = int(number)
 
             if amount == 0:
-                return "CERO DE"
+                return "CERO"
 
             # Simplified for millions (common range for contracts)
             millions = amount // 1000000
@@ -342,7 +342,7 @@ class DocumentService:
             if units > 0:
                 parts.append(self._simple_number_to_words(units))
 
-            result = " ".join(parts) + " de"
+            result = " ".join(parts)
             return result.upper()
 
         except Exception as e:
