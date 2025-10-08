@@ -173,31 +173,26 @@ class ContractService:
         # If approved, generate and upload PDF for Operations
         approved_document_url = None
         if action == ContractReviewAction.APPROVE:
-            logger.info("Contract approved - PDF generation temporarily disabled")
-            # TODO: Enable PDF generation once LibreOffice is installed on Render
-            # See: https://render.com/docs/deploy-libreoffice
-            #
-            # Uncomment this block once LibreOffice is available:
-            # try:
-            #     logger.info("Generating DOCX document...")
-            #     docx_bytes = self.document_service.generate_contract_document(
-            #         contract_data=contract
-            #     )
-            #     logger.info(f"DOCX generated successfully, size: {len(docx_bytes)} bytes")
-            #
-            #     logger.info("Converting DOCX to PDF...")
-            #     pdf_bytes = self.document_service.convert_to_pdf(docx_bytes)
-            #     logger.info(f"PDF converted successfully, size: {len(pdf_bytes)} bytes")
-            #
-            #     logger.info("Uploading PDF to Supabase Storage...")
-            #     approved_document_url = self.document_service.upload_to_storage(
-            #         pdf_bytes=pdf_bytes,
-            #         contract_id=contract['id']
-            #     )
-            #     logger.info(f"PDF uploaded successfully: {approved_document_url}")
-            #
-            # except Exception as e:
-            #     logger.error(f"Failed to upload approved contract PDF: {e}", exc_info=True)
+            try:
+                logger.info("Generating DOCX document...")
+                docx_bytes = self.document_service.generate_contract_document(
+                    contract_data=contract
+                )
+                logger.info(f"DOCX generated successfully, size: {len(docx_bytes)} bytes")
+
+                logger.info("Converting DOCX to PDF...")
+                pdf_bytes = self.document_service.convert_to_pdf(docx_bytes)
+                logger.info(f"PDF converted successfully, size: {len(pdf_bytes)} bytes")
+
+                logger.info("Uploading PDF to Supabase Storage...")
+                approved_document_url = self.document_service.upload_to_storage(
+                    pdf_bytes=pdf_bytes,
+                    contract_id=contract['id']
+                )
+                logger.info(f"PDF uploaded successfully: {approved_document_url}")
+
+            except Exception as e:
+                logger.error(f"Failed to upload approved contract PDF: {e}", exc_info=True)
 
         # Update contract (use the UUID from the fetched contract, not the input which could be business ID)
         logger.info(f"Updating contract status to {new_status.value}")

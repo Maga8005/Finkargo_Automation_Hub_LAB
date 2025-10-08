@@ -60,20 +60,16 @@ const FKApprovedContracts: React.FC = () => {
     try {
       setDownloadingId(contract.id);
 
-      // Open the Supabase Storage URL directly
-      window.open(contract.approved_document_url, '_blank');
-
-      // Alternative: Download via fetch
-      // const response = await fetch(contract.approved_document_url);
-      // const blob = await response.blob();
-      // const url = window.URL.createObjectURL(blob);
-      // const link = document.createElement('a');
-      // link.href = url;
-      // link.download = `contrato_${contract.contract_id}_aprobado.pdf`;
-      // document.body.appendChild(link);
-      // link.click();
-      // document.body.removeChild(link);
-      // window.URL.revokeObjectURL(url);
+      // Download via backend API endpoint
+      const blob = await operationsService.downloadApprovedContractPdf(contract.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `contrato_${contract.contract_id}_aprobado.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Error downloading PDF:', err);
       alert('Error al descargar el PDF');
