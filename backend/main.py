@@ -55,6 +55,7 @@ async def get_departments():
             {"id": "technology", "name": "Tecnología", "icon": "Code"},
             {"id": "customer-service", "name": "Atención al Cliente", "icon": "Support"},
             {"id": "legal", "name": "Legal", "icon": "Gavel"},
+            {"id": "collections", "name": "Collections", "icon": "AccountBalance"},
         ]
     }
 
