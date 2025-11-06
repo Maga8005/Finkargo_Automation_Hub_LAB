@@ -6,6 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config.settings import get_settings
 from src.adapter.rest import legal_routes, operations_routes, auth_routes
 import json
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -16,17 +21,23 @@ app = FastAPI(
 )
 
 # Parse CORS origins from JSON string
-cors_origins = json.loads(settings.CORS_ORIGINS) if isinstance(settings.CORS_ORIGINS, str) else settings.CORS_ORIGINS
-
-print(f"CORS Origins configured: {cors_origins}")
+try:
+    cors_origins = json.loads(settings.CORS_ORIGINS) if isinstance(settings.CORS_ORIGINS, str) else settings.CORS_ORIGINS
+    logger.info(f"✅ CORS Origins configured: {cors_origins}")
+    logger.info(f"✅ CORS Origin type: {type(cors_origins)}")
+except Exception as e:
+    logger.error(f"❌ Failed to parse CORS_ORIGINS: {e}")
+    cors_origins = ["http://localhost:5173"]
 
 # IMPORTANT: Add CORS middleware BEFORE including routers
+# Use allow_origin_regex for Vercel preview URLs
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_origin_regex=r"https://.*\.vercel\.app"  # Support all Vercel preview URLs
 )
 
 # Include routers AFTER middleware
@@ -41,6 +52,16 @@ async def health_check():
         "status": "healthy",
         "app": settings.APP_NAME,
         "version": "1.0.0"
+    }
+
+@app.get("/api/debug/cors")
+async def debug_cors():
+    """Debug endpoint to check CORS configuration"""
+    return {
+        "cors_origins_raw": settings.CORS_ORIGINS,
+        "cors_origins_parsed": cors_origins,
+        "cors_origins_type": str(type(cors_origins)),
+        "note": "This endpoint helps debug CORS configuration issues"
     }
 
 @app.get("/api/departments")
