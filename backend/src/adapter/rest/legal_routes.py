@@ -97,6 +97,8 @@ async def search_clients(
     client_repo: ClientRepository = Depends(get_client_repo)
 ):
     """Search clients by NIT or name (Public endpoint - no authentication required)"""
+    from pydantic import ValidationError
+
     try:
         search_params = ClientSearchRequest(
             query=query,
@@ -104,10 +106,40 @@ async def search_clients(
             nombre=nombre,
             is_active=is_active
         )
-        clients = await client_repo.search(search_params)
-        return clients
+
+        logger.info(f"Searching clients with params: {search_params}")
+        clients_data = await client_repo.search(search_params)
+        logger.info(f"Found {len(clients_data)} clients from database")
+
+        # Explicitly convert dictionaries to ClientResponse models with validation
+        validated_clients = []
+        for i, client_dict in enumerate(clients_data):
+            try:
+                logger.debug(f"Validating client {i+1}/{len(clients_data)}: {client_dict.get('nit', 'unknown')}")
+                client_model = ClientResponse(**client_dict)
+                validated_clients.append(client_model)
+            except ValidationError as ve:
+                logger.error(f"Validation error for client {i+1} (NIT: {client_dict.get('nit', 'unknown')}): {ve}")
+                logger.error(f"Client data that failed validation: {client_dict}")
+                # Log field-level errors
+                for error in ve.errors():
+                    logger.error(f"  Field '{error['loc']}': {error['msg']} (type: {error['type']})")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Data validation error for client {client_dict.get('nit', 'unknown')}: {str(ve)}"
+                )
+
+        logger.info(f"Successfully validated {len(validated_clients)} clients")
+        return validated_clients
+
+    except ValidationError as ve:
+        logger.error(f"Pydantic validation error in search_clients: {ve}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Validation error: {str(ve)}")
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Unexpected error in search_clients: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 
 @router.get("/clients/{nit}", response_model=ClientResponse)

@@ -86,6 +86,8 @@ class ClientRepository:
         Returns:
             List[dict]: List of matching clients
         """
+        from decimal import Decimal
+
         query = self.db.table('clients').select('*')
 
         # Filter by active status
@@ -112,7 +114,25 @@ class ClientRepository:
         query = query.order('nombre_importador')
 
         response = query.execute()
-        return response.data if response.data else []
+        clients = response.data if response.data else []
+
+        # Defensive type coercion for cupo_plataforma
+        for client in clients:
+            if 'cupo_plataforma' in client and client['cupo_plataforma'] is not None:
+                cupo = client['cupo_plataforma']
+                if not isinstance(cupo, Decimal):
+                    # Convert string or float to Decimal
+                    try:
+                        if isinstance(cupo, (int, float)):
+                            client['cupo_plataforma'] = Decimal(str(cupo))
+                        elif isinstance(cupo, str):
+                            client['cupo_plataforma'] = Decimal(cupo)
+                        else:
+                            logger.warning(f"Unexpected type for cupo_plataforma in client {client.get('nit')}: {type(cupo)}")
+                    except Exception as e:
+                        logger.error(f"Error converting cupo_plataforma for client {client.get('nit')}: {e}")
+
+        return clients
 
     async def update(self, client_id: str, client_data: ClientUpdate) -> Optional[dict]:
         """

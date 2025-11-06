@@ -48,6 +48,19 @@ class ClientBase(BaseModel):
     destinatario_nombre: Optional[str] = None
     destinatario_email: Optional[str] = None
 
+    @validator('cupo_plataforma', pre=True)
+    def coerce_cupo_plataforma(cls, v):
+        """Convert string or float to Decimal"""
+        if v is None:
+            raise ValueError('cupo_plataforma cannot be None')
+        if isinstance(v, Decimal):
+            return v
+        if isinstance(v, (int, float)):
+            return Decimal(str(v))
+        if isinstance(v, str):
+            return Decimal(v)
+        raise ValueError(f'Invalid type for cupo_plataforma: {type(v)}')
+
 
 class ClientCreate(ClientBase):
     """Client creation request"""
@@ -71,6 +84,7 @@ class ClientResponse(ClientBase):
     created_at: datetime
     updated_at: datetime
     is_active: bool
+    notes: Optional[str] = None
 
     class Config:
         from_attributes = True
