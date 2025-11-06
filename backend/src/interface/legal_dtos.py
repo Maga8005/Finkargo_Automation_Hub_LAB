@@ -38,7 +38,7 @@ class ClientBase(BaseModel):
     representante_legal: str = Field(..., min_length=1, max_length=255)
     cedula_representante: str = Field(..., min_length=1, max_length=50)
     ciudad_domicilio: str = Field(..., min_length=1, max_length=100)
-    cupo_plataforma: Decimal = Field(..., gt=0, description="Credit limit from platform")
+    cupo_plataforma: Decimal = Field(..., description="Credit limit from platform (negative values indicate placeholder/incomplete records)")
     # New optional fields for contract template
     direccion_comercial: Optional[str] = None
     tipo_identificacion_representante: Optional[str] = Field(default='CC', max_length=10)
