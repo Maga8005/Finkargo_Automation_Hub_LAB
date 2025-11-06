@@ -19,14 +19,17 @@ class ContractRepository:
         """
         self.db = supabase_client
 
-    async def generate_contract_id(self) -> str:
+    async def generate_contract_id(self, contract_type: str = 'activos') -> str:
         """
         Generate next contract ID using database function
 
+        Args:
+            contract_type: Type of contract ('activos' or 'otrosi')
+
         Returns:
-            str: Generated contract ID (e.g., ACT-2025-001)
+            str: Generated contract ID (e.g., ACT-2025-001 or OTRO-2025-001)
         """
-        response = self.db.rpc('generate_contract_id').execute()
+        response = self.db.rpc('generate_contract_id', {'p_contract_type': contract_type}).execute()
         return response.data if response.data else None
 
     async def create(self, contract_data: dict) -> dict:
@@ -144,33 +147,47 @@ class ContractRepository:
 
         return response.data[0] if response.data else None
 
-    async def get_pending_review(self) -> List[dict]:
+    async def get_pending_review(self, contract_type: Optional[str] = None) -> List[dict]:
         """
-        Get all contracts pending legal review
+        Get all contracts pending legal review, optionally filtered by contract type
+
+        Args:
+            contract_type: Optional filter by contract type ('activos' or 'otrosi')
 
         Returns:
             List[dict]: Contracts with status 'under_review'
         """
-        response = self.db.table('contract_generations')\
+        query = self.db.table('contract_generations')\
             .select('*')\
-            .eq('status', 'under_review')\
-            .order('generated_at', desc=True)\
-            .execute()
+            .eq('status', 'under_review')
+
+        # Filter by contract type if specified
+        if contract_type:
+            query = query.eq('contract_type', contract_type)
+
+        response = query.order('generated_at', desc=True).execute()
 
         return response.data if response.data else []
 
-    async def get_approved_contracts(self) -> List[dict]:
+    async def get_approved_contracts(self, contract_type: Optional[str] = None) -> List[dict]:
         """
-        Get all approved contracts with document URLs for Operations team
+        Get all approved contracts with document URLs for Operations team, optionally filtered by contract type
+
+        Args:
+            contract_type: Optional filter by contract type ('activos' or 'otrosi')
 
         Returns:
             List[dict]: Approved contracts with document URLs
         """
-        response = self.db.table('contract_generations')\
+        query = self.db.table('contract_generations')\
             .select('*')\
-            .eq('status', 'approved')\
-            .order('reviewed_at', desc=True)\
-            .execute()
+            .eq('status', 'approved')
+
+        # Filter by contract type if specified
+        if contract_type:
+            query = query.eq('contract_type', contract_type)
+
+        response = query.order('reviewed_at', desc=True).execute()
 
         return response.data if response.data else []
 

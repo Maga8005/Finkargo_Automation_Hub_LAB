@@ -52,6 +52,7 @@ export const ContractStatus = {
 export interface ContractGeneration {
   id: string;
   contract_id: string;
+  contract_type: string;
   client_nit: string;
   client_id: string;
   status: ContractStatus;
@@ -78,6 +79,7 @@ export interface ClientDataSnapshot {
   ciudad_domicilio: string;
   cupo_plataforma: number;
   contract_id: string;
+  contract_type: string;
   generation_date: string;
   // Additional fields for contract template
   direccion_comercial?: string;
@@ -104,6 +106,7 @@ export interface DataImport {
 
 export interface ContractGenerationRequest {
   client_nit: string;
+  contract_type?: 'activos' | 'otrosi';
 }
 
 export interface ContractReviewRequest {

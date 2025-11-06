@@ -26,11 +26,37 @@ export const operationsService = {
   /**
    * Get all approved contracts
    */
-  async getApprovedContracts(): Promise<ContractGeneration[]> {
+  async getApprovedContracts(contractType?: string): Promise<ContractGeneration[]> {
+    const params = contractType ? { contract_type: contractType } : {};
     const response = await apiClient.get<ContractGeneration[]>(
-      `${BASE_URL}/contracts/approved`
+      `${BASE_URL}/contracts/approved`,
+      { params }
     );
     return response.data;
+  },
+
+  /**
+   * Request Otrosí contract generation (Operations initiates)
+   */
+  async requestOtrosiGeneration(
+    clientNit: string
+  ): Promise<ContractGeneration> {
+    const request: ContractGenerationRequest = {
+      client_nit: clientNit,
+      contract_type: 'otrosi',
+    };
+    const response = await apiClient.post<ContractGeneration>(
+      `${BASE_URL}/contracts/generate`,
+      request
+    );
+    return response.data;
+  },
+
+  /**
+   * Get all approved Otrosí contracts
+   */
+  async getApprovedOtrosis(): Promise<ContractGeneration[]> {
+    return this.getApprovedContracts('otrosi');
   },
 
   /**

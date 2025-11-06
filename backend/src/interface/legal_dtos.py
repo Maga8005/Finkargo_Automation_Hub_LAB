@@ -8,6 +8,12 @@ from decimal import Decimal
 from enum import Enum
 
 
+class ContractType(str, Enum):
+    """Contract type enum"""
+    ACTIVOS = "activos"
+    OTROSI = "otrosi"
+
+
 class ContractStatus(str, Enum):
     """Contract status enum"""
     GENERATED = "generated"
@@ -83,6 +89,7 @@ class ClientSearchRequest(BaseModel):
 class ContractGenerationRequest(BaseModel):
     """Request to generate a contract"""
     client_nit: str = Field(..., description="Client NIT to generate contract for")
+    contract_type: ContractType = Field(default=ContractType.ACTIVOS, description="Type of contract to generate")
 
     @validator('client_nit')
     def validate_nit(cls, v):
@@ -100,6 +107,7 @@ class ClientDataSnapshot(BaseModel):
     ciudad_domicilio: str
     cupo_plataforma: Decimal
     contract_id: str
+    contract_type: str
     generation_date: str
     # Additional fields for contract template
     direccion_comercial: Optional[str] = None
@@ -115,6 +123,7 @@ class ContractGenerationResponse(BaseModel):
     """Response after contract generation"""
     id: str
     contract_id: str
+    contract_type: str
     client_nit: str
     status: ContractStatus
     generated_at: datetime
@@ -130,6 +139,7 @@ class ContractGenerationDetail(BaseModel):
     """Detailed contract generation record"""
     id: str
     contract_id: str
+    contract_type: str
     client_nit: str
     status: ContractStatus
     generated_by: Optional[str] = None  # Nullable until auth is implemented

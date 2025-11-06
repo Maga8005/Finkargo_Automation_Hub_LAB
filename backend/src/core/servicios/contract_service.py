@@ -46,10 +46,10 @@ class ContractService:
         user_id: str
     ) -> Dict[str, Any]:
         """
-        Generate a new asset guarantee contract
+        Generate a new contract (Activos or Otrosí)
 
         Args:
-            request: Contract generation request
+            request: Contract generation request with contract_type
             user_id: ID of user generating contract
 
         Returns:
@@ -58,20 +58,29 @@ class ContractService:
         Raises:
             ValueError: If client not found or template not available
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Extract contract type from request (default to 'activos' for backward compatibility)
+        contract_type = request.contract_type.value if hasattr(request.contract_type, 'value') else str(request.contract_type)
+        logger.info(f"Generating {contract_type} contract for client NIT: {request.client_nit}")
+
         # 1. Fetch client data
         client = await self.client_repo.get_by_nit(request.client_nit)
         if not client:
             raise ValueError(f"Client with NIT {request.client_nit} not found")
 
-        # 2. Get active template
-        template = await self.template_repo.get_active_template('activos')
+        # 2. Get active template for contract type
+        template = await self.template_repo.get_active_template(contract_type)
         if not template:
-            raise ValueError("No active contract template found")
+            raise ValueError(f"No active contract template found for type: {contract_type}")
 
-        # 3. Generate contract ID
-        contract_id = await self.contract_repo.generate_contract_id()
+        # 3. Generate contract ID with contract type
+        contract_id = await self.contract_repo.generate_contract_id(contract_type)
         if not contract_id:
             raise ValueError("Failed to generate contract ID")
+
+        logger.info(f"Generated contract ID: {contract_id}")
 
         # 4. Create data snapshot
         generation_date = datetime.utcnow().strftime('%Y-%m-%d')
@@ -83,6 +92,7 @@ class ContractService:
             'ciudad_domicilio': client['ciudad_domicilio'],
             'cupo_plataforma': float(client['cupo_plataforma']),
             'contract_id': contract_id,
+            'contract_type': contract_type,
             'generation_date': generation_date,
             # New fields for complete contract template population
             'direccion_comercial': client.get('direccion_comercial'),
@@ -97,6 +107,7 @@ class ContractService:
         # 5. Create contract generation record
         contract_data = {
             'contract_id': contract_id,
+            'contract_type': contract_type,
             'client_nit': client['nit'],
             'client_id': client['id'],
             'status': ContractStatus.UNDER_REVIEW.value,  # Start with review status
@@ -107,6 +118,8 @@ class ContractService:
         }
 
         contract = await self.contract_repo.create(contract_data)
+
+        logger.info(f"Contract {contract_id} created successfully with status: {contract['status']}")
 
         return contract
 
@@ -231,14 +244,29 @@ class ContractService:
 
         return contract
 
-    async def get_pending_reviews(self) -> list:
+    async def get_pending_reviews(self, contract_type: Optional[str] = None) -> list:
         """
-        Get all contracts pending legal review
+        Get all contracts pending legal review, optionally filtered by contract type
+
+        Args:
+            contract_type: Optional filter by contract type ('activos' or 'otrosi')
 
         Returns:
             list: Contracts awaiting review
         """
-        return await self.contract_repo.get_pending_review()
+        return await self.contract_repo.get_pending_review(contract_type)
+
+    async def get_approved_contracts(self, contract_type: Optional[str] = None) -> list:
+        """
+        Get all approved contracts, optionally filtered by contract type
+
+        Args:
+            contract_type: Optional filter by contract type ('activos' or 'otrosi')
+
+        Returns:
+            list: Approved contracts
+        """
+        return await self.contract_repo.get_approved_contracts(contract_type)
 
     async def get_contract_stats(self) -> Dict[str, int]:
         """

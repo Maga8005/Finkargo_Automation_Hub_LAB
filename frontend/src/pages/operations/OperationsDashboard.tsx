@@ -18,6 +18,7 @@ import {
 } from '@mui/icons-material';
 import FKApprovedContracts from '../../components/forms/FKApprovedContracts';
 import FKContractRequest from '../../components/forms/FKContractRequest';
+import FKOtrosiRequest from '../../components/forms/FKOtrosiRequest';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -64,7 +65,8 @@ const OperationsDashboard: React.FC = () => {
       <Card>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={currentTab} onChange={handleTabChange} aria-label="operations tabs">
-            <Tab label="Solicitar Contrato" icon={<AddIcon />} iconPosition="start" />
+            <Tab label="Solicitar Contrato Activos" icon={<AddIcon />} iconPosition="start" />
+            <Tab label="Solicitar Otrosí No. 1" icon={<DescriptionIcon />} iconPosition="start" />
             <Tab label="Contratos Aprobados" icon={<CheckCircleIcon />} iconPosition="start" />
           </Tabs>
         </Box>
@@ -74,13 +76,13 @@ const OperationsDashboard: React.FC = () => {
             <Card elevation={0} sx={{ bgcolor: 'info.50', border: 1, borderColor: 'info.200' }}>
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                  <DescriptionIcon sx={{ color: 'info.main', mt: 0.5 }} />
+                  <AddIcon sx={{ color: 'info.main', mt: 0.5 }} />
                   <Box>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1, color: 'info.dark' }}>
-                      Solicitud de Contrato
+                      Solicitud de Contrato Activos
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Busca el cliente y solicita la generación de un contrato. El equipo legal lo revisará y aprobará antes de que puedas descargarlo.
+                      Busca el cliente y solicita la generación de un contrato de activos. El equipo legal lo revisará y aprobará antes de que puedas descargarlo.
                     </Typography>
                   </Box>
                 </Box>
@@ -91,6 +93,27 @@ const OperationsDashboard: React.FC = () => {
         </TabPanel>
 
         <TabPanel value={currentTab} index={1}>
+          <Box sx={{ mb: 3 }}>
+            <Card elevation={0} sx={{ bgcolor: 'warning.50', border: 1, borderColor: 'warning.200' }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                  <DescriptionIcon sx={{ color: 'warning.main', mt: 0.5 }} />
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1, color: 'warning.dark' }}>
+                      Solicitud de Otrosí No. 1
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Busca el cliente y solicita la generación de un Otrosí No. 1 (enmienda al contrato marco). El equipo legal lo revisará y aprobará.
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
+          <FKOtrosiRequest />
+        </TabPanel>
+
+        <TabPanel value={currentTab} index={2}>
           <Box sx={{ mb: 3 }}>
             <Card elevation={0} sx={{ bgcolor: 'success.50', border: 1, borderColor: 'success.200' }}>
               <CardContent>

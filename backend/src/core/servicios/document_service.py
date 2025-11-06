@@ -49,6 +49,30 @@ class DocumentService:
         Returns:
             bytes: Generated DOCX file content
         """
+        # Route to appropriate method based on contract type
+        contract_type = contract_data.get('contract_type', 'activos')
+        logger.info(f"Generating document for contract type: {contract_type}")
+
+        if contract_type == 'otrosi':
+            return self.generate_otrosi_document(contract_data)
+        else:
+            return self.generate_activos_document(contract_data, template_name)
+
+    def generate_activos_document(
+        self,
+        contract_data: Dict[str, Any],
+        template_name: str = "FK COL - GM - Activos.docx"
+    ) -> bytes:
+        """
+        Generate Activos contract document from template and data
+
+        Args:
+            contract_data: Dictionary containing all contract data including client info
+            template_name: Name of the Word template file
+
+        Returns:
+            bytes: Generated DOCX file content
+        """
         template_path = self.template_dir / template_name
 
         if not template_path.exists():
@@ -87,6 +111,68 @@ class DocumentService:
             os.unlink(tmp_path)
         except Exception:
             pass  # Ignore cleanup errors on Windows
+
+        return content
+
+    def generate_otrosi_document(
+        self,
+        contract_data: Dict[str, Any],
+        template_name: str = "FK COL - K Marco - Otrosí No. 1.docx"
+    ) -> bytes:
+        """
+        Generate Otrosí No. 1 contract document from template and data
+
+        Args:
+            contract_data: Dictionary containing all contract data including client info
+            template_name: Name of the Word template file
+
+        Returns:
+            bytes: Generated DOCX file content
+        """
+        template_path = self.template_dir / template_name
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"Otrosí template not found: {template_path}")
+
+        logger.info(f"Loading Otrosí template from: {template_path}")
+
+        # Load template
+        doc = Document(str(template_path))
+
+        # Prepare Otrosí-specific replacement data
+        replacements = self._prepare_otrosi_replacements(contract_data)
+
+        logger.info(f"Replacing {len(replacements)} placeholders in Otrosí template")
+
+        # Replace placeholders in paragraphs
+        for para in doc.paragraphs:
+            self._replace_in_paragraph(para, replacements)
+
+        # Replace placeholders in tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        self._replace_in_paragraph(para, replacements)
+
+        # Save to temporary file and read bytes
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp:
+            tmp_path = tmp.name
+
+        # Save document
+        doc.save(tmp_path)
+
+        # Read bytes
+        with open(tmp_path, 'rb') as f:
+            content = f.read()
+
+        # Clean up
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass  # Ignore cleanup errors on Windows
+
+        logger.info("Otrosí document generated successfully")
 
         return content
 
@@ -259,6 +345,84 @@ class DocumentService:
             # Document ID
             '[sic]': safe_get(contract_data, 'contract_id'),
         }
+
+        return replacements
+
+    def _prepare_otrosi_replacements(self, contract_data: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Prepare replacement dictionary for Otrosí template from contract data
+        Otrosí templates use similar placeholders to Activos templates
+
+        Args:
+            contract_data: Raw contract data from database
+
+        Returns:
+            Dictionary mapping placeholders to replacement values
+        """
+        # Helper function to safely get string values
+        def safe_get(d: dict, key: str, default: str = '') -> str:
+            """Get value from dict and ensure it's a string"""
+            value = d.get(key, default)
+            return str(value) if value is not None else default
+
+        # Extract data_snapshot
+        snapshot = contract_data.get('data_snapshot', {})
+
+        # Get current date info
+        now = datetime.now()
+        generation_date = contract_data.get('generated_at', now)
+        if isinstance(generation_date, str):
+            generation_date = datetime.fromisoformat(generation_date.replace('Z', '+00:00'))
+
+        # Format currency
+        cupo_plataforma = float(snapshot.get('cupo_plataforma', 0))
+        cupo_formatted = f"${cupo_plataforma:,.0f}".replace(',', '.')
+        cupo_letras = self._number_to_words_spanish(cupo_plataforma)
+
+        # Build replacements dictionary (Otrosí uses same placeholders as Activos)
+        replacements = {
+            # Date fields
+            '[día]': str(generation_date.day),
+            '[mes]': self._get_month_name_spanish(generation_date.month),
+            '[•]': str(generation_date.year)[-1],  # Last digit of year for 202[•] format
+
+            # Client information
+            '[NOMBRE DEL CLIENTE]': safe_get(snapshot, 'nombre_importador'),
+            '[NIT]': safe_get(snapshot, 'nit'),
+
+            # Legal representative information
+            '[Nombre del representante legal]': safe_get(snapshot, 'representante_legal'),
+            '[nombre del representante legal]': safe_get(snapshot, 'representante_legal'),
+            '[tipo de identificación]': safe_get(snapshot, 'tipo_identificacion_representante', 'CC'),
+            '[identificación RL]': safe_get(snapshot, 'cedula_representante'),
+
+            # Location
+            '[nombre de la ciudad]': safe_get(snapshot, 'ciudad_domicilio'),
+            '[Domicilio en que el Importador adelanta sus actividades comerciales]':
+                safe_get(snapshot, 'direccion_comercial') or safe_get(snapshot, 'ciudad_domicilio'),
+
+            # Financial information
+            '[valor Cupo de Operaciones en números]': cupo_formatted,
+            '[valor Cupo de Operaciones en letras]': cupo_letras,
+            '[valor en números]': cupo_formatted,
+            '[valor en letras]': cupo_letras,
+
+            # Contract information
+            '[nombre del contrato marco]': safe_get(snapshot, 'nombre_contrato_marco', 'Compra de Cartera'),
+
+            # KAM Contact information
+            '[nombre del KAM]': safe_get(snapshot, 'kam_nombre', 'Key Account Manager'),
+            '[KAM e-mail]': safe_get(snapshot, 'kam_email', 'kam@finkargo.com'),
+
+            # Recipient Contact information
+            '[nombre del destinatario]': safe_get(snapshot, 'destinatario_nombre', 'Departamento Legal'),
+            '[destinatario e-mail]': safe_get(snapshot, 'destinatario_email', 'legal@finkargo.com'),
+
+            # Document ID
+            '[sic]': safe_get(contract_data, 'contract_id'),
+        }
+
+        logger.debug(f"Prepared {len(replacements)} replacements for Otrosí template")
 
         return replacements
 

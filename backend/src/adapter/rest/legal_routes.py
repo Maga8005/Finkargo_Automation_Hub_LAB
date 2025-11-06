@@ -322,12 +322,18 @@ async def get_contract_stats(
 
 @router.get("/contracts/pending-review", response_model=List[ContractGenerationDetail])
 async def get_pending_reviews(
+    contract_type: Optional[str] = None,
     service: ContractService = Depends(get_contract_service),
     current_user: dict = Depends(require_legal_role)
 ):
-    """Get all contracts pending legal review (Legal role or Admin required)"""
+    """
+    Get all contracts pending legal review (Legal role or Admin required)
+
+    Query Parameters:
+        contract_type: Optional filter by contract type ('activos' or 'otrosi')
+    """
     try:
-        contracts = await service.get_pending_reviews()
+        contracts = await service.get_pending_reviews(contract_type)
         return contracts
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

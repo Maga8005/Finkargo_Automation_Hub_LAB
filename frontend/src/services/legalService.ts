@@ -93,9 +93,17 @@ export const legalService = {
   /**
    * Get contracts pending review
    */
-  getPendingReviews: async (): Promise<ContractGeneration[]> => {
-    const response = await apiClient.get<ContractGeneration[]>('/legal/contracts/pending-review');
+  getPendingReviews: async (contractType?: string): Promise<ContractGeneration[]> => {
+    const params = contractType ? { contract_type: contractType } : {};
+    const response = await apiClient.get<ContractGeneration[]>('/legal/contracts/pending-review', { params });
     return response.data;
+  },
+
+  /**
+   * Get Otrosí contracts pending review
+   */
+  getPendingOtrosiReviews: async (): Promise<ContractGeneration[]> => {
+    return legalService.getPendingReviews('otrosi');
   },
 
   /**

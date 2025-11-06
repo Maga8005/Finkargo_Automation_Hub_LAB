@@ -81,16 +81,20 @@ async def request_contract_generation(
 
 @router.get("/contracts/approved", response_model=List[ContractGenerationDetail])
 async def get_approved_contracts(
+    contract_type: Optional[str] = None,
     contract_repo: ContractRepository = Depends(get_contract_repo),
     current_user: dict = Depends(require_operations_role)
 ):
     """
     Get all approved contracts for Operations team (Operations role or Admin required)
 
+    Query Parameters:
+        contract_type: Optional filter by contract type ('activos' or 'otrosi')
+
     Returns contracts with approved status and document URLs for download
     """
     try:
-        contracts = await contract_repo.get_approved_contracts()
+        contracts = await contract_repo.get_approved_contracts(contract_type)
         return contracts
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

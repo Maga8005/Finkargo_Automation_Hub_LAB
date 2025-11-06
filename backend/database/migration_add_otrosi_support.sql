@@ -1,0 +1,154 @@
+-- Migration: Add Otrosí Contract Type Support
+-- Description: Add Otrosí template and update contract_id generation to support multiple contract types
+-- Date: 2025-11-06
+
+-- ================================================================
+-- STEP 1: Add Otrosí template to contract_templates table
+-- ================================================================
+
+INSERT INTO contract_templates (
+    contract_type,
+    template_name,
+    version,
+    active,
+    created_at,
+    updated_at
+)
+VALUES (
+    'otrosi',
+    'FK COL - K Marco - Otrosí No. 1.docx',
+    '1.0.0',
+    true,
+    NOW(),
+    NOW()
+)
+ON CONFLICT (contract_type, version) DO UPDATE
+SET
+    template_name = EXCLUDED.template_name,
+    active = EXCLUDED.active,
+    updated_at = NOW();
+
+-- ================================================================
+-- STEP 2: Update generate_contract_id function to support contract_type parameter
+-- ================================================================
+
+-- Drop existing function if it exists
+DROP FUNCTION IF EXISTS generate_contract_id(VARCHAR);
+DROP FUNCTION IF EXISTS generate_contract_id();
+
+-- Create new polymorphic function that accepts contract_type parameter
+CREATE OR REPLACE FUNCTION generate_contract_id(p_contract_type VARCHAR DEFAULT 'activos')
+RETURNS VARCHAR AS $$
+DECLARE
+    current_year INTEGER;
+    next_sequence INTEGER;
+    prefix VARCHAR(10);
+    sequence_key VARCHAR(50);
+BEGIN
+    -- Get current year
+    current_year := EXTRACT(YEAR FROM CURRENT_DATE);
+
+    -- Determine prefix based on contract type
+    IF p_contract_type = 'otrosi' THEN
+        prefix := 'OTRO';
+    ELSE
+        prefix := 'ACT';  -- Default to Activos for backward compatibility
+    END IF;
+
+    -- Create composite key for sequence tracking (year + contract_type)
+    sequence_key := current_year::TEXT || '-' || p_contract_type;
+
+    -- Try to get existing sequence for this year and contract type
+    SELECT last_sequence INTO next_sequence
+    FROM contract_id_sequence
+    WHERE year = current_year AND contract_type = p_contract_type
+    FOR UPDATE;
+
+    -- If sequence exists, increment it
+    IF FOUND THEN
+        next_sequence := next_sequence + 1;
+
+        UPDATE contract_id_sequence
+        SET last_sequence = next_sequence,
+            updated_at = NOW()
+        WHERE year = current_year AND contract_type = p_contract_type;
+    ELSE
+        -- Initialize new sequence for this year and contract type
+        next_sequence := 1;
+
+        INSERT INTO contract_id_sequence (year, contract_type, last_sequence, created_at, updated_at)
+        VALUES (current_year, p_contract_type, next_sequence, NOW(), NOW());
+    END IF;
+
+    -- Return formatted contract ID: PREFIX-YYYY-NNN
+    RETURN prefix || '-' || current_year || '-' || LPAD(next_sequence::TEXT, 3, '0');
+END;
+$$ LANGUAGE plpgsql;
+
+-- ================================================================
+-- STEP 3: Update contract_id_sequence table to support contract_type (if needed)
+-- ================================================================
+
+-- Check if contract_type column exists, if not add it
+DO $$
+BEGIN
+    -- Add contract_type column if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'contract_id_sequence' AND column_name = 'contract_type'
+    ) THEN
+        ALTER TABLE contract_id_sequence ADD COLUMN contract_type VARCHAR(50) DEFAULT 'activos';
+
+        -- Update existing records to have 'activos' as contract_type
+        UPDATE contract_id_sequence SET contract_type = 'activos' WHERE contract_type IS NULL;
+
+        -- Make contract_type NOT NULL
+        ALTER TABLE contract_id_sequence ALTER COLUMN contract_type SET NOT NULL;
+
+        -- Drop old primary key and create new composite primary key
+        ALTER TABLE contract_id_sequence DROP CONSTRAINT IF EXISTS contract_id_sequence_pkey;
+        ALTER TABLE contract_id_sequence ADD PRIMARY KEY (year, contract_type);
+
+        -- Add index for faster lookups
+        CREATE INDEX IF NOT EXISTS idx_contract_id_sequence_type ON contract_id_sequence(contract_type, year);
+    END IF;
+END $$;
+
+-- ================================================================
+-- STEP 4: Initialize Otrosí sequence for current year
+-- ================================================================
+
+-- Insert initial sequence record for Otrosí contracts
+INSERT INTO contract_id_sequence (year, contract_type, last_sequence, created_at, updated_at)
+VALUES (
+    EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER,
+    'otrosi',
+    0,
+    NOW(),
+    NOW()
+)
+ON CONFLICT (year, contract_type) DO NOTHING;
+
+-- ================================================================
+-- VERIFICATION QUERIES
+-- ================================================================
+
+-- Verify Otrosí template was added
+-- SELECT * FROM contract_templates WHERE contract_type = 'otrosi';
+
+-- Verify function works for both contract types
+-- SELECT generate_contract_id('activos');
+-- SELECT generate_contract_id('otrosi');
+
+-- Verify sequence table structure
+-- SELECT * FROM contract_id_sequence ORDER BY year DESC, contract_type;
+
+-- ================================================================
+-- ROLLBACK INSTRUCTIONS (if needed)
+-- ================================================================
+
+-- To rollback this migration:
+-- DELETE FROM contract_templates WHERE contract_type = 'otrosi';
+-- DELETE FROM contract_id_sequence WHERE contract_type = 'otrosi';
+-- DROP FUNCTION IF EXISTS generate_contract_id(VARCHAR);
+-- (Then recreate original generate_contract_id function without contract_type parameter)
