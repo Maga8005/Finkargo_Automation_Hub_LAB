@@ -94,10 +94,9 @@ async def search_clients(
     nit: Optional[str] = None,
     nombre: Optional[str] = None,
     is_active: Optional[bool] = True,
-    client_repo: ClientRepository = Depends(get_client_repo),
-    current_user: dict = Depends(require_legal_role)
+    client_repo: ClientRepository = Depends(get_client_repo)
 ):
-    """Search clients by NIT or name (Legal role or Admin required)"""
+    """Search clients by NIT or name (Public endpoint - no authentication required)"""
     try:
         search_params = ClientSearchRequest(
             query=query,
