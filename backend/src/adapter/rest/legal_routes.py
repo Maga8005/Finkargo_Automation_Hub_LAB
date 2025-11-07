@@ -94,9 +94,10 @@ async def search_clients(
     nit: Optional[str] = None,
     nombre: Optional[str] = None,
     is_active: Optional[bool] = True,
-    client_repo: ClientRepository = Depends(get_client_repo)
+    client_repo: ClientRepository = Depends(get_client_repo),
+    current_user: dict = Depends(require_legal_role)
 ):
-    """Search clients by NIT or name (Public endpoint - no authentication required)"""
+    """Search clients by NIT or name (Legal role or Admin required)"""
     from pydantic import ValidationError
 
     try:
