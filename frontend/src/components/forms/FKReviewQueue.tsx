@@ -157,6 +157,19 @@ const FKReviewQueue: React.FC = () => {
     }).format(amount);
   };
 
+  const getContractTypeBadge = (contractType: string) => {
+    if (contractType === 'otrosi') {
+      return {
+        label: 'Otrosí No. 1',
+        color: 'warning' as const,
+      };
+    }
+    return {
+      label: 'Activos',
+      color: 'info' as const,
+    };
+  };
+
   return (
     <Box>
       {/* Success Message */}
@@ -227,9 +240,22 @@ const FKReviewQueue: React.FC = () => {
                     <Grid size={{ xs: 12 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                         <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                            {contract.contract_id}
-                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                              {contract.contract_id}
+                            </Typography>
+                            {(() => {
+                              const badge = getContractTypeBadge(contract.contract_type || 'activos');
+                              return (
+                                <Chip
+                                  label={badge.label}
+                                  color={badge.color}
+                                  size="small"
+                                  sx={{ fontWeight: 500 }}
+                                />
+                              );
+                            })()}
+                          </Box>
                           <Typography variant="body2" color="text.secondary">
                             Generado: {formatDate(contract.generated_at)}
                           </Typography>

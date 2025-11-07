@@ -96,6 +96,19 @@ const FKApprovedContracts: React.FC = () => {
     }).format(amount);
   };
 
+  const getContractTypeBadge = (contractType: string) => {
+    if (contractType === 'otrosi') {
+      return {
+        label: 'Otrosí No. 1',
+        color: 'warning' as const,
+      };
+    }
+    return {
+      label: 'Activos',
+      color: 'info' as const,
+    };
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
@@ -137,6 +150,7 @@ const FKApprovedContracts: React.FC = () => {
           <TableHead sx={{ bgcolor: 'grey.50' }}>
             <TableRow>
               <TableCell sx={{ fontWeight: 600 }}>ID Contrato</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Tipo</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Cliente</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>NIT</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Cupo Aprobado</TableCell>
@@ -156,6 +170,19 @@ const FKApprovedContracts: React.FC = () => {
                   <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
                     {contract.contract_id}
                   </Typography>
+                </TableCell>
+                <TableCell>
+                  {(() => {
+                    const badge = getContractTypeBadge(contract.contract_type || 'activos');
+                    return (
+                      <Chip
+                        label={badge.label}
+                        color={badge.color}
+                        size="small"
+                        sx={{ fontWeight: 500 }}
+                      />
+                    );
+                  })()}
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
