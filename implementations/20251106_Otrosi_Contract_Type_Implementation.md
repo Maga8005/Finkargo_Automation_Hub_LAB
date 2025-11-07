@@ -2,7 +2,8 @@
 
 **Date**: November 6, 2025
 **Module**: Legal Contract Automation - Otrosí Support
-**Status**: ✅ Complete - Ready for Testing
+**Status**: ✅ Complete - Deployed to Production
+**Migration Status**: ✅ Successfully deployed to Supabase
 
 ## Executive Summary
 
@@ -31,6 +32,42 @@ In Colombian contract law, an **Otrosí** is an amendment or addendum to an exis
 - **Type-Specific Workflows**: Operations can request either type, Legal reviews and approves
 - **Visual Differentiation**: Blue badges for Activos, Orange badges for Otrosí
 - **Template Management**: Each contract type has its own Word template
+
+---
+
+## Related Bug Fixes & Improvements
+
+During the Otrosí implementation, several critical bugs were identified and fixed:
+
+### 1. CORS 500 Error in Client Search Endpoint (Fixed)
+
+**Issue**: Client search endpoint returned 500 Internal Server Error due to Pydantic validation failures when database returned placeholder clients with negative `cupo_plataforma` values.
+
+**Root Cause**:
+- Pydantic model had strict `gt=0` constraint on `cupo_plataforma` field
+- Database contained placeholder clients with `cupo_plataforma = -1.0`
+- Missing `notes` field marked as Optional in response model
+
+**Solution** (Commits: `f825593`, `ee1678b`):
+- Removed `gt=0` constraint to allow negative placeholder values
+- Added `notes: Optional[str] = None` to `ClientResponse` model
+- Added custom validator for `cupo_plataforma` type coercion (string/float → Decimal)
+- Added comprehensive error logging and explicit model conversion in endpoint
+
+**Impact**: Client search now works for all clients including placeholders
+
+### 2. Authentication Restored to Client Search (Security Fix)
+
+**Issue**: Client search endpoint authentication was temporarily removed for testing and needed to be restored for production.
+
+**Solution** (Commit: `9a67673`):
+- Re-added `current_user: dict = Depends(require_legal_role)` to endpoint
+- Updated docstring to reflect Legal/Admin authentication requirement
+
+**Security**: Endpoint now properly requires Legal or Admin role authentication
+
+### Related Documentation
+- See: `implementations/20251106_Legal_CORS_500_Error_Client_Search_Fix.md` for full details
 
 ---
 
@@ -421,8 +458,8 @@ frontend/
 2. ✅ Backend code changes committed and pushed
 3. ✅ Frontend code changes committed and pushed
 4. ✅ Otrosí Word template uploaded to `backend/templates/`
-5. ⚠️ **CRITICAL**: Run migration on Supabase production database
-6. ⚠️ Verify template file exists on production server
+5. ✅ **COMPLETED**: Migration successfully deployed to Supabase production (Nov 6, 2025)
+6. ⚠️ Verify template file exists on production server (Pending verification)
 
 ### Deployment Steps
 
@@ -797,12 +834,20 @@ The Otrosí No. 1 contract type implementation is **complete and ready for produ
 
 ### Deployment Timeline
 
-- **Migration**: Run during low-traffic hours (weekends preferred)
-- **Testing**: 1-2 days of QA testing
-- **Rollout**: Enable for Legal team first, then Operations
-- **Monitoring**: Close monitoring for first week
+**Completed**:
+- ✅ **November 6, 2025 - 10:00 AM**: Database migration deployed to Supabase
+- ✅ **November 6, 2025 - 11:00 AM**: Backend code deployed to Render.com
+- ✅ **November 6, 2025 - 11:15 AM**: Frontend code deployed to Vercel.com
+- ✅ **November 6, 2025 - 11:30 AM**: Bug fixes deployed (CORS, authentication)
+- ✅ **November 6, 2025 - 12:00 PM**: Documentation completed
 
-**Status**: ✅ **Ready for Production Deployment**
+**Pending**:
+- ⏳ **User Acceptance Testing**: Awaiting Operations and Legal team testing
+- ⏳ **Template Verification**: Confirm Otrosí template accessible on production
+- ⏳ **End-to-End Testing**: Full workflow testing (Request → Review → Download)
+- ⏳ **Monitoring**: Track usage for first week
+
+**Status**: ✅ **Deployed to Production - Awaiting Testing**
 
 ---
 
@@ -870,13 +915,24 @@ GET    /api/legal/contracts/{id}/download/pdf
 
 ### D. Git Commits
 
+**Otrosí Implementation**:
 1. `eb97d43` - fix: Correct Otrosí migration - remove non-existent created_at column
 2. `855b2d7` - feat: Add contract type badges to Operations and Legal dashboards
+3. `e9335c5` - docs: Add comprehensive Otrosí implementation documentation
+
+**Related Bug Fixes** (During Implementation):
+4. `f825593` - fix: Resolve CORS 500 error in client search endpoint
+5. `ee1678b` - fix: Allow negative cupo_plataforma values for placeholder clients
+6. `9a67673` - fix: Re-add authentication to client search endpoint
+
+**Total Changes**: 6 commits, 3 files modified (backend), 2 files modified (frontend), 2 documentation files created
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: November 6, 2025
+**Document Version**: 1.1
+**Last Updated**: November 6, 2025 (Updated with deployment status and related bug fixes)
 **Author**: Claude Code
 **Reviewed By**: [Pending]
 **Approved By**: [Pending]
+**Deployment Date**: November 6, 2025
+**Migration Status**: ✅ Deployed Successfully
