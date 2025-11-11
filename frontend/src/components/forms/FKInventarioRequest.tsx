@@ -18,6 +18,7 @@ import {
   Search as SearchIcon,
   Warehouse as WarehouseIcon,
   CheckCircle as CheckCircleIcon,
+  UploadFile as UploadFileIcon,
 } from '@mui/icons-material';
 import { legalService } from '../../services/legalService';
 import { operationsService } from '../../services/operationsService';
@@ -31,6 +32,11 @@ const FKInventarioRequest: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Client[]>([]);
   const [requestedContract, setRequestedContract] = useState<ContractGeneration | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // RUT file upload state
+  const [rutFile, setRutFile] = useState<File | null>(null);
+  const [rutFileName, setRutFileName] = useState<string>('');
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const handleSearch = async () => {
     setSearching(true);
@@ -56,24 +62,58 @@ const FKInventarioRequest: React.FC = () => {
     }
   };
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate PDF
+    if (file.type !== 'application/pdf') {
+      setFileError('Solo se permiten archivos PDF');
+      setRutFile(null);
+      setRutFileName('');
+      return;
+    }
+
+    // Validate size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setFileError('El archivo no debe superar 5MB');
+      setRutFile(null);
+      setRutFileName('');
+      return;
+    }
+
+    setRutFile(file);
+    setRutFileName(file.name);
+    setFileError(null);
+  };
+
   const handleRequestContract = async () => {
     if (!selectedClient) {
       setError('Por favor seleccione un cliente');
       return;
     }
 
+    if (!rutFile) {
+      setError('Debe cargar el documento RUT del operador custodio');
+      return;
+    }
+
     setRequesting(true);
     setError(null);
+    setFileError(null);
 
     try {
-      const contract = await operationsService.requestInventarioBodegaGeneration(selectedClient.nit);
+      const contract = await operationsService.requestInventarioBodegaGeneration(selectedClient.nit, rutFile);
 
       setRequestedContract(contract);
       setSearchQuery('');
       setSelectedClient(null);
       setSearchResults([]);
+      setRutFile(null);
+      setRutFileName('');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al solicitar el Inventario Bodega de 3ro');
+      const errorDetail = err.response?.data?.detail || 'Error al solicitar el Inventario Bodega de 3ro';
+      setError(errorDetail);
       console.error('Request error:', err);
     } finally {
       setRequesting(false);
@@ -267,6 +307,48 @@ const FKInventarioRequest: React.FC = () => {
 
             <Divider sx={{ my: 3 }} />
 
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              Documento RUT del Operador Custodio
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Suba el documento RUT (Registro Único Tributario) del operador de bodega de terceros
+            </Typography>
+
+            <Box sx={{ mb: 3 }}>
+              <input
+                accept="application/pdf"
+                style={{ display: 'none' }}
+                id="rut-file-upload"
+                type="file"
+                onChange={handleFileChange}
+              />
+              <label htmlFor="rut-file-upload">
+                <Button
+                  variant="outlined"
+                  component="span"
+                  startIcon={<UploadFileIcon />}
+                  fullWidth
+                  sx={{ height: 56 }}
+                >
+                  {rutFileName || 'Seleccionar archivo RUT (PDF)'}
+                </Button>
+              </label>
+
+              {fileError && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {fileError}
+                </Alert>
+              )}
+
+              {rutFile && !fileError && (
+                <Alert severity="success" sx={{ mt: 2 }} icon={<CheckCircleIcon />}>
+                  Archivo cargado: {rutFileName}
+                </Alert>
+              )}
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
               <Button
                 variant="outlined"
@@ -274,6 +356,9 @@ const FKInventarioRequest: React.FC = () => {
                   setSelectedClient(null);
                   setSearchResults([]);
                   setSearchQuery('');
+                  setRutFile(null);
+                  setRutFileName('');
+                  setFileError(null);
                 }}
                 disabled={requesting}
               >
@@ -284,7 +369,7 @@ const FKInventarioRequest: React.FC = () => {
                 size="large"
                 startIcon={requesting ? <CircularProgress size={20} /> : <WarehouseIcon />}
                 onClick={handleRequestContract}
-                disabled={requesting}
+                disabled={requesting || !rutFile}
                 sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
               >
                 {requesting ? 'Solicitando...' : 'Solicitar Inventario Bodega de 3ro'}

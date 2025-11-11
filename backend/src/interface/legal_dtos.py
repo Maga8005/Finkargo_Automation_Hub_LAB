@@ -101,10 +101,28 @@ class ClientSearchRequest(BaseModel):
 
 # ==================== Contract Generation DTOs ====================
 
+class CustodianData(BaseModel):
+    """Custodian operator data extracted from RUT document (for Inventario Bodega contracts)"""
+    nombre_operador_custodio: str
+    ciudad_domicilio_custodio: str
+    nit_operador_custodio: str
+    nombre_representante_legal_custodio: str
+    email_operador_custodio: str
+    cc_representante_legal_custodio: str
+
+    @validator('email_operador_custodio')
+    def validate_email(cls, v):
+        """Basic email validation"""
+        if '@' not in v or '.' not in v:
+            raise ValueError(f"Invalid email format: {v}")
+        return v.lower()
+
+
 class ContractGenerationRequest(BaseModel):
     """Request to generate a contract"""
     client_nit: str = Field(..., description="Client NIT to generate contract for")
     contract_type: ContractType = Field(default=ContractType.ACTIVOS, description="Type of contract to generate")
+    custodian_data: Optional[CustodianData] = Field(None, description="Custodian data from RUT (required for Inventario Bodega)")
 
     @validator('client_nit')
     def validate_nit(cls, v):
@@ -132,6 +150,13 @@ class ClientDataSnapshot(BaseModel):
     kam_email: Optional[str] = None
     destinatario_nombre: Optional[str] = None
     destinatario_email: Optional[str] = None
+    # Custodian fields (for Inventario Bodega contracts)
+    nombre_operador_custodio: Optional[str] = None
+    ciudad_domicilio_custodio: Optional[str] = None
+    nit_operador_custodio: Optional[str] = None
+    nombre_representante_legal_custodio: Optional[str] = None
+    email_operador_custodio: Optional[str] = None
+    cc_representante_legal_custodio: Optional[str] = None
 
 
 class ContractGenerationResponse(BaseModel):

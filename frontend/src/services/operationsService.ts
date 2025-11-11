@@ -60,18 +60,29 @@ export const operationsService = {
   },
 
   /**
-   * Request Inventario Bodega contract generation (Operations initiates)
+   * Request Inventario Bodega contract generation with RUT upload (Operations initiates)
+   *
+   * @param clientNit - Client NIT
+   * @param rutFile - RUT PDF document for custodian operator
    */
   async requestInventarioBodegaGeneration(
-    clientNit: string
+    clientNit: string,
+    rutFile: File
   ): Promise<ContractGeneration> {
-    const request: ContractGenerationRequest = {
-      client_nit: clientNit,
-      contract_type: 'inventario_bodega',
-    };
+    // Create FormData for multipart/form-data upload
+    const formData = new FormData();
+    formData.append('client_nit', clientNit);
+    formData.append('contract_type', 'inventario_bodega');
+    formData.append('rut_file', rutFile);
+
     const response = await apiClient.post<ContractGeneration>(
       `${BASE_URL}/contracts/generate`,
-      request
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
     );
     return response.data;
   },

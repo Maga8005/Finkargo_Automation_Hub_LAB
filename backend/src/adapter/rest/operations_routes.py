@@ -2,7 +2,7 @@
 Operations Department - FastAPI Routes
 Handles contract generation requests and approved contract downloads
 """
-from fastapi import APIRouter, HTTPException, Depends, status, Path
+from fastapi import APIRouter, HTTPException, Depends, status, Path, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from uuid import UUID
@@ -14,11 +14,13 @@ from src.repositorio.contract_repository import ContractRepository
 from src.repositorio.template_repository import TemplateRepository
 from src.core.servicios.contract_service import ContractService
 from src.core.servicios.document_service import DocumentService
+from src.core.servicios.rut_parser_service import RUTParserService
 from src.adapter.rest.rbac_dependencies import require_operations_role
 from src.interface.legal_dtos import (
     ContractGenerationRequest,
     ContractGenerationResponse,
     ContractGenerationDetail,
+    ContractType,
 )
 
 router = APIRouter(prefix="/api/operations", tags=["Operations"])
@@ -58,7 +60,9 @@ def get_contract_service(
 
 @router.post("/contracts/generate", response_model=ContractGenerationResponse, status_code=status.HTTP_201_CREATED)
 async def request_contract_generation(
-    request: ContractGenerationRequest,
+    client_nit: str = Form(..., description="Client NIT"),
+    contract_type: str = Form(..., description="Contract type (activos, otrosi, inventario_bodega)"),
+    rut_file: Optional[UploadFile] = File(None, description="RUT PDF document (required for inventario_bodega)"),
     service: ContractService = Depends(get_contract_service),
     current_user: dict = Depends(require_operations_role)
 ):
@@ -66,16 +70,84 @@ async def request_contract_generation(
     Request a new contract generation (Operations role or Admin required)
 
     This creates a contract in UNDER_REVIEW status for Legal to approve.
+
+    For Inventario Bodega contracts, a RUT document must be uploaded to extract custodian information.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
         # Get user_id from authenticated user (dict)
         user_id = current_user['id']
 
+        # Validate contract type
+        try:
+            contract_type_enum = ContractType(contract_type)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid contract type: {contract_type}. Must be one of: activos, otrosi, inventario_bodega"
+            )
+
+        # Parse custodian data from RUT if Inventario Bodega
+        custodian_data = None
+        if contract_type_enum == ContractType.INVENTARIO_BODEGA:
+            if not rut_file:
+                raise HTTPException(
+                    status_code=400,
+                    detail="RUT document is required for Inventario Bodega contracts"
+                )
+
+            # Validate file type
+            if rut_file.content_type != 'application/pdf':
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid file type: {rut_file.content_type}. Only PDF files are allowed"
+                )
+
+            # Validate file size (5MB limit)
+            rut_bytes = await rut_file.read()
+            if len(rut_bytes) > 5 * 1024 * 1024:
+                raise HTTPException(
+                    status_code=400,
+                    detail="RUT file size exceeds 5MB limit"
+                )
+
+            # Parse RUT document
+            logger.info(f"Parsing RUT document: {rut_file.filename}")
+            parser = RUTParserService()
+
+            try:
+                custodian_data = parser.parse_rut_pdf(rut_bytes)
+                logger.info(f"RUT parsed successfully for custodian: {custodian_data.nombre_operador_custodio}")
+            except ValueError as e:
+                logger.error(f"RUT parsing failed: {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Error parsing RUT document: {str(e)}"
+                )
+            except Exception as e:
+                logger.error(f"Unexpected error parsing RUT: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to parse RUT document: {str(e)}"
+                )
+
+        # Create request object
+        request = ContractGenerationRequest(
+            client_nit=client_nit,
+            contract_type=contract_type_enum,
+            custodian_data=custodian_data
+        )
+
         contract = await service.generate_contract(request, user_id)
         return contract
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error generating contract: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

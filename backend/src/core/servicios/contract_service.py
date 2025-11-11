@@ -104,6 +104,18 @@ class ContractService:
             'destinatario_email': client.get('destinatario_email'),
         }
 
+        # Add custodian data for Inventario Bodega contracts
+        if request.custodian_data:
+            data_snapshot.update({
+                'nombre_operador_custodio': request.custodian_data.nombre_operador_custodio,
+                'ciudad_domicilio_custodio': request.custodian_data.ciudad_domicilio_custodio,
+                'nit_operador_custodio': request.custodian_data.nit_operador_custodio,
+                'nombre_representante_legal_custodio': request.custodian_data.nombre_representante_legal_custodio,
+                'email_operador_custodio': request.custodian_data.email_operador_custodio,
+                'cc_representante_legal_custodio': request.custodian_data.cc_representante_legal_custodio,
+            })
+            logger.info(f"Added custodian data to contract snapshot: {request.custodian_data.nombre_operador_custodio}")
+
         # 5. Create contract generation record
         contract_data = {
             'contract_id': contract_id,

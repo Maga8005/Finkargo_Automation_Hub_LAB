@@ -203,8 +203,8 @@ class DocumentService:
         # Load template
         doc = Document(str(template_path))
 
-        # Prepare replacement data (reuse Activos replacements as it's also a GM template)
-        replacements = self._prepare_replacements(contract_data)
+        # Prepare replacement data with custodian fields
+        replacements = self._prepare_inventario_bodega_replacements(contract_data)
 
         logger.info(f"Replacing {len(replacements)} placeholders in Inventario Bodega template")
 
@@ -487,6 +487,46 @@ class DocumentService:
         }
 
         logger.debug(f"Prepared {len(replacements)} replacements for Otrosí template")
+
+        return replacements
+
+    def _prepare_inventario_bodega_replacements(self, contract_data: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Prepare replacement dictionary for Inventario Bodega template from contract data
+        Includes both client data and custodian operator data from RUT
+
+        Args:
+            contract_data: Raw contract data from database
+
+        Returns:
+            Dictionary mapping placeholders to replacement values
+        """
+        # Helper function to safely get string values
+        def safe_get(d: dict, key: str, default: str = '') -> str:
+            """Get value from dict and ensure it's a string"""
+            value = d.get(key, default)
+            return str(value) if value is not None else default
+
+        # Start with base replacements (client data)
+        replacements = self._prepare_replacements(contract_data)
+
+        # Extract data_snapshot
+        snapshot = contract_data.get('data_snapshot', {})
+
+        # Add custodian fields from RUT data
+        custodian_replacements = {
+            '[NOMBRE DEL OPERADOR CUSTODIO]': safe_get(snapshot, 'nombre_operador_custodio'),
+            '[nombre de la ciudad de domicilio del Operador Custodio]': safe_get(snapshot, 'ciudad_domicilio_custodio'),
+            '[NIT Operador Custodio]': safe_get(snapshot, 'nit_operador_custodio'),
+            '[nombre del representante legal del Operador Custodio]': safe_get(snapshot, 'nombre_representante_legal_custodio'),
+            '[e-mail del operador custodio]': safe_get(snapshot, 'email_operador_custodio'),
+            '[CC representante legal del Operador Custodio]': safe_get(snapshot, 'cc_representante_legal_custodio'),
+        }
+
+        # Merge custodian fields into replacements
+        replacements.update(custodian_replacements)
+
+        logger.debug(f"Prepared {len(replacements)} replacements for Inventario Bodega template (including {len(custodian_replacements)} custodian fields)")
 
         return replacements
 
