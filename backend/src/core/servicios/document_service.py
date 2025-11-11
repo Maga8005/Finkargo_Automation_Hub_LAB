@@ -521,12 +521,14 @@ class DocumentService:
             '[nombre del representante legal del Operador Custodio]': safe_get(snapshot, 'nombre_representante_legal_custodio'),
             '[e-mail del operador custodio]': safe_get(snapshot, 'email_operador_custodio'),
             '[CC representante legal del Operador Custodio]': safe_get(snapshot, 'cc_representante_legal_custodio'),
+            '[id RL del Operador Custodio]': safe_get(snapshot, 'cc_representante_legal_custodio'),  # Same as CC field
+            '[tipo de id RL Operador Custodio]': safe_get(snapshot, 'tipo_identificacion_representante_legal_custodio'),
         }
 
         # Merge custodian fields into replacements
         replacements.update(custodian_replacements)
 
-        logger.debug(f"Prepared {len(replacements)} replacements for Inventario Bodega template (including {len(custodian_replacements)} custodian fields)")
+        logger.debug(f"Prepared {len(replacements)} replacements for Inventario Bodega template (including {len(custodian_replacements)} custodian field placeholders)")
 
         return replacements
 

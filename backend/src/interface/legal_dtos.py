@@ -109,6 +109,7 @@ class CustodianData(BaseModel):
     nombre_representante_legal_custodio: str
     email_operador_custodio: str
     cc_representante_legal_custodio: str
+    tipo_identificacion_representante_legal_custodio: str  # e.g., "CC", "CE", "Pasaporte"
 
     @validator('email_operador_custodio')
     def validate_email(cls, v):
@@ -157,6 +158,7 @@ class ClientDataSnapshot(BaseModel):
     nombre_representante_legal_custodio: Optional[str] = None
     email_operador_custodio: Optional[str] = None
     cc_representante_legal_custodio: Optional[str] = None
+    tipo_identificacion_representante_legal_custodio: Optional[str] = None
 
 
 class ContractGenerationResponse(BaseModel):

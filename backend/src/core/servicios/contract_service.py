@@ -113,6 +113,7 @@ class ContractService:
                 'nombre_representante_legal_custodio': request.custodian_data.nombre_representante_legal_custodio,
                 'email_operador_custodio': request.custodian_data.email_operador_custodio,
                 'cc_representante_legal_custodio': request.custodian_data.cc_representante_legal_custodio,
+                'tipo_identificacion_representante_legal_custodio': request.custodian_data.tipo_identificacion_representante_legal_custodio,
             })
             logger.info(f"Added custodian data to contract snapshot: {request.custodian_data.nombre_operador_custodio}")
 

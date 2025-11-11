@@ -59,6 +59,14 @@ RUT_FIELD_MAPPING = {
         "type": "text",
         "representation_type": "REPRS LEGAL PRIN",
         "description": "Legal representative ID number (cedula)"
+    },
+    "TIPO_IDENTIFICACION_REPRESENTANTE_LEGAL": {
+        "field_number": "100",
+        "field_name": "Tipo de documento",
+        "page": 3,
+        "type": "text",
+        "representation_type": "REPRS LEGAL PRIN",
+        "description": "Legal representative ID type (e.g., Cédula de Ciudadanía, Cédula de Extranjería)"
     }
 }
 
@@ -120,6 +128,9 @@ class RUTParserService:
 
             # Extract legal representative ID (field 101)
             extracted_data['cc_representante_legal_custodio'] = self._extract_legal_rep_id(page_3, page_3_text)
+
+            # Extract legal representative ID type (field 100)
+            extracted_data['tipo_identificacion_representante_legal_custodio'] = self._extract_legal_rep_id_type(page_3, page_3_text)
 
             # Close document
             doc.close()
@@ -478,3 +489,63 @@ class RUTParserService:
         # Log the text we're searching for debugging
         logger.debug(f"Text after REPRS LEGAL PRIN (first 500 chars): {text_after_reprs[:500]}")
         raise ValueError("Could not extract legal representative ID (field 101)")
+
+    def _extract_legal_rep_id_type(self, page, page_text: str) -> str:
+        """
+        Extract legal representative ID type from field 100 (Tipo de documento)
+
+        Returns abbreviated form: CC, CE, Pasaporte, etc.
+        """
+        logger.debug("Extracting legal representative ID type (field 100)")
+
+        # ID type mapping from full names to abbreviations
+        ID_TYPE_MAPPING = {
+            'Cédula de Ciudadanía': 'CC',
+            'Cedula de Ciudadania': 'CC',
+            'Cédula de Extranjería': 'CE',
+            'Cedula de Extranjeria': 'CE',
+            'Pasaporte': 'Pasaporte',
+            'Tarjeta de Identidad': 'TI',
+            'Registro Civil': 'RC',
+            'NIT': 'NIT',
+        }
+
+        # Find REPRS LEGAL PRIN section
+        reprs_pattern = r'REPRS LEGAL PRIN'
+        reprs_match = re.search(reprs_pattern, page_text, re.IGNORECASE)
+
+        if not reprs_match:
+            raise ValueError("Could not find REPRS LEGAL PRIN section")
+
+        # Extract text after REPRS LEGAL PRIN (next 1000 chars should be enough)
+        text_after_reprs = page_text[reprs_match.end():reprs_match.end() + 1000]
+
+        # Strategy 1: Look for "Tipo de documento" or field 100 label
+        type_pattern = r'100\.\s*Tipo de documento[^\n]*\n\s*([^\n]+)'
+        type_match = re.search(type_pattern, text_after_reprs, re.IGNORECASE)
+
+        if type_match:
+            id_type_text = type_match.group(1).strip()
+            # Try to map to abbreviation
+            for full_name, abbrev in ID_TYPE_MAPPING.items():
+                if full_name.lower() in id_type_text.lower():
+                    logger.info(f"Extracted legal representative ID type: {abbrev} (from: {id_type_text})")
+                    return abbrev
+            # If no mapping found, return cleaned text
+            logger.info(f"Extracted legal representative ID type (unmapped): {id_type_text}")
+            return id_type_text
+
+        # Strategy 2: Look for common ID type keywords
+        for full_name, abbrev in ID_TYPE_MAPPING.items():
+            if full_name.lower() in text_after_reprs.lower():
+                logger.info(f"Extracted legal representative ID type (keyword): {abbrev}")
+                return abbrev
+
+        # Strategy 3: Look for "Cédula" or "Cedula" pattern (most common)
+        if re.search(r'C[eé]dula\s+de\s+Ciudadan[íi]a', text_after_reprs, re.IGNORECASE):
+            logger.info("Extracted legal representative ID type (pattern): CC")
+            return 'CC'
+
+        # Default to CC (most common in Colombia)
+        logger.warning("Could not extract ID type, defaulting to CC")
+        return 'CC'
