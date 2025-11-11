@@ -106,7 +106,7 @@ export interface DataImport {
 
 export interface ContractGenerationRequest {
   client_nit: string;
-  contract_type?: 'activos' | 'otrosi';
+  contract_type?: 'activos' | 'otrosi' | 'inventario_bodega';
 }
 
 export interface ContractReviewRequest {
