@@ -429,6 +429,17 @@ class RUTParserService:
         Extract legal representative ID number from field 101
 
         Located in first REPRS LEGAL PRIN section
+
+        Structure in RUT:
+        100. Tipo de documento
+        101. Número de identificación
+        102. DV 103. Número de tarjeta profesional
+        Cédula de Ciudadaní 1 3
+        3  3  1  0  1  5  5  1
+        1
+
+        The ID number is on the line(s) after "Cédula de Ciudadaní"
+        Format: space-separated digits like "3  3  1  0  1  5  5  1" -> "33101551"
         """
         logger.debug("Extracting legal representative ID (field 101)")
 
@@ -442,49 +453,68 @@ class RUTParserService:
         # Extract text after REPRS LEGAL PRIN (next 1000 chars should be enough)
         text_after_reprs = page_text[reprs_match.end():reprs_match.end() + 1000]
 
-        # Strategy 1: Look for "Cédula de Ciudadaní" or similar followed by digits
-        cedula_pattern = r'Cédula\s+de\s+Ciudadan[íi][^0-9]*?(\d[\s\d]{8,15})'
-        cedula_match = re.search(cedula_pattern, text_after_reprs, re.IGNORECASE)
+        # Strategy 1: Look for ID type text (Cédula de Ciudadaní, etc.), then find space-separated digits on next line
+        # The pattern should match ID type, skip any digits on same line (field 102), then capture next line digits
+        # Typical format: 7-10 digits (most Colombian cédulas are 8-10 digits)
+        # Use [ \t] instead of \s to avoid matching across newlines
+        id_type_pattern = r'C[eé]dula\s+de\s+Ciudadan[íi]a?[^\n]*\n[ \t]*(\d(?:[ \t]+\d){6,9})(?=[ \t]*\n)'
+        id_type_match = re.search(id_type_pattern, text_after_reprs, re.IGNORECASE)
 
-        if cedula_match:
+        if id_type_match:
             # Remove spaces from digit sequence
-            cedula = re.sub(r'\s+', '', cedula_match.group(1))
-            if len(cedula) >= 7:
-                logger.info(f"Extracted legal representative ID (cedula pattern): {cedula}")
+            cedula = re.sub(r'[ \t]+', '', id_type_match.group(1))
+            # Valid cedula length: 7-10 digits (exclude 11+ which might include DV field)
+            if 7 <= len(cedula) <= 10:
+                logger.info(f"Extracted legal representative ID (after ID type): {cedula}")
                 return cedula
 
-        # Strategy 2: Search for field 101 label followed by ID number
-        id_pattern = r'101\.\s*Número de identificación[^0-9]*?(\d[\s\d]{7,15})'
-        id_match = re.search(id_pattern, text_after_reprs, re.IGNORECASE)
+        # Strategy 2: Look for field 101 label, skip to after 102/103, find first line with only space-separated digits
+        # Pattern: Find "101. Número", skip 2-3 lines, find line with space-separated digits only
+        field_101_pattern = r'101\.\s*Número de identificación[^\n]*\n[^\n]*\n[^\n]*\n\s*(\d(?:\s+\d){6,10})'
+        field_101_match = re.search(field_101_pattern, text_after_reprs, re.IGNORECASE)
 
-        if id_match:
+        if field_101_match:
             # Remove spaces from digit sequence
-            cedula = re.sub(r'\s+', '', id_match.group(1))
-            if len(cedula) >= 7:
-                logger.info(f"Extracted legal representative ID (field 101): {cedula}")
-                return cedula
-
-        # Strategy 3: Look for space-separated digit patterns (like NIT format)
-        # Pattern: 1 3 3 3 1 0 1 5 5 1 (10 digits with spaces)
-        space_digits_pattern = r'(\d(?:\s+\d){7,10})'
-        space_matches = re.findall(space_digits_pattern, text_after_reprs)
-
-        for match in space_matches:
-            # Remove spaces
-            cedula = re.sub(r'\s+', '', match)
-            # Valid cedula length: 7-11 digits
+            cedula = re.sub(r'\s+', '', field_101_match.group(1))
             if 7 <= len(cedula) <= 11:
-                logger.info(f"Extracted legal representative ID (space-separated): {cedula}")
+                logger.info(f"Extracted legal representative ID (field 101 pattern): {cedula}")
                 return cedula
 
-        # Strategy 4: Look for any 7-11 digit sequence after "101"
-        alt_pattern = r'101[^0-9]{0,100}(\d{7,11})'
-        alt_match = re.search(alt_pattern, text_after_reprs)
+        # Strategy 3: Find all space-separated digit sequences, filter by position and length
+        # Exclude sequences that appear before ID type text (those are from date field 99)
+        id_type_search = re.search(r'C[eé]dula\s+de\s+Ciudadan[íi]a?', text_after_reprs, re.IGNORECASE)
+        if id_type_search:
+            # Only search AFTER the ID type text
+            text_after_id_type = text_after_reprs[id_type_search.end():]
 
-        if alt_match:
-            cedula = alt_match.group(1).strip()
-            logger.info(f"Extracted legal representative ID (alt): {cedula}")
-            return cedula
+            space_digits_pattern = r'^\s*(\d(?:\s+\d){6,10})\s*$'
+            for line in text_after_id_type.split('\n')[:5]:  # Check first 5 lines after ID type
+                line_match = re.match(space_digits_pattern, line)
+                if line_match:
+                    cedula = re.sub(r'\s+', '', line_match.group(1))
+                    # Valid cedula length: 7-11 digits (typically 8-10)
+                    if 7 <= len(cedula) <= 11:
+                        logger.info(f"Extracted legal representative ID (line after ID type): {cedula}")
+                        return cedula
+
+        # Strategy 4: Look for 7-10 digit sequences in lines, excluding field 99 (date)
+        # Field 99 format is typically 18 20250515 or similar (date format)
+        # Look for lines with only space-separated single digits (not date format)
+        lines = text_after_reprs.split('\n')
+        for i, line in enumerate(lines):
+            # Skip lines that look like dates (2 digits, then 8 digits)
+            if re.match(r'^\s*\d\s+\d\s*\n', line):
+                continue
+            # Look for lines with 7-10 space-separated digits
+            line_pattern = r'^\s*(\d(?:\s+\d){6,9})\s*$'
+            line_match = re.match(line_pattern, line)
+            if line_match:
+                cedula = re.sub(r'\s+', '', line_match.group(1))
+                if 7 <= len(cedula) <= 10:
+                    # Additional check: should appear after field 100/101
+                    if i > 2:  # Skip first few lines (date field 99)
+                        logger.info(f"Extracted legal representative ID (line scan): {cedula}")
+                        return cedula
 
         # Log the text we're searching for debugging
         logger.debug(f"Text after REPRS LEGAL PRIN (first 500 chars): {text_after_reprs[:500]}")
@@ -495,6 +525,14 @@ class RUTParserService:
         Extract legal representative ID type from field 100 (Tipo de documento)
 
         Returns abbreviated form: CC, CE, Pasaporte, etc.
+
+        Structure in RUT:
+        100. Tipo de documento
+        101. Número de identificación
+        102. DV 103. Número de tarjeta profesional
+        Cédula de Ciudadaní 1 3
+
+        The value for field 100 is on the line after fields 102/103
         """
         logger.debug("Extracting legal representative ID type (field 100)")
 
@@ -520,30 +558,43 @@ class RUTParserService:
         # Extract text after REPRS LEGAL PRIN (next 1000 chars should be enough)
         text_after_reprs = page_text[reprs_match.end():reprs_match.end() + 1000]
 
-        # Strategy 1: Look for "Tipo de documento" or field 100 label
-        type_pattern = r'100\.\s*Tipo de documento[^\n]*\n\s*([^\n]+)'
+        # Strategy 1: Look for field 100, skip to the line after 102/103, extract ID type text
+        # Pattern: Find "100. Tipo de documento", skip past 101 and 102/103 lines, capture text (not numbers)
+        type_pattern = r'100\.\s*Tipo de documento[^\n]*\n[^\n]*\n[^\n]*\n\s*([A-Za-zÁÉÍÓÚáéíóúñÑ\s]+?)(?:\s+\d|\n|$)'
         type_match = re.search(type_pattern, text_after_reprs, re.IGNORECASE)
 
         if type_match:
             id_type_text = type_match.group(1).strip()
-            # Try to map to abbreviation
+            # Remove any trailing numbers or whitespace
+            id_type_text = re.sub(r'\s+\d.*$', '', id_type_text).strip()
+
+            # Try to map to abbreviation (use fuzzy matching for encoding issues)
             for full_name, abbrev in ID_TYPE_MAPPING.items():
-                if full_name.lower() in id_type_text.lower():
+                # Normalize both strings for comparison (handle encoding issues)
+                normalized_full = full_name.lower().replace('í', 'i').replace('é', 'e')
+                normalized_text = id_type_text.lower().replace('í', 'i').replace('é', 'e')
+
+                if normalized_full in normalized_text or normalized_text in normalized_full:
                     logger.info(f"Extracted legal representative ID type: {abbrev} (from: {id_type_text})")
                     return abbrev
-            # If no mapping found, return cleaned text
-            logger.info(f"Extracted legal representative ID type (unmapped): {id_type_text}")
-            return id_type_text
 
-        # Strategy 2: Look for common ID type keywords
+            # If no mapping found but we have valid text, return it
+            if id_type_text and len(id_type_text) > 3:
+                logger.info(f"Extracted legal representative ID type (unmapped): {id_type_text}")
+                return id_type_text
+
+        # Strategy 2: Look for common ID type keywords directly (with normalization)
         for full_name, abbrev in ID_TYPE_MAPPING.items():
-            if full_name.lower() in text_after_reprs.lower():
+            normalized_full = full_name.lower().replace('í', 'i').replace('é', 'e')
+            normalized_text = text_after_reprs.lower().replace('í', 'i').replace('é', 'e')
+            if normalized_full in normalized_text:
                 logger.info(f"Extracted legal representative ID type (keyword): {abbrev}")
                 return abbrev
 
         # Strategy 3: Look for "Cédula" or "Cedula" pattern (most common)
-        if re.search(r'C[eé]dula\s+de\s+Ciudadan[íi]a', text_after_reprs, re.IGNORECASE):
-            logger.info("Extracted legal representative ID type (pattern): CC")
+        cedula_search = re.search(r'(C[eé]dula\s+de\s+Ciudadan[íi]a?)', text_after_reprs, re.IGNORECASE)
+        if cedula_search:
+            logger.info(f"Extracted legal representative ID type (pattern): CC (from: {cedula_search.group(1)})")
             return 'CC'
 
         # Default to CC (most common in Colombia)
