@@ -164,6 +164,12 @@ const FKReviewQueue: React.FC = () => {
         color: 'warning' as const,
       };
     }
+    if (contractType === 'inventario_bodega') {
+      return {
+        label: 'Inventario Bodega 3ro',
+        color: 'success' as const,
+      };
+    }
     return {
       label: 'Activos',
       color: 'info' as const,

@@ -15,10 +15,12 @@ import {
   CheckCircle as CheckCircleIcon,
   Description as DescriptionIcon,
   Add as AddIcon,
+  Warehouse as WarehouseIcon,
 } from '@mui/icons-material';
 import FKApprovedContracts from '../../components/forms/FKApprovedContracts';
 import FKContractRequest from '../../components/forms/FKContractRequest';
 import FKOtrosiRequest from '../../components/forms/FKOtrosiRequest';
+import FKInventarioRequest from '../../components/forms/FKInventarioRequest';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -67,6 +69,7 @@ const OperationsDashboard: React.FC = () => {
           <Tabs value={currentTab} onChange={handleTabChange} aria-label="operations tabs">
             <Tab label="Solicitar Contrato Activos" icon={<AddIcon />} iconPosition="start" />
             <Tab label="Solicitar Otrosí No. 1" icon={<DescriptionIcon />} iconPosition="start" />
+            <Tab label="Solicitar Inventario Bodega" icon={<WarehouseIcon />} iconPosition="start" />
             <Tab label="Contratos Aprobados" icon={<CheckCircleIcon />} iconPosition="start" />
           </Tabs>
         </Box>
@@ -118,9 +121,30 @@ const OperationsDashboard: React.FC = () => {
             <Card elevation={0} sx={{ bgcolor: 'success.50', border: 1, borderColor: 'success.200' }}>
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                  <CheckCircleIcon sx={{ color: 'success.main', mt: 0.5 }} />
+                  <WarehouseIcon sx={{ color: 'success.main', mt: 0.5 }} />
                   <Box>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1, color: 'success.dark' }}>
+                      Solicitud de Inventario Bodega de 3ro
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Busca el cliente y solicita la generación de un contrato de inventario para bodegas de terceros. El equipo legal lo revisará y aprobará.
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
+          <FKInventarioRequest />
+        </TabPanel>
+
+        <TabPanel value={currentTab} index={3}>
+          <Box sx={{ mb: 3 }}>
+            <Card elevation={0} sx={{ bgcolor: 'info.50', border: 1, borderColor: 'info.200' }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                  <CheckCircleIcon sx={{ color: 'info.main', mt: 0.5 }} />
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1, color: 'info.dark' }}>
                       Contratos Aprobados
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>

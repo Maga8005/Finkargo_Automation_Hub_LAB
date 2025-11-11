@@ -60,6 +60,23 @@ export const operationsService = {
   },
 
   /**
+   * Request Inventario Bodega contract generation (Operations initiates)
+   */
+  async requestInventarioBodegaGeneration(
+    clientNit: string
+  ): Promise<ContractGeneration> {
+    const request: ContractGenerationRequest = {
+      client_nit: clientNit,
+      contract_type: 'inventario_bodega',
+    };
+    const response = await apiClient.post<ContractGeneration>(
+      `${BASE_URL}/contracts/generate`,
+      request
+    );
+    return response.data;
+  },
+
+  /**
    * Get contract details by ID
    */
   async getContractDetails(contractId: string): Promise<ContractGeneration> {

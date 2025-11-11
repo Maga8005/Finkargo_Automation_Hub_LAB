@@ -12,6 +12,7 @@ class ContractType(str, Enum):
     """Contract type enum"""
     ACTIVOS = "activos"
     OTROSI = "otrosi"
+    INVENTARIO_BODEGA = "inventario_bodega"
 
 
 class ContractStatus(str, Enum):
