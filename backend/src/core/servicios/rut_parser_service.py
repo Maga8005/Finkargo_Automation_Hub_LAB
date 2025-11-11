@@ -159,29 +159,70 @@ class RUTParserService:
         Extract company name from field 35 (Razón social)
 
         The field appears after "35. Razón social" label on page 1
+        Note: Different RUT formats may have company name in different locations
         """
         logger.debug("Extracting Razón social (field 35)")
 
-        # Method 1: Search for pattern after field label
+        # Strategy 1: Search for pattern after field label (Format 1)
         pattern = r'35\.\s*Razón social\s*\n\s*(.+?)(?:\n|$)'
         match = re.search(pattern, page_text, re.IGNORECASE | re.MULTILINE)
 
         if match:
             razon_social = match.group(1).strip()
-            logger.info(f"Extracted Razón social: {razon_social}")
-            return razon_social
+            # Validate it's not another field label
+            if not re.match(r'^\d+\.', razon_social) and len(razon_social) > 3:
+                logger.info(f"Extracted Razón social (pattern): {razon_social}")
+                return razon_social
 
-        # Method 2: Look for text after "Razón social" label
+        # Strategy 2: Look in UBICACIÓN section (Format 2)
+        # In some RUT formats, the company name appears in the data section after UBICACIÓN
+        ubicacion_match = re.search(r'UBICACIÓN', page_text, re.IGNORECASE)
+        if ubicacion_match:
+            text_after_ubicacion = page_text[ubicacion_match.end():ubicacion_match.end() + 800]
+
+            # Look for capitalized company name pattern (typically all caps, ends with S.A.S, LTDA, etc.)
+            # Should appear before COLOMBIA
+            company_pattern = r'\n\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s\.&\-]+(?:S\.A\.S|LTDA|S\.A\.|SAS|E\.U\.))\s*\n'
+            company_match = re.search(company_pattern, text_after_ubicacion, re.IGNORECASE)
+
+            if company_match:
+                razon_social = company_match.group(1).strip()
+                if len(razon_social) > 3:
+                    logger.info(f"Extracted Razón social (UBICACIÓN): {razon_social}")
+                    return razon_social
+
+        # Strategy 3: Look for all-caps text lines that look like company names
+        # Search for lines with all uppercase letters, possibly with S.A.S, LTDA, etc.
         lines = page_text.split('\n')
         for i, line in enumerate(lines):
-            if 'Razón social' in line or '35.' in line:
+            line_stripped = line.strip()
+            # Company name pattern: All caps, multiple words, ends with legal entity type
+            if re.match(r'^[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s\.&\-]{5,}(?:S\.A\.S|LTDA|S\.A\.|SAS|E\.U\.)$', line_stripped, re.IGNORECASE):
+                # Verify it's not after irrelevant fields
+                # Check if this appears in a reasonable location (not in signatures, etc.)
+                context_before = ' '.join(lines[max(0, i-3):i])
+                if 'UBICACIÓN' in context_before or 'IDENTIFICACIÓN' in context_before or '35' in context_before:
+                    logger.info(f"Extracted Razón social (all-caps scan): {line_stripped}")
+                    return line_stripped
+
+        # Strategy 4: Line scan after field 35 label
+        for i, line in enumerate(lines):
+            if 'Razón social' in line or ('35.' in line and 'Raz' in line):
                 # Check next few lines for company name
-                for j in range(i, min(i + 5, len(lines))):
+                for j in range(i + 1, min(i + 10, len(lines))):
                     next_line = lines[j].strip()
-                    if next_line and not any(x in next_line.lower() for x in ['razón', 'social', '35', '36']):
-                        if len(next_line) > 3:  # Valid company name
-                            logger.info(f"Extracted Razón social (method 2): {next_line}")
-                            return next_line
+                    # Skip field labels and short lines
+                    if re.match(r'^\d+\.', next_line):
+                        continue
+                    if len(next_line) < 4:
+                        continue
+                    # Skip common non-company text
+                    if any(x in next_line.lower() for x in ['primer', 'segundo', 'apellido', 'nombre', 'tipo', 'documento']):
+                        continue
+                    # Valid company name candidate
+                    if len(next_line) > 3 and any(c.isalpha() for c in next_line):
+                        logger.info(f"Extracted Razón social (line scan): {next_line}")
+                        return next_line
 
         raise ValueError("Could not extract Razón social (field 35)")
 
@@ -191,20 +232,44 @@ class RUTParserService:
 
         Located in UBICACIÓN section on page 1
 
-        Structure in RUT:
-        40. Ciudad/Municipio
-        COLOMBIA
-        1 6 9 Bolívar
-        1 3 Cartagena
-        0 0 1
+        Structure varies by RUT format:
+        Format 1:
+            40. Ciudad/Municipio
+            COLOMBIA
+            1 6 9 Bolívar
+            1 3 Cartagena
+            0 0 1
 
-        The city name is on the line with the city code (after department line)
+        Format 2:
+            COLOMBIA
+            1 6 9
+            Bogotá D.C.
+            1 1
+            Bogotá, D.C.
+            0 0 1
+
+        The city name may appear with comma (e.g., "Bogotá, D.C.")
         """
         logger.debug("Extracting Ciudad/Municipio (field 40)")
 
-        # Strategy 1: Look for field 40, skip country and department lines, extract city
+        # Strategy 1: Look for UBICACIÓN section and find city pattern with comma
+        # Format: "Bogotá, D.C." or similar with comma
+        ubicacion_match = re.search(r'UBICACIÓN', page_text, re.IGNORECASE)
+        if ubicacion_match:
+            text_after_ubicacion = page_text[ubicacion_match.end():ubicacion_match.end() + 800]
+
+            # Look for city pattern with comma (e.g., "Bogotá, D.C.")
+            city_comma_pattern = r'\n\s*([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]+,\s*[A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\.]+)\s*\n'
+            city_comma_match = re.search(city_comma_pattern, text_after_ubicacion, re.IGNORECASE)
+
+            if city_comma_match:
+                city = city_comma_match.group(1).strip()
+                logger.info(f"Extracted Ciudad/Municipio (comma format): {city}")
+                return city
+
+        # Strategy 2: Look for field 40, skip country and department lines, extract city
         # Pattern: Find "40. Ciudad/Municipio", skip 2 lines (COLOMBIA, department), capture city on 3rd line
-        field_40_pattern = r'40\.\s*Ciudad/Municipio[^\n]*\n[^\n]*\n[^\n]*\n\s*\d+\s+\d+\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*\n|$)'
+        field_40_pattern = r'40\.\s*Ciudad/Municipio[^\n]*\n[^\n]*\n[^\n]*\n\s*\d+\s+\d+\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s,\.]+?)(?:\s*\n|$)'
         field_40_match = re.search(field_40_pattern, page_text, re.IGNORECASE)
 
         if field_40_match:
@@ -212,73 +277,77 @@ class RUTParserService:
             # Clean up any trailing numbers or spaces
             city = re.sub(r'\s+\d+.*$', '', city).strip()
             if city and len(city) > 2:
-                logger.info(f"Extracted Ciudad/Municipio: {city}")
+                logger.info(f"Extracted Ciudad/Municipio (field 40 pattern): {city}")
                 return city
 
-        # Strategy 2: Line-by-line extraction after field 40
-        # Find field 40, skip COLOMBIA and department, get city
-        lines = page_text.split('\n')
-        for i, line in enumerate(lines):
-            if re.search(r'40\.\s*Ciudad/Municipio', line, re.IGNORECASE):
-                # Look at next 4-5 lines
-                for j in range(i + 1, min(i + 6, len(lines))):
-                    line_text = lines[j].strip()
+        # Strategy 3: Line-by-line search in UBICACIÓN section
+        # Look for city names after COLOMBIA line
+        if ubicacion_match:
+            text_after_ubicacion = page_text[ubicacion_match.end():ubicacion_match.end() + 800]
+            lines = text_after_ubicacion.split('\n')
 
-                    # Skip country line
-                    if 'COLOMBIA' in line_text.upper():
-                        continue
+            colombia_found = False
+            for i, line in enumerate(lines):
+                line_stripped = line.strip()
 
-                    # Skip empty lines
-                    if not line_text:
+                # Mark when we find COLOMBIA
+                if 'COLOMBIA' in line_stripped.upper():
+                    colombia_found = True
+                    continue
+
+                # After finding COLOMBIA, look for city pattern
+                if colombia_found and line_stripped:
+                    # Skip pure number lines
+                    if re.match(r'^\d+(\s+\d+)*$', line_stripped):
                         continue
 
                     # Skip field labels
-                    if re.search(r'^\d+\.', line_text):
+                    if re.match(r'^\d+\.', line_stripped):
                         break
 
-                    # Look for line with: digits + city name pattern
-                    # Example: "1 3 Cartagena"
-                    city_line_match = re.match(r'^\s*\d+\s+\d+\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*$|\s+\d)', line_text, re.IGNORECASE)
-                    if city_line_match:
-                        city = city_line_match.group(1).strip()
-                        # Verify it's not the department (common department names to skip)
-                        if city.upper() not in ['BOLÍVAR', 'BOLIVAR', 'ANTIOQUIA', 'CUNDINAMARCA', 'VALLE', 'ATLÁNTICO', 'ATLANTICO']:
-                            # Could be department, check next line
-                            if j + 1 < len(lines):
-                                next_line = lines[j + 1].strip()
-                                next_match = re.match(r'^\s*\d+\s+\d+\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*$|\s+\d)', next_line, re.IGNORECASE)
-                                if next_match:
-                                    # This line is department, next line is city
-                                    city = next_match.group(1).strip()
+                    # Look for city name with optional comma (e.g., "Bogotá, D.C." or "Cartagena")
+                    city_match = re.match(r'^(?:\d+\s+\d+\s+)?([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s,\.]+?)(?:\s*$|\s+\d)', line_stripped, re.IGNORECASE)
+                    if city_match:
+                        city = city_match.group(1).strip()
 
-                        # Clean up any trailing numbers
+                        # Clean up trailing numbers
                         city = re.sub(r'\s+\d+.*$', '', city).strip()
+
+                        # Skip if it looks like a department
+                        if city.upper() in ['BOLÍVAR', 'BOLIVAR', 'ANTIOQUIA', 'CUNDINAMARCA', 'VALLE', 'ATLÁNTICO', 'ATLANTICO', 'BOGOTÁ D.C.']:
+                            # Check if next line has actual city
+                            if i + 1 < len(lines):
+                                next_line = lines[i + 1].strip()
+                                next_city_match = re.match(r'^(?:\d+\s+\d+\s+)?([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s,\.]+?)(?:\s*$|\s+\d)', next_line, re.IGNORECASE)
+                                if next_city_match:
+                                    city = next_city_match.group(1).strip()
+                                    city = re.sub(r'\s+\d+.*$', '', city).strip()
+
                         if city and len(city) > 2:
-                            logger.info(f"Extracted Ciudad/Municipio (line scan): {city}")
+                            logger.info(f"Extracted Ciudad/Municipio (UBICACIÓN line scan): {city}")
                             return city
 
-        # Strategy 3: Look for UBICACIÓN section and search nearby
-        ubicacion_match = re.search(r'UBICACIÓN', page_text, re.IGNORECASE)
+        # Strategy 4: Look for UBICACIÓN section pattern matching
+        # Find all city-like patterns (text with comma or capitalized)
         if ubicacion_match:
-            text_after_ubicacion = page_text[ubicacion_match.end():ubicacion_match.end() + 500]
+            text_after_ubicacion = page_text[ubicacion_match.end():ubicacion_match.end() + 800]
 
-            # Look for pattern: digits + city name (after skipping COLOMBIA and department)
-            # This will match lines like "1 3 Cartagena"
-            city_lines = re.findall(r'\d+\s+\d+\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*\n|\s+\d)', text_after_ubicacion, re.IGNORECASE)
+            # Pattern: digits + city name (with optional comma)
+            city_lines = re.findall(r'(?:\d+\s+\d+\s+)?([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s,\.]+?)(?:\s*\n|\s+\d)', text_after_ubicacion, re.IGNORECASE)
 
-            if len(city_lines) >= 2:
-                # First match is likely department, second is city
-                city = city_lines[1].strip()
-                city = re.sub(r'\s+\d+.*$', '', city).strip()
-                if city and len(city) > 2:
-                    logger.info(f"Extracted Ciudad/Municipio (UBICACIÓN scan): {city}")
-                    return city
-            elif len(city_lines) == 1:
-                city = city_lines[0].strip()
-                city = re.sub(r'\s+\d+.*$', '', city).strip()
-                if city and len(city) > 2:
-                    logger.info(f"Extracted Ciudad/Municipio (single match): {city}")
-                    return city
+            # Filter out short matches and find city (should be after department)
+            for city_candidate in city_lines:
+                city_candidate = city_candidate.strip()
+                # Valid city: more than 2 chars, has comma OR is capitalized properly
+                if len(city_candidate) > 2:
+                    # Prefer cities with commas (like "Bogotá, D.C.")
+                    if ',' in city_candidate:
+                        logger.info(f"Extracted Ciudad/Municipio (pattern with comma): {city_candidate}")
+                        return city_candidate
+                    # Or valid capitalized city names
+                    if city_candidate.upper() not in ['COLOMBIA', 'BOLÍVAR', 'BOLIVAR', 'ANTIOQUIA']:
+                        logger.info(f"Extracted Ciudad/Municipio (pattern): {city_candidate}")
+                        return city_candidate
 
         raise ValueError("Could not extract Ciudad/Municipio (field 40)")
 
