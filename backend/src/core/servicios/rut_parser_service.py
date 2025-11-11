@@ -190,68 +190,95 @@ class RUTParserService:
         Extract city from field 40 (Ciudad/Municipio)
 
         Located in UBICACIÓN section on page 1
+
+        Structure in RUT:
+        40. Ciudad/Municipio
+        COLOMBIA
+        1 6 9 Bolívar
+        1 3 Cartagena
+        0 0 1
+
+        The city name is on the line with the city code (after department line)
         """
         logger.debug("Extracting Ciudad/Municipio (field 40)")
 
-        # Strategy 1: Look for UBICACIÓN section and then find city
-        ubicacion_match = re.search(r'UBICACIÓN', page_text, re.IGNORECASE)
+        # Strategy 1: Look for field 40, skip country and department lines, extract city
+        # Pattern: Find "40. Ciudad/Municipio", skip 2 lines (COLOMBIA, department), capture city on 3rd line
+        field_40_pattern = r'40\.\s*Ciudad/Municipio[^\n]*\n[^\n]*\n[^\n]*\n\s*\d+\s+\d+\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*\n|$)'
+        field_40_match = re.search(field_40_pattern, page_text, re.IGNORECASE)
 
-        if ubicacion_match:
-            # Get text after UBICACIÓN (next 500 chars)
-            text_after_ubicacion = page_text[ubicacion_match.end():ubicacion_match.end() + 500]
-
-            # Look for field 40 pattern
-            city_pattern = r'40\.\s*Ciudad/Municipio[^a-zA-Z]*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s+\d+\s+\d+\s+\d+|\n|$)'
-            city_match = re.search(city_pattern, text_after_ubicacion, re.IGNORECASE)
-
-            if city_match:
-                city = city_match.group(1).strip()
-                # Remove trailing numbers and clean up
-                city = re.sub(r'\s+\d+\s*$', '', city)
-                city = re.sub(r'\s{2,}', ' ', city)  # Remove multiple spaces
-                # Remove country name if present
-                if 'COLOMBIA' in city.upper():
-                    # City should be the word after country name
-                    parts = city.split()
-                    # Filter out COLOMBIA and numbers
-                    city_parts = [p for p in parts if p.upper() not in ['COLOMBIA', 'COL'] and not p.isdigit()]
-                    if city_parts:
-                        city = ' '.join(city_parts)
+        if field_40_match:
+            city = field_40_match.group(1).strip()
+            # Clean up any trailing numbers or spaces
+            city = re.sub(r'\s+\d+.*$', '', city).strip()
+            if city and len(city) > 2:
                 logger.info(f"Extracted Ciudad/Municipio: {city}")
                 return city
 
-        # Strategy 2: Search for field 40 label anywhere
-        pattern = r'40\.\s*Ciudad/Municipio[^a-zA-Z]*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+)'
-        match = re.search(pattern, page_text, re.IGNORECASE | re.MULTILINE)
-
-        if match:
-            city = match.group(1).strip()
-            # Clean up
-            city = re.sub(r'\s+\d+\s*$', '', city)
-            city = re.sub(r'\s{2,}', ' ', city)
-            # Remove COLOMBIA if present
-            city = re.sub(r'\bCOLOMBIA\b', '', city, flags=re.IGNORECASE).strip()
-            if city and len(city) > 2:
-                logger.info(f"Extracted Ciudad/Municipio (method 2): {city}")
-                return city
-
-        # Strategy 3: Look in lines after field 40 or Ciudad/Municipio
+        # Strategy 2: Line-by-line extraction after field 40
+        # Find field 40, skip COLOMBIA and department, get city
         lines = page_text.split('\n')
         for i, line in enumerate(lines):
-            if 'Ciudad/Municipio' in line or '40.' in line:
-                # Check next few lines for city name
-                for j in range(i, min(i + 5, len(lines))):
-                    next_line = lines[j].strip()
-                    # Skip lines with field labels or numbers
-                    if next_line and not any(x in next_line.lower() for x in ['ciudad', 'municipio', '40.', '41.']):
-                        # Valid city name (letters and spaces only, more than 2 chars)
-                        if re.match(r'^[A-ZÁÉÍÓÚÑa-záéíóúñ\s]+$', next_line) and len(next_line) > 2:
-                            city = next_line
-                            # Remove COLOMBIA if present
-                            city = re.sub(r'\bCOLOMBIA\b', '', city, flags=re.IGNORECASE).strip()
-                            if city:
-                                logger.info(f"Extracted Ciudad/Municipio (line scan): {city}")
-                                return city
+            if re.search(r'40\.\s*Ciudad/Municipio', line, re.IGNORECASE):
+                # Look at next 4-5 lines
+                for j in range(i + 1, min(i + 6, len(lines))):
+                    line_text = lines[j].strip()
+
+                    # Skip country line
+                    if 'COLOMBIA' in line_text.upper():
+                        continue
+
+                    # Skip empty lines
+                    if not line_text:
+                        continue
+
+                    # Skip field labels
+                    if re.search(r'^\d+\.', line_text):
+                        break
+
+                    # Look for line with: digits + city name pattern
+                    # Example: "1 3 Cartagena"
+                    city_line_match = re.match(r'^\s*\d+\s+\d+\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*$|\s+\d)', line_text, re.IGNORECASE)
+                    if city_line_match:
+                        city = city_line_match.group(1).strip()
+                        # Verify it's not the department (common department names to skip)
+                        if city.upper() not in ['BOLÍVAR', 'BOLIVAR', 'ANTIOQUIA', 'CUNDINAMARCA', 'VALLE', 'ATLÁNTICO', 'ATLANTICO']:
+                            # Could be department, check next line
+                            if j + 1 < len(lines):
+                                next_line = lines[j + 1].strip()
+                                next_match = re.match(r'^\s*\d+\s+\d+\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*$|\s+\d)', next_line, re.IGNORECASE)
+                                if next_match:
+                                    # This line is department, next line is city
+                                    city = next_match.group(1).strip()
+
+                        # Clean up any trailing numbers
+                        city = re.sub(r'\s+\d+.*$', '', city).strip()
+                        if city and len(city) > 2:
+                            logger.info(f"Extracted Ciudad/Municipio (line scan): {city}")
+                            return city
+
+        # Strategy 3: Look for UBICACIÓN section and search nearby
+        ubicacion_match = re.search(r'UBICACIÓN', page_text, re.IGNORECASE)
+        if ubicacion_match:
+            text_after_ubicacion = page_text[ubicacion_match.end():ubicacion_match.end() + 500]
+
+            # Look for pattern: digits + city name (after skipping COLOMBIA and department)
+            # This will match lines like "1 3 Cartagena"
+            city_lines = re.findall(r'\d+\s+\d+\s+([A-ZÁÉÍÓÚÑa-záéíóúñ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*\n|\s+\d)', text_after_ubicacion, re.IGNORECASE)
+
+            if len(city_lines) >= 2:
+                # First match is likely department, second is city
+                city = city_lines[1].strip()
+                city = re.sub(r'\s+\d+.*$', '', city).strip()
+                if city and len(city) > 2:
+                    logger.info(f"Extracted Ciudad/Municipio (UBICACIÓN scan): {city}")
+                    return city
+            elif len(city_lines) == 1:
+                city = city_lines[0].strip()
+                city = re.sub(r'\s+\d+.*$', '', city).strip()
+                if city and len(city) > 2:
+                    logger.info(f"Extracted Ciudad/Municipio (single match): {city}")
+                    return city
 
         raise ValueError("Could not extract Ciudad/Municipio (field 40)")
 
