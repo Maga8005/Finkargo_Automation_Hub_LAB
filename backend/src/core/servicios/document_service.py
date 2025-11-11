@@ -55,6 +55,8 @@ class DocumentService:
 
         if contract_type == 'otrosi':
             return self.generate_otrosi_document(contract_data)
+        elif contract_type == 'inventario_bodega':
+            return self.generate_inventario_bodega_document(contract_data)
         else:
             return self.generate_activos_document(contract_data, template_name)
 
@@ -173,6 +175,68 @@ class DocumentService:
             pass  # Ignore cleanup errors on Windows
 
         logger.info("Otrosí document generated successfully")
+
+        return content
+
+    def generate_inventario_bodega_document(
+        self,
+        contract_data: Dict[str, Any],
+        template_name: str = "FK COL - GM - Inventario Bodega de 3ro.docx"
+    ) -> bytes:
+        """
+        Generate Inventario Bodega de 3ro contract document from template and data
+
+        Args:
+            contract_data: Dictionary containing all contract data including client info
+            template_name: Name of the Word template file
+
+        Returns:
+            bytes: Generated DOCX file content
+        """
+        template_path = self.template_dir / template_name
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"Inventario Bodega template not found: {template_path}")
+
+        logger.info(f"Loading Inventario Bodega template from: {template_path}")
+
+        # Load template
+        doc = Document(str(template_path))
+
+        # Prepare replacement data (reuse Activos replacements as it's also a GM template)
+        replacements = self._prepare_replacements(contract_data)
+
+        logger.info(f"Replacing {len(replacements)} placeholders in Inventario Bodega template")
+
+        # Replace placeholders in paragraphs
+        for para in doc.paragraphs:
+            self._replace_in_paragraph(para, replacements)
+
+        # Replace placeholders in tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        self._replace_in_paragraph(para, replacements)
+
+        # Save to temporary file and read bytes
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp:
+            tmp_path = tmp.name
+
+        # Save document
+        doc.save(tmp_path)
+
+        # Read bytes
+        with open(tmp_path, 'rb') as f:
+            content = f.read()
+
+        # Clean up
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass  # Ignore cleanup errors on Windows
+
+        logger.info("Inventario Bodega document generated successfully")
 
         return content
 
