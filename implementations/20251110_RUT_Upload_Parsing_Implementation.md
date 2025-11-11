@@ -7,35 +7,36 @@
 
 ## Overview
 
-Successfully implemented RUT (Registro Único Tributario) document upload and automated field extraction for Inventario Bodega de 3ro contracts. The feature allows Operations users to upload a PDF RUT document when requesting an Inventario Bodega contract, automatically extracting custodian operator information and populating it in the contract template.
+Successfully implemented RUT (Registro Único Tributario) document upload and automated field extraction for Inventario Bodega de 3ro contracts. The feature allows Operations users to upload a PDF RUT document when requesting an Inventario Bodega contract, automatically extracting 7 custodian operator fields and populating them in the contract template, eliminating manual data entry and reducing errors.
 
 ## Changes Summary
 
 ### Backend Changes (Python/FastAPI)
 
 #### 1. **New RUT Parser Service** (`backend/src/core/servicios/rut_parser_service.py`)
-- **Lines Added**: 414
+- **Lines Added**: 551 (final)
 - **Purpose**: Core service for parsing Colombian RUT PDFs and extracting custodian information
 - **Key Features**:
-  - `CustodianData` Pydantic model with 6 required fields
+  - `CustodianData` Pydantic model imported from legal_dtos (7 required fields)
   - `RUT_FIELD_MAPPING` configuration dictionary mapping placeholders to RUT field numbers
   - `RUTParserService` class with PDF text extraction using PyMuPDF
   - Field-specific extraction methods:
     - `_extract_razon_social()` - Company name from field 35
-    - `_extract_city()` - City from field 40
+    - `_extract_city()` - City from field 40 (with COLOMBIA filtering)
     - `_extract_nit_with_dv()` - NIT with verification digit from fields 5+6
     - `_extract_email()` - Email from field 42
-    - `_extract_legal_rep_name()` - Full name from fields 104-107
-    - `_extract_legal_rep_id()` - ID number from field 101
+    - `_extract_legal_rep_name()` - Full name from fields 104-107 (4-part name support)
+    - `_extract_legal_rep_id()` - ID number from field 101 (space-separated digits support)
+    - `_extract_legal_rep_id_type()` - ID type from field 100 with abbreviation mapping
   - Robust error handling with descriptive error messages
-  - Validation ensuring all 6 required fields are extracted
+  - Validation ensuring all 7 required fields are extracted
 
 #### 2. **Updated DTOs** (`backend/src/interface/legal_dtos.py`)
-- **Lines Added**: 18
+- **Lines Added**: 27 (final)
 - **Changes**:
-  - Added `CustodianData` model for RUT extracted fields
+  - Added `CustodianData` model for RUT extracted fields (7 fields + email validator)
   - Extended `ContractGenerationRequest` with optional `custodian_data` field
-  - Extended `ClientDataSnapshot` with 6 custodian fields (all optional)
+  - Extended `ClientDataSnapshot` with 7 custodian fields (all optional)
 
 #### 3. **Updated Operations Routes** (`backend/src/adapter/rest/operations_routes.py`)
 - **Lines Added**: 76, **Lines Modified**: ~10
@@ -56,23 +57,25 @@ Successfully implemented RUT (Registro Único Tributario) document upload and au
   - Comprehensive error handling with 400 errors for parsing failures
 
 #### 4. **Updated Contract Service** (`backend/src/core/servicios/contract_service.py`)
-- **Lines Added**: 12
+- **Lines Added**: 13 (final)
 - **Changes**:
   - Modified `generate_contract()` to accept custodian data from request
-  - Extended `data_snapshot` dictionary with 6 custodian fields when present
+  - Extended `data_snapshot` dictionary with 7 custodian fields when present
   - Added logging for custodian data inclusion
 
 #### 5. **Updated Document Service** (`backend/src/core/servicios/document_service.py`)
-- **Lines Added**: 44, **Lines Modified**: 1
+- **Lines Added**: 47, **Lines Modified**: 2 (final)
 - **Changes**:
   - Created `_prepare_inventario_bodega_replacements()` method
-  - Method builds on base `_prepare_replacements()` and adds 6 custodian placeholders:
+  - Method builds on base `_prepare_replacements()` and adds 8 custodian placeholders:
     - `[NOMBRE DEL OPERADOR CUSTODIO]`
     - `[nombre de la ciudad de domicilio del Operador Custodio]`
     - `[NIT Operador Custodio]`
     - `[nombre del representante legal del Operador Custodio]`
     - `[e-mail del operador custodio]`
     - `[CC representante legal del Operador Custodio]`
+    - `[id RL del Operador Custodio]` - Legal rep ID number
+    - `[tipo de id RL Operador Custodio]` - ID type abbreviation (CC, CE, etc.)
   - Updated `generate_inventario_bodega_document()` to use new replacement method
 
 ### Frontend Changes (React/TypeScript)
@@ -176,30 +179,45 @@ The parser uses multiple extraction strategies with fallbacks:
 ## Files Changed
 
 ### Backend
-1. ✨ **NEW**: `backend/src/core/servicios/rut_parser_service.py` (+414 lines)
-2. 📝 `backend/src/interface/legal_dtos.py` (+18 lines)
+1. ✨ **NEW**: `backend/src/core/servicios/rut_parser_service.py` (+551 lines)
+2. 📝 `backend/src/interface/legal_dtos.py` (+27 lines)
 3. 📝 `backend/src/adapter/rest/operations_routes.py` (+76 lines, -10 lines)
-4. 📝 `backend/src/core/servicios/contract_service.py` (+12 lines)
-5. 📝 `backend/src/core/servicios/document_service.py` (+44 lines, -1 line)
+4. 📝 `backend/src/core/servicios/contract_service.py` (+13 lines)
+5. 📝 `backend/src/core/servicios/document_service.py` (+47 lines, -2 lines)
 
 ### Frontend
 6. 📝 `frontend/src/components/forms/FKInventarioRequest.tsx` (+91 lines, -20 lines)
 7. 📝 `frontend/src/services/operationsService.ts` (+25 lines, -12 lines)
 
-**Total Changes**: +680 lines added, -43 lines removed = **+637 net lines**
+**Total Changes**: +792 lines added, -45 lines removed = **+747 net lines** (across 2 commits)
 
 ## Git Diff Statistics
 
+**Commit 1: e408116** (Initial RUT feature + bug fixes)
 ```
  backend/src/adapter/rest/operations_routes.py      |  76 +++-
  backend/src/core/servicios/contract_service.py     |  12 +
  backend/src/core/servicios/document_service.py     |  44 ++-
- backend/src/core/servicios/rut_parser_service.py   | 414 +++++++++++++++++++++
- backend/src/interface/legal_dtos.py                |  18 +
+ backend/src/core/servicios/rut_parser_service.py   | 480 +++++++++++++++++++++
+ backend/src/interface/legal_dtos.py                |  25 +
  frontend/src/components/forms/FKInventarioRequest.tsx | 91 ++++-
  frontend/src/services/operationsService.ts         |  25 +-
- 8 files changed, 666 insertions(+), 14 deletions(-)
+ implementations/20251110_RUT_Upload_Parsing_Implementation.md | 492 +++++++
+ specs/20251110_RUT_Upload_And_Parsing_For_Inventario_Bodega.md | 1024 ++++++++
+ 9 files changed, 2255 insertions(+), 14 deletions(-)
 ```
+
+**Commit 2: 6817869** (ID type extraction)
+```
+ backend/src/core/servicios/contract_service.py     |   1 +
+ backend/src/core/servicios/document_service.py     |   4 +-
+ backend/src/core/servicios/rut_parser_service.py   |  71 +++++++++
+ backend/src/interface/legal_dtos.py                |   2 +
+ backend/templates/FK COL - GM - Inventario Bodega de 3ro.docx | Bin
+ 5 files changed, 77 insertions(+), 1 deletion(-)
+```
+
+**Total: 2 commits, 14 files changed, +2,332 lines**
 
 ## Testing Performed
 
@@ -213,13 +231,14 @@ The parser uses multiple extraction strategies with fallbacks:
 
 ✅ **RUT Parsing**:
 - [x] Sample RUT (APPLIK LOGISTICS) parses successfully
-- [x] All 6 fields extracted correctly:
+- [x] All 7 fields extracted correctly:
   - Company: "APPLIK LOGISTICS SAS"
   - City: "Cartagena"
   - NIT: "900989925-7"
   - Legal Rep: "OLEA SALGADO LILIANA ISABEL"
   - Email: "gestion@appliklogistics.com"
   - CC: "1333101551"
+  - ID Type: "CC"
 
 ✅ **API Integration**:
 - [x] Multipart form data sent correctly
@@ -228,8 +247,9 @@ The parser uses multiple extraction strategies with fallbacks:
 - [x] Error responses handled gracefully
 
 ✅ **Document Generation**:
-- [x] Template placeholders replaced with custodian data
+- [x] Template placeholders replaced with custodian data (8 placeholders)
 - [x] Generated PDF contains correct custodian information
+- [x] ID type abbreviation mapped correctly (Cédula de Ciudadanía → CC)
 - [x] No `[PLACEHOLDER]` text remains in document
 
 ✅ **Backward Compatibility**:
@@ -460,6 +480,15 @@ The feature is production-ready and can be deployed immediately. Post-deployment
   3. Extract actual city name from mixed text
 - **Result**: Successfully extracts "Cartagena"
 
+**Issue 5: Duplicate CustodianData Classes**
+- **Problem**: Pydantic validation error - "Input should be a valid dictionary or instance of CustodianData"
+- **Root Cause**: Two different `CustodianData` classes defined (rut_parser_service.py and legal_dtos.py)
+- **Fix**:
+  1. Removed duplicate class from rut_parser_service.py
+  2. Added import: `from src.interface.legal_dtos import CustodianData`
+  3. Moved email validation to legal_dtos.py version
+- **Result**: Single source of truth, Pydantic validation works correctly
+
 ### Testing Status After Fixes
 
 ✅ **All Issues Resolved**:
@@ -467,7 +496,8 @@ The feature is production-ready and can be deployed immediately. Post-deployment
 - [x] Legal rep ID extracts correctly (1333101551)
 - [x] Legal rep name extracts completely (OLEA SALGADO LILIANA ISABEL)
 - [x] City extracts correctly (Cartagena)
-- [x] All 6 fields now extract successfully from sample RUT
+- [x] Duplicate CustodianData class removed (Pydantic validation fixed)
+- [x] All 7 fields now extract successfully from sample RUT
 
 **Updated Extraction Success**:
 ```
@@ -477,16 +507,62 @@ The feature is production-ready and can be deployed immediately. Post-deployment
 ✓ Legal Rep: OLEA SALGADO LILIANA ISABEL (was: OLEA OLEA)
 ✓ Email: gestion@appliklogistics.com
 ✓ CC: 1333101551 (was: extraction failing)
+✓ ID Type: CC (NEW - mapped from "Cédula de Ciudadanía")
 ```
+
+---
+
+## Feature Enhancement: Legal Representative ID Type (Commit 2)
+
+After initial testing, additional template placeholders were identified and implemented:
+
+### New Requirement
+The updated Inventario Bodega template required two additional placeholders:
+1. `[id RL del Operador Custodio]` - Legal rep ID number (same as CC field)
+2. `[tipo de id RL Operador Custodio]` - ID type abbreviation (CC, CE, Pasaporte, etc.)
+
+### Implementation
+**Added Field Extraction** (7th field):
+- Field 100 (Tipo de documento) extraction with abbreviation mapping
+- ID type mapping dictionary:
+  - Cédula de Ciudadanía → CC
+  - Cédula de Extranjería → CE
+  - Pasaporte → Pasaporte
+  - Tarjeta de Identidad → TI
+  - Registro Civil → RC
+  - NIT → NIT
+
+**Extraction Strategy** (3 methods + default):
+1. Field 100 label pattern matching
+2. Keyword search in REPRS LEGAL PRIN section
+3. Pattern matching for "Cédula de Ciudadanía"
+4. Default to "CC" (most common in Colombia)
+
+**Changes Made**:
+- Added `tipo_identificacion_representante_legal_custodio` to CustodianData model
+- Implemented `_extract_legal_rep_id_type()` method (+71 lines)
+- Updated data_snapshot to include ID type field
+- Added 2 new placeholder mappings in document service
+- Updated Inventario Bodega template with new placeholders
+
+**Testing Results**:
+- ✓ Extracts "Cédula de Ciudadanía" from field 100
+- ✓ Maps correctly to "CC" abbreviation
+- ✓ Populates both template placeholders successfully
+- ✓ Defaults to "CC" if extraction fails (graceful degradation)
+
+**Commit**: `6817869` - feat: Add legal representative ID type extraction for Inventario Bodega
 
 ---
 
 **Next Steps**:
 1. ✅ Commit bug fixes to feature branch
 2. ✅ Re-test with sample RUT document
-3. 🔄 Create pull request with this implementation doc
-4. 🔄 Deploy to staging for QA testing
-5. 🔄 Deploy to production after QA approval
-6. 🔄 Monitor parsing logs for first week
-7. 🔄 Collect user feedback
-8. 🔄 Plan Phase 2 enhancements (RUT storage, OCR)
+3. ✅ Add ID type extraction feature
+4. ✅ Update implementation documentation
+5. 🔄 Create pull request with this implementation doc
+6. 🔄 Deploy to staging for QA testing
+7. 🔄 Deploy to production after QA approval
+8. 🔄 Monitor parsing logs for first week
+9. 🔄 Collect user feedback
+10. 🔄 Plan Phase 2 enhancements (RUT storage, OCR, multi-custodian)
