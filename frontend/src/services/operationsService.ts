@@ -16,9 +16,19 @@ export const operationsService = {
   async requestContractGeneration(
     request: ContractGenerationRequest
   ): Promise<ContractGeneration> {
+    // Create FormData for multipart/form-data (backend expects Form parameters)
+    const formData = new FormData();
+    formData.append('client_nit', request.client_nit);
+    formData.append('contract_type', request.contract_type || 'activos');
+
     const response = await apiClient.post<ContractGeneration>(
       `${BASE_URL}/contracts/generate`,
-      request
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
     );
     return response.data;
   },
@@ -41,13 +51,19 @@ export const operationsService = {
   async requestOtrosiGeneration(
     clientNit: string
   ): Promise<ContractGeneration> {
-    const request: ContractGenerationRequest = {
-      client_nit: clientNit,
-      contract_type: 'otrosi',
-    };
+    // Create FormData for multipart/form-data (backend expects Form parameters)
+    const formData = new FormData();
+    formData.append('client_nit', clientNit);
+    formData.append('contract_type', 'otrosi');
+
     const response = await apiClient.post<ContractGeneration>(
       `${BASE_URL}/contracts/generate`,
-      request
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
     );
     return response.data;
   },

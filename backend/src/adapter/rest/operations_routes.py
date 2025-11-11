@@ -76,6 +76,9 @@ async def request_contract_generation(
     import logging
     logger = logging.getLogger(__name__)
 
+    # Log incoming request
+    logger.info(f"Contract generation request received - NIT: {client_nit}, Type: {contract_type}, User: {current_user.get('email', current_user.get('id'))}")
+
     try:
         # Get user_id from authenticated user (dict)
         user_id = current_user['id']
@@ -83,7 +86,8 @@ async def request_contract_generation(
         # Validate contract type
         try:
             contract_type_enum = ContractType(contract_type)
-        except ValueError:
+        except ValueError as e:
+            logger.error(f"Invalid contract type '{contract_type}' for NIT {client_nit}: {e}")
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid contract type: {contract_type}. Must be one of: activos, otrosi, inventario_bodega"
@@ -141,13 +145,17 @@ async def request_contract_generation(
         )
 
         contract = await service.generate_contract(request, user_id)
+        # Handle both dict and object response types
+        contract_id = contract.contract_id if hasattr(contract, 'contract_id') else contract.get('contract_id', 'unknown')
+        logger.info(f"Contract generated successfully - Contract ID: {contract_id}, NIT: {client_nit}, Type: {contract_type}")
         return contract
     except HTTPException:
         raise
     except ValueError as e:
+        logger.error(f"Validation error for NIT {client_nit}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error generating contract: {e}", exc_info=True)
+        logger.error(f"Error generating contract for NIT {client_nit}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

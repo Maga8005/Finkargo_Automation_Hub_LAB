@@ -21,6 +21,7 @@ import {
 } from '@mui/icons-material';
 import { legalService } from '../../services/legalService';
 import { operationsService } from '../../services/operationsService';
+import { formatApiError } from '../../utils/errorUtils';
 import type { Client, ContractGeneration } from '../../types/legal';
 
 const FKOtrosiRequest: React.FC = () => {
@@ -73,7 +74,9 @@ const FKOtrosiRequest: React.FC = () => {
       setSelectedClient(null);
       setSearchResults([]);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al solicitar el Otrosí No. 1');
+      // Use formatApiError to handle Pydantic validation errors and other error formats
+      const errorMessage = formatApiError(err);
+      setError(errorMessage);
       console.error('Request error:', err);
     } finally {
       setRequesting(false);
