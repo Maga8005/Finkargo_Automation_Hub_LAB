@@ -120,6 +120,13 @@ const theme = createTheme({
           padding: '12px 24px',
           fontSize: '1rem',
           fontWeight: 600,
+          boxShadow: 'none',
+          '&:hover': {
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+          },
+          '&:active': {
+            boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)',
+          },
         },
         sizeLarge: {
           height: 52,
@@ -132,6 +139,18 @@ const theme = createTheme({
         sizeSmall: {
           height: 36,
           padding: '8px 16px',
+        },
+        contained: {
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+          '&:hover': {
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.12)',
+          },
+        },
+        outlined: {
+          boxShadow: 'none',
+          '&:hover': {
+            boxShadow: 'none',
+          },
         },
       },
     },
@@ -159,6 +178,40 @@ const theme = createTheme({
         paper: {
           borderRight: 'none',
           boxShadow: '2px 0 8px rgba(0, 0, 0, 0.05)',
+        },
+      },
+    },
+    MuiToggleButton: {
+      styleOverrides: {
+        root: {
+          border: '1px solid rgba(0, 0, 0, 0.12)',
+          borderRadius: 8,
+          textTransform: 'none',
+          fontWeight: 600,
+          '&:hover': {
+            borderColor: 'rgba(60, 71, 211, 0.5)',
+            backgroundColor: 'rgba(60, 71, 211, 0.04)',
+          },
+          '&.Mui-selected': {
+            border: '1px solid',
+            borderColor: '#3C47D3',
+            backgroundColor: '#3C47D3',
+            color: '#ffffff',
+            '&:hover': {
+              borderColor: '#0C147B',
+              backgroundColor: '#0C147B',
+            },
+          },
+          '&:focus': {
+            outline: 'none',
+          },
+        },
+      },
+    },
+    MuiToggleButtonGroup: {
+      styleOverrides: {
+        root: {
+          gap: 8,
         },
       },
     },

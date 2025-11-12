@@ -30,16 +30,30 @@ export interface AutomationFeature {
 }
 
 /**
+ * User type - distinguishes between internal employees and external clients
+ */
+export type UserType = 'funcionario' | 'cliente';
+
+export const UserType = {
+  FUNCIONARIO: 'funcionario' as const,
+  CLIENTE: 'cliente' as const,
+};
+
+/**
  * User profile stored in database (linked to Supabase auth.users)
  */
 export interface UserProfile {
   id: string;
   full_name: string;
   role: UserRole;
+  user_type: UserType;
   is_active: boolean;
   last_login?: string;
   created_at: string;
   updated_at?: string;
+  // Client-specific fields (only for user_type='cliente')
+  company_name?: string;
+  client_id?: string;
 }
 
 /**
@@ -61,7 +75,8 @@ export type UserRole =
   | 'analyst'
   | 'mesa_control'
   | 'manager'
-  | 'user';
+  | 'user'
+  | 'cliente'; // Special role for external clients
 
 export const UserRole = {
   ADMIN: 'admin' as const,
@@ -72,6 +87,7 @@ export const UserRole = {
   MESA_CONTROL: 'mesa_control' as const,
   MANAGER: 'manager' as const,
   USER: 'user' as const,
+  CLIENTE: 'cliente' as const, // Special role for external clients
 };
 
 /**
@@ -83,7 +99,15 @@ export interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string, role?: UserRole) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    fullName: string,
+    userType: UserType,
+    role?: UserRole,
+    companyName?: string,
+    clientId?: string
+  ) => Promise<void>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
 }

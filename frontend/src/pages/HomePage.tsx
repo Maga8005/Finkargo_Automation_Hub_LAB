@@ -1,10 +1,36 @@
 /**
  * HomePage - Dashboard/Welcome page
+ * Redirects clients to their dedicated dashboard
  */
-import React from 'react';
-import { Box, Typography, Card, CardContent } from '@mui/material';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Box, Typography, Card, CardContent, CircularProgress } from '@mui/material';
+import { useAuth } from '../hooks/useAuth';
 
 const HomePage: React.FC = () => {
+  const navigate = useNavigate();
+  const { userProfile, loading } = useAuth();
+
+  // Redirect clients to their dedicated dashboard
+  useEffect(() => {
+    if (!loading && userProfile) {
+      if (userProfile.user_type === 'cliente') {
+        console.log('[HomePage] Client user detected, redirecting to client dashboard');
+        navigate('/client', { replace: true });
+      }
+    }
+  }, [userProfile, loading, navigate]);
+
+  // Show loading while checking user type
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // Show employee dashboard
   return (
     <Box>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'primary.dark' }}>

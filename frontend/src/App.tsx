@@ -12,7 +12,9 @@ import HomePage from './pages/HomePage';
 import DepartmentPage from './pages/DepartmentPage';
 import LegalDashboard from './pages/legal/LegalDashboard';
 import OperationsDashboard from './pages/operations/OperationsDashboard';
+import ClientDashboard from './pages/ClientDashboard';
 import LoginPage from './pages/LoginPage';
+import ReporteriaAutomaticaCO from './pages/finance/ReporteriaAutomaticaCO';
 import { UserRole } from './types';
 
 function App() {
@@ -35,6 +37,30 @@ function App() {
               }
             >
               <Route index element={<HomePage />} />
+
+              {/* Client Dashboard - Accessible only by clients */}
+              <Route
+                path="client"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.CLIENTE]}>
+                    <ClientDashboard />
+                  </RoleProtectedRoute>
+                }
+              />
+
+              {/* Finance Routes - Reportería Automática (placeholder for migration) */}
+              <Route path="finance/reporteria-automatica-co" element={<ReporteriaAutomaticaCO />} />
+              <Route
+                path="finance/reporteria-automatica-mx"
+                element={
+                  <div style={{ padding: '2rem' }}>
+                    <h2>🇲🇽 Reportería Automática MX</h2>
+                    <p>Funcionalidad pendiente de migración</p>
+                  </div>
+                }
+              />
+
+              {/* Department Routes - Accessible by funcionarios */}
               <Route
                 path="department/legal"
                 element={

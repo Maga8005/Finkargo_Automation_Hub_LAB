@@ -5,13 +5,13 @@ import React from 'react';
 import { Box, Toolbar } from '@mui/material';
 import { Outlet } from 'react-router-dom';
 import FKTopNavbar from './FKTopNavbar';
-import FKSidebar from './FKSidebar';
+import FKSidebarWithCollapse from './FKSidebarWithCollapse';
 
 const FKMainLayout: React.FC = () => {
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <FKTopNavbar />
-      <FKSidebar />
+      <FKSidebarWithCollapse />
       <Box
         component="main"
         sx={{
