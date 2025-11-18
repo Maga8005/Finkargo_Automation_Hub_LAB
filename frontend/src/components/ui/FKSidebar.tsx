@@ -13,6 +13,8 @@ import {
   Box,
   CircularProgress,
   Typography,
+  Alert,
+  Button,
 } from '@mui/material';
 import {
   Settings,
@@ -22,6 +24,8 @@ import {
   Code,
   Support,
   Gavel,
+  ErrorOutline,
+  Refresh,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { departmentService } from '../../services/departmentService';
@@ -29,6 +33,38 @@ import { useAuth } from '../../hooks/useAuth';
 import type { Department } from '../../types';
 
 const DRAWER_WIDTH = 280;
+
+/**
+ * Type guard to validate Department objects at runtime
+ * Ensures object has all required properties with correct types
+ */
+function isValidDepartment(dept: unknown): dept is Department {
+  const isValid = (
+    typeof dept === 'object' &&
+    dept !== null &&
+    'id' in dept &&
+    typeof (dept as { id: unknown }).id === 'string' &&
+    (dept as { id: string }).id.length > 0 &&
+    'name' in dept &&
+    typeof (dept as { name: unknown }).name === 'string' &&
+    (dept as { name: string }).name.length > 0 &&
+    'icon' in dept &&
+    typeof (dept as { icon: unknown }).icon === 'string' &&
+    (dept as { icon: string }).icon.length > 0
+  );
+
+  if (!isValid && dept) {
+    const deptObj = dept as Record<string, unknown>;
+    console.error('[FKSidebar] Invalid department object:', {
+      received: dept,
+      hasId: 'id' in deptObj && typeof deptObj.id === 'string',
+      hasName: 'name' in deptObj && typeof deptObj.name === 'string',
+      hasIcon: 'icon' in deptObj && typeof deptObj.icon === 'string',
+    });
+  }
+
+  return isValid;
+}
 
 // Icon mapping
 const iconMap: Record<string, React.ReactElement> = {
@@ -47,6 +83,7 @@ const FKSidebar: React.FC = () => {
   const { userProfile } = useAuth();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDepartments();
@@ -54,10 +91,32 @@ const FKSidebar: React.FC = () => {
 
   const loadDepartments = async () => {
     try {
+      setLoading(true);
+      setError(null);
+
+      console.log('[FKSidebar] Loading departments...');
       const data = await departmentService.getDepartments();
-      setDepartments(data);
+
+      console.log('[FKSidebar] Received departments:', data);
+
+      // Validate and filter departments
+      const validDepartments = data.filter(isValidDepartment);
+
+      if (validDepartments.length !== data.length) {
+        console.warn('[FKSidebar] Some departments were invalid and filtered out', {
+          total: data.length,
+          valid: validDepartments.length,
+          invalid: data.length - validDepartments.length,
+        });
+      }
+
+      setDepartments(validDepartments);
+      console.log('[FKSidebar] Successfully loaded departments:', validDepartments.length);
     } catch (error) {
-      console.error('Error loading departments:', error);
+      console.error('[FKSidebar] Error loading departments:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido al cargar departamentos';
+      setError(errorMessage);
+      setDepartments([]); // Ensure departments is empty array on error
     } finally {
       setLoading(false);
     }
@@ -123,16 +182,46 @@ const FKSidebar: React.FC = () => {
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress size={32} />
           </Box>
+        ) : error ? (
+          <Box sx={{ p: 2 }}>
+            <Alert
+              severity="error"
+              icon={<ErrorOutline />}
+              sx={{ mb: 2 }}
+            >
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                No se pudieron cargar los departamentos
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {error}
+              </Typography>
+            </Alert>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<Refresh />}
+              onClick={loadDepartments}
+              sx={{ borderRadius: 2 }}
+            >
+              Reintentar
+            </Button>
+          </Box>
+        ) : departments.length === 0 ? (
+          <Box sx={{ p: 2, textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              No hay departamentos disponibles para tu rol
+            </Typography>
+          </Box>
         ) : (
           <List sx={{ mt: 1 }}>
             {departments
-              .filter((department) => hasAccessToDepartment(department.id))
+              .filter((department) => department && hasAccessToDepartment(department.id))
               .map((department) => {
                 const isActive = location.pathname.includes(`/department/${department.id}`);
                 return (
-                  <ListItem key={department.id} disablePadding sx={{ mb: 0.5 }}>
+                  <ListItem key={department?.id ?? 'unknown'} disablePadding sx={{ mb: 0.5 }}>
                     <ListItemButton
-                      onClick={() => handleDepartmentClick(department.id)}
+                      onClick={() => handleDepartmentClick(department?.id ?? '')}
                       sx={{
                         borderRadius: 2,
                         py: 1.5,
@@ -149,10 +238,10 @@ const FKSidebar: React.FC = () => {
                           minWidth: 40,
                         }}
                       >
-                        {iconMap[department.icon] || <Settings />}
+                        {iconMap[department?.icon ?? ''] || <Settings />}
                       </ListItemIcon>
                       <ListItemText
-                        primary={department.name}
+                        primary={department?.name ?? 'Departamento'}
                         primaryTypographyProps={{
                           fontWeight: isActive ? 600 : 500,
                           fontSize: '0.95rem',
