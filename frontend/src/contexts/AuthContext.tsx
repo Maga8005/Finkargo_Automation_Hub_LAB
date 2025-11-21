@@ -34,10 +34,73 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Track if we're currently fetching a profile to prevent concurrent fetches
+  const fetchingProfileRef = React.useRef(false);
+  // Track initialization to prevent duplicate fetches
+  const initializedRef = React.useRef(false);
+
+  /**
+   * Fetch user profile from database with timeout and race condition prevention
+   */
+  const fetchUserProfile = async (userId: string): Promise<void> => {
+    // Prevent concurrent fetches
+    if (fetchingProfileRef.current) {
+      console.log('[AuthContext] Profile fetch already in progress, skipping...');
+      return;
+    }
+
+    fetchingProfileRef.current = true;
+    console.log('[AuthContext] Starting profile fetch for user:', userId);
+
+    try {
+      // Create a timeout promise (10 seconds)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000);
+      });
+
+      // Race between fetch and timeout
+      const fetchPromise = supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as typeof fetchPromise extends Promise<infer R> ? R : never;
+
+      if (error) {
+        console.error('[AuthContext] Error fetching user profile:', error);
+
+        // If profile doesn't exist, log detailed error
+        if (error.code === 'PGRST116') {
+          console.error('[AuthContext] User profile not found in database. User may need to complete registration.');
+        }
+
+        setUserProfile(null);
+        return;
+      }
+
+      console.log('[AuthContext] Profile fetched successfully:', data);
+      setUserProfile(data as UserProfile);
+    } catch (error) {
+      console.error('[AuthContext] Error fetching user profile:', error);
+      setUserProfile(null);
+    } finally {
+      fetchingProfileRef.current = false;
+      console.log('[AuthContext] Profile fetch completed');
+    }
+  };
+
   /**
    * Initialize auth state and set up listener
    */
   useEffect(() => {
+    // Prevent double initialization in development mode (React strict mode)
+    if (initializedRef.current) {
+      console.log('[AuthContext] Already initialized, skipping...');
+      return;
+    }
+
+    initializedRef.current = true;
     console.log('[AuthContext] Initializing authentication...');
 
     // Get initial session
@@ -60,6 +123,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         console.error('[AuthContext] Error initializing auth:', error);
       } finally {
+        console.log('[AuthContext] Initialization complete, setting loading to false');
         setLoading(false);
       }
     };
@@ -70,6 +134,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         console.log('[AuthContext] Auth state changed:', event, newSession ? 'Has session' : 'No session');
+
+        // Ignore INITIAL_SESSION event to prevent duplicate fetches
+        if (event === 'INITIAL_SESSION') {
+          console.log('[AuthContext] Ignoring INITIAL_SESSION event');
+          return;
+        }
+
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
@@ -79,40 +150,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } else {
           setUserProfile(null);
         }
+
+        // Ensure loading is false after auth state change
+        setLoading(false);
       }
     );
 
     // Cleanup subscription on unmount
     return () => {
+      console.log('[AuthContext] Cleaning up subscription');
       subscription.unsubscribe();
+      initializedRef.current = false;
     };
   }, []);
-
-  /**
-   * Fetch user profile from database
-   */
-  const fetchUserProfile = async (userId: string): Promise<void> => {
-    try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching user profile:', error);
-        // Don't throw - just log the error and continue
-        setUserProfile(null);
-        return;
-      }
-
-      setUserProfile(data as UserProfile);
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-      // Ensure we don't block the UI on profile fetch errors
-      setUserProfile(null);
-    }
-  };
 
   /**
    * Sign in handler
@@ -159,7 +209,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     email: string,
     password: string,
     fullName: string,
-    role: UserRole = 'user' as UserRole
+    userType: 'funcionario' | 'cliente',
+    role: UserRole = 'user' as UserRole,
+    companyName?: string,
+    clientId?: string
   ): Promise<void> => {
     setLoading(true);
     try {
@@ -173,13 +226,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Create user profile record
       if (newUser) {
+        // For clients, automatically set role to 'cliente'
+        const finalRole = userType === 'cliente' ? ('cliente' as UserRole) : role;
+
         const { error: profileError } = await supabase
           .from('user_profiles')
           .insert({
             id: newUser.id,
             full_name: fullName,
-            role: role,
+            role: finalRole,
+            user_type: userType,
             is_active: true,
+            company_name: companyName || null,
+            client_id: clientId || null,
           });
 
         if (profileError) {

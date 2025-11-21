@@ -121,12 +121,18 @@ async def register(user_data: UserRegisterDTO) -> UserResponseDTO:
 
         user = response.user
 
+        # Determine final role - clients automatically get 'cliente' role
+        final_role = "cliente" if user_data.user_type == "cliente" else user_data.role
+
         # Create user profile in database
         profile_data = {
             "id": user.id,
             "full_name": user_data.full_name,
-            "role": user_data.role,
-            "is_active": True
+            "role": final_role,
+            "user_type": user_data.user_type,
+            "is_active": True,
+            "company_name": user_data.company_name,
+            "client_id": user_data.client_id
         }
 
         profile_response = supabase_client.admin_client.table("user_profiles") \
@@ -141,14 +147,18 @@ async def register(user_data: UserRegisterDTO) -> UserResponseDTO:
             )
 
         # Build response
+        created_profile = profile_response.data[0]
         user_profile = UserProfileDTO(
             id=user.id,
             email=user.email,
             full_name=user_data.full_name,
-            role=user_data.role,
+            role=final_role,
+            user_type=user_data.user_type,
             is_active=True,
             last_login=None,
-            created_at=profile_response.data[0].get("created_at")
+            created_at=created_profile.get("created_at"),
+            company_name=user_data.company_name,
+            client_id=user_data.client_id
         )
 
         session_token = None
@@ -246,9 +256,12 @@ async def get_current_user_profile(user: dict = Depends(get_current_user)) -> Us
             email=user.email,
             full_name=profile["full_name"],
             role=profile["role"],
+            user_type=profile.get("user_type", "funcionario"),  # Default to funcionario for backward compatibility
             is_active=profile["is_active"],
             last_login=profile.get("last_login"),
-            created_at=profile["created_at"]
+            created_at=profile["created_at"],
+            company_name=profile.get("company_name"),
+            client_id=profile.get("client_id")
         )
 
     except HTTPException:

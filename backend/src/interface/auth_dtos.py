@@ -18,7 +18,10 @@ class UserRegisterDTO(BaseModel):
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=6, description="User password")
     full_name: str = Field(..., min_length=2, max_length=100, description="User full name")
-    role: str = Field(default="user", description="User role (admin, legal, operations, commercial, analyst, mesa_control, manager, user)")
+    user_type: str = Field(..., description="User type: 'funcionario' (internal employee) or 'cliente' (external client)")
+    role: str = Field(default="user", description="User role (admin, legal, operations, commercial, analyst, mesa_control, manager, user, cliente)")
+    company_name: Optional[str] = Field(None, max_length=200, description="Company name (only for clients)")
+    client_id: Optional[str] = Field(None, max_length=50, description="External client identifier")
 
 
 class TokenResponseDTO(BaseModel):
@@ -35,9 +38,12 @@ class UserProfileDTO(BaseModel):
     email: str = Field(..., description="User email address")
     full_name: str = Field(..., description="User full name")
     role: str = Field(..., description="User role")
+    user_type: str = Field(..., description="User type: 'funcionario' or 'cliente'")
     is_active: bool = Field(..., description="Whether user account is active")
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
     created_at: datetime = Field(..., description="Account creation timestamp")
+    company_name: Optional[str] = Field(None, description="Company name (only for clients)")
+    client_id: Optional[str] = Field(None, description="External client identifier")
 
 
 class UserResponseDTO(BaseModel):
