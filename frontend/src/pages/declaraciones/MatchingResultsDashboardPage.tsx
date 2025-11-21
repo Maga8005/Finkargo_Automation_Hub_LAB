@@ -307,12 +307,12 @@ const MatchingResultsDashboardPage: React.FC = () => {
         open={detailModalOpen}
         match={selectedMatch}
         onClose={() => setDetailModalOpen(false)}
-        onApprove={async (matchId) => {
+        onApprove={async (matchId: string) => {
           await bulkApproveMatches([matchId]);
           await loadData();
           setDetailModalOpen(false);
         }}
-        onReject={async (matchId) => {
+        onReject={async (matchId: string) => {
           await bulkRejectMatches([matchId]);
           await loadData();
           setDetailModalOpen(false);

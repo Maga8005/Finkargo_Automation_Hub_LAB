@@ -11,6 +11,7 @@ import type {
   GridColDef,
   GridRenderCellParams,
   GridRowSelectionModel,
+  GridPaginationModel,
 } from '@mui/x-data-grid';
 import {
   Box,
@@ -350,8 +351,8 @@ const FKMatchDetailsTable: React.FC<FKMatchDetailsTableProps> = ({
   // Handle selection change
   const handleSelectionChange = (selectionModel: GridRowSelectionModel) => {
     if (onSelectionChange) {
-      // GridRowSelectionModel has an 'ids' Set property
-      const selectedIds = Array.from(selectionModel.ids) as string[];
+      // In DataGrid v7, GridRowSelectionModel is an array of GridRowId
+      const selectedIds = selectionModel as string[];
       onSelectionChange(selectedIds);
     }
   };
@@ -369,7 +370,7 @@ const FKMatchDetailsTable: React.FC<FKMatchDetailsTableProps> = ({
           page: page - 1, // DataGrid uses 0-based indexing
           pageSize: pageSize,
         }}
-        onPaginationModelChange={(model) => {
+        onPaginationModelChange={(model: GridPaginationModel) => {
           if (model.page !== page - 1) {
             onPageChange(model.page + 1); // Convert back to 1-based
           }
@@ -379,10 +380,7 @@ const FKMatchDetailsTable: React.FC<FKMatchDetailsTableProps> = ({
         }}
         pageSizeOptions={[10, 25, 50, 100]}
         checkboxSelection={!!onSelectionChange}
-        rowSelectionModel={{
-          type: 'include',
-          ids: new Set(selectedRows),
-        }}
+        rowSelectionModel={selectedRows}
         onRowSelectionModelChange={handleSelectionChange}
         disableRowSelectionOnClick
         sx={{
