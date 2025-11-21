@@ -7,7 +7,6 @@ import {
   Box,
   Container,
   Typography,
-  Grid,
   Card,
   CardContent,
   CardActionArea,
@@ -15,6 +14,7 @@ import {
   Divider,
   AppBar,
   Toolbar,
+  Grid,
 } from '@mui/material';
 import {
   Description as DocumentIcon,
@@ -136,7 +136,7 @@ const ClientDashboard: React.FC = () => {
       {/* Features Grid */}
       <Grid container spacing={3}>
         {clientFeatures.map((feature) => (
-          <Grid item xs={12} sm={6} md={3} key={feature.id}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={feature.id}>
             <Card
               sx={{
                 height: '100%',

@@ -145,6 +145,11 @@ const FKUserMenu: React.FC = () => {
     );
   }
 
+  // TypeScript guard: if we reach here, userProfile must exist
+  if (!userProfile) {
+    return null;
+  }
+
   return (
     <Box>
       {/* User Button */}

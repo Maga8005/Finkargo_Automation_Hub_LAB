@@ -11,9 +11,9 @@ import {
   Card,
   CardContent,
   Chip,
-  Grid,
   Button,
   Divider,
+  Grid,
 } from '@mui/material';
 import {
   Upload as UploadIcon,
@@ -125,7 +125,7 @@ const moduleData: Record<string, {
 };
 
 const FiscalModulePage: React.FC = () => {
-  const { country, moduleId } = useParams<{ country: string; moduleId: string }>();
+  const { moduleId } = useParams<{ country: string; moduleId: string }>();
   const module = moduleData[moduleId || ''];
 
   if (!module) {
@@ -193,7 +193,7 @@ const FiscalModulePage: React.FC = () => {
 
       <Grid container spacing={3}>
         {/* Module Info Card */}
-        <Grid item xs={12} md={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
@@ -256,7 +256,7 @@ const FiscalModulePage: React.FC = () => {
         </Grid>
 
         {/* Actions Card */}
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
@@ -302,7 +302,7 @@ const FiscalModulePage: React.FC = () => {
         </Grid>
 
         {/* Content Area - Placeholder for module-specific functionality */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>

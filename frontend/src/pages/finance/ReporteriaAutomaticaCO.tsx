@@ -9,11 +9,11 @@ import {
   Typography,
   Card,
   CardContent,
-  Grid,
   Button,
   Divider,
   TextField,
   InputAdornment,
+  Grid,
 } from '@mui/material';
 import {
   Upload as UploadIcon,
@@ -45,7 +45,7 @@ const ReporteriaAutomaticaCO: React.FC = () => {
 
       <Grid container spacing={3}>
         {/* Create Reports Section */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
@@ -111,7 +111,7 @@ const ReporteriaAutomaticaCO: React.FC = () => {
         </Grid>
 
         {/* Search PDFs Section */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
@@ -169,7 +169,7 @@ const ReporteriaAutomaticaCO: React.FC = () => {
         </Grid>
 
         {/* Recent Activity */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>

@@ -65,13 +65,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .eq('id', userId)
         .single();
 
-      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as typeof fetchPromise extends Promise<infer R> ? R : never;
+      const result = await Promise.race([fetchPromise, timeoutPromise]);
+      const { data, error } = result as Awaited<typeof fetchPromise>;
 
       if (error) {
         console.error('[AuthContext] Error fetching user profile:', error);
 
         // If profile doesn't exist, log detailed error
-        if (error.code === 'PGRST116') {
+        if ('code' in error && error.code === 'PGRST116') {
           console.error('[AuthContext] User profile not found in database. User may need to complete registration.');
         }
 

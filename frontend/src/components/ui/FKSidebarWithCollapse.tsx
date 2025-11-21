@@ -27,12 +27,10 @@ import {
   Assessment,
   ExpandLess,
   ExpandMore,
-  Flag,
   Description,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { departmentService } from '../../services/departmentService';
-import { useAuth } from '../../hooks/useAuth';
 import type { Department } from '../../types';
 
 const DRAWER_WIDTH = 280;
@@ -88,7 +86,6 @@ const financeModules: FinanceModule[] = [
 const FKSidebarWithCollapse: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userProfile } = useAuth();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
 
