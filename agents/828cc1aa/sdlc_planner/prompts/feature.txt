@@ -1,0 +1,1 @@
+/feature Add filtering to the contratos aprobados tab table in the Operations department menu: Add filtering to the contratos aprobados tab table in the Operations department menu item so that the user is able to filter by any of the table columns

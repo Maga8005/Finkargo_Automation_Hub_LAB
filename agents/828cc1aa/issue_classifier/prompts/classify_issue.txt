@@ -1,0 +1,105 @@
+/classify_issue {
+  "number": 7,
+  "title": "Add filtering to the contratos aprobados tab table in the Operations department menu",
+  "body": "Add filtering to the contratos aprobados tab table in the Operations department menu item so that the user is able to filter by any of the table columns\n",
+  "state": "OPEN",
+  "author": {
+    "id": "U_kgDOCU6HBg",
+    "login": "DR-Danke",
+    "name": "",
+    "is_bot": false
+  },
+  "assignees": [],
+  "labels": [],
+  "milestone": null,
+  "comments": [
+    {
+      "id": "IC_kwDOP8R7n87Umqox",
+      "author": {
+        "id": null,
+        "login": "DR-Danke",
+        "name": null,
+        "is_bot": false
+      },
+      "body": "✅ Health check completed: HEALTHY",
+      "createdAt": "2025-11-22T17:23:41Z",
+      "updatedAt": null
+    },
+    {
+      "id": "IC_kwDOP8R7n87UmqtE",
+      "author": {
+        "id": null,
+        "login": "DR-Danke",
+        "name": null,
+        "is_bot": false
+      },
+      "body": "82f4fe4d_ops: ✅ Starting ADW workflow",
+      "createdAt": "2025-11-22T17:24:07Z",
+      "updatedAt": null
+    },
+    {
+      "id": "IC_kwDOP8R7n87Umqt1",
+      "author": {
+        "id": null,
+        "login": "DR-Danke",
+        "name": null,
+        "is_bot": false
+      },
+      "body": "82f4fe4d_ops: ✅ Issue classified as: /feature",
+      "createdAt": "2025-11-22T17:24:13Z",
+      "updatedAt": null
+    },
+    {
+      "id": "IC_kwDOP8R7n87UmqxN",
+      "author": {
+        "id": null,
+        "login": "DR-Danke",
+        "name": null,
+        "is_bot": false
+      },
+      "body": "82f4fe4d_ops: ✅ Working on branch: feature-7-82f4fe4d-add-filtering-contratos-aprobados",
+      "createdAt": "2025-11-22T17:24:34Z",
+      "updatedAt": null
+    },
+    {
+      "id": "IC_kwDOP8R7n87Umqxb",
+      "author": {
+        "id": null,
+        "login": "DR-Danke",
+        "name": null,
+        "is_bot": false
+      },
+      "body": "82f4fe4d_sdlc_planner: ✅ Building implementation plan",
+      "createdAt": "2025-11-22T17:24:35Z",
+      "updatedAt": null
+    },
+    {
+      "id": "IC_kwDOP8R7n87Umqx3",
+      "author": {
+        "id": null,
+        "login": "DR-Danke",
+        "name": null,
+        "is_bot": false
+      },
+      "body": "82f4fe4d_sdlc_planner: ✅ Implementation plan created",
+      "createdAt": "2025-11-22T17:24:37Z",
+      "updatedAt": null
+    },
+    {
+      "id": "IC_kwDOP8R7n87UmqyS",
+      "author": {
+        "id": null,
+        "login": "DR-Danke",
+        "name": null,
+        "is_bot": false
+      },
+      "body": "82f4fe4d_ops: ❌ Error finding plan file: Invalid file path response: ",
+      "createdAt": "2025-11-22T17:24:40Z",
+      "updatedAt": null
+    }
+  ],
+  "createdAt": "2025-11-22T17:22:58Z",
+  "updatedAt": "2025-11-22T17:24:40Z",
+  "closedAt": null,
+  "url": "https://github.com/DR-Danke/Finkargo_Automation_Hub/issues/7"
+}
