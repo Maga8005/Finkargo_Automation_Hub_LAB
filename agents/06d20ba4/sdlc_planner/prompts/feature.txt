@@ -1,0 +1,2 @@
+/feature Add sorting to the contratos aprobados tab table in the Operations department menu: Add sorting to the contratos aprobados tab table in the Operations department menu item so that the user is able to sort by clicking on the column header in descending or ascending order.
+Descending should be the default

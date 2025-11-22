@@ -1,0 +1,136 @@
+[
+  {
+    "type": "system",
+    "subtype": "init",
+    "cwd": "/Users/danielrestrepo/Finkargo_Automation_Hub",
+    "session_id": "b775e7c1-4fe4-49db-b011-56b9800c65c7",
+    "tools": [
+      "Task",
+      "Bash",
+      "Glob",
+      "Grep",
+      "ExitPlanMode",
+      "Read",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "WebFetch",
+      "TodoWrite",
+      "WebSearch",
+      "BashOutput",
+      "KillShell",
+      "Skill",
+      "SlashCommand"
+    ],
+    "mcp_servers": [],
+    "model": "claude-sonnet-4-5-20250929",
+    "permissionMode": "bypassPermissions",
+    "slash_commands": [
+      "classify_issue",
+      "tools",
+      "feature",
+      "start",
+      "commit",
+      "prime",
+      "chore",
+      "pull_request",
+      "bug",
+      "install",
+      "find_plan_file",
+      "generate_branch_name",
+      "implement",
+      "compact",
+      "context",
+      "cost",
+      "init",
+      "pr-comments",
+      "release-notes",
+      "todos",
+      "review",
+      "security-review"
+    ],
+    "apiKeySource": "ANTHROPIC_API_KEY",
+    "claude_code_version": "2.0.50",
+    "output_style": "default",
+    "agents": [
+      "general-purpose",
+      "statusline-setup",
+      "Explore",
+      "Plan"
+    ],
+    "skills": [],
+    "plugins": [],
+    "uuid": "1f095295-6ea9-45dc-bfcf-eb716e1380e2"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01Fbkdke9hmQk9iK4DNqkcRt",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "/feature"
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 3,
+        "cache_creation_input_tokens": 10725,
+        "cache_read_input_tokens": 12591,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 10725,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 5,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "b775e7c1-4fe4-49db-b011-56b9800c65c7",
+    "uuid": "5275e324-fda7-4bb1-9eeb-bb5d953a5e7c"
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 2869,
+    "duration_api_ms": 2737,
+    "num_turns": 1,
+    "result": "/feature",
+    "session_id": "b775e7c1-4fe4-49db-b011-56b9800c65c7",
+    "total_cost_usd": 0.044080049999999996,
+    "usage": {
+      "input_tokens": 3,
+      "cache_creation_input_tokens": 10725,
+      "cache_read_input_tokens": 12591,
+      "output_tokens": 5,
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 10725
+      }
+    },
+    "modelUsage": {
+      "claude-sonnet-4-5-20250929": {
+        "inputTokens": 3,
+        "outputTokens": 5,
+        "cacheReadInputTokens": 12591,
+        "cacheCreationInputTokens": 10725,
+        "webSearchRequests": 0,
+        "costUSD": 0.044080049999999996,
+        "contextWindow": 200000
+      }
+    },
+    "permission_denials": [],
+    "uuid": "298ebcb7-b605-4d93-b4fa-3721da77b127"
+  }
+]
