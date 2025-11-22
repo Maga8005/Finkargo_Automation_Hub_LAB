@@ -35,9 +35,27 @@ export const operationsService = {
 
   /**
    * Get all approved contracts
+   * @param contractType - Optional filter by contract type
+   * @param sortBy - Optional field to sort by
+   * @param sortOrder - Optional sort order ('asc' or 'desc')
    */
-  async getApprovedContracts(contractType?: string): Promise<ContractGeneration[]> {
-    const params = contractType ? { contract_type: contractType } : {};
+  async getApprovedContracts(
+    contractType?: string,
+    sortBy?: string,
+    sortOrder?: string
+  ): Promise<ContractGeneration[]> {
+    const params: Record<string, string> = {};
+
+    if (contractType) {
+      params.contract_type = contractType;
+    }
+    if (sortBy) {
+      params.sort_by = sortBy;
+    }
+    if (sortOrder) {
+      params.sort_order = sortOrder;
+    }
+
     const response = await apiClient.get<ContractGeneration[]>(
       `${BASE_URL}/contracts/approved`,
       { params }

@@ -120,3 +120,19 @@ export interface ClientSearchParams {
   nombre?: string;
   is_active?: boolean;
 }
+
+// Operations Sorting Types
+export type OperationsSortField =
+  | 'contract_id'
+  | 'contract_type'
+  | 'client_nit'
+  | 'reviewed_at'
+  | 'nombre_importador'
+  | 'cupo_plataforma';
+
+export type OperationsSortOrder = 'asc' | 'desc';
+
+export interface OperationsSortParams {
+  sort_by?: OperationsSortField;
+  sort_order?: OperationsSortOrder;
+}
