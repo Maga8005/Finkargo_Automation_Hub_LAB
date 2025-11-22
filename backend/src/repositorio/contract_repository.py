@@ -169,12 +169,19 @@ class ContractRepository:
 
         return response.data if response.data else []
 
-    async def get_approved_contracts(self, contract_type: Optional[str] = None) -> List[dict]:
+    async def get_approved_contracts(
+        self,
+        contract_type: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None
+    ) -> List[dict]:
         """
         Get all approved contracts with document URLs for Operations team, optionally filtered by contract type
 
         Args:
-            contract_type: Optional filter by contract type ('activos' or 'otrosi')
+            contract_type: Optional filter by contract type ('activos', 'otrosi', or 'inventario_bodega')
+            sort_by: Optional field to sort by (contract_id, contract_type, client_nit, reviewed_at, or JSONB fields)
+            sort_order: Optional sort order ('asc' or 'desc', defaults to 'desc')
 
         Returns:
             List[dict]: Approved contracts with document URLs
@@ -187,7 +194,28 @@ class ContractRepository:
         if contract_type:
             query = query.eq('contract_type', contract_type)
 
-        response = query.order('reviewed_at', desc=True).execute()
+        # Apply sorting
+        # Allowed sort fields (whitelist to prevent SQL injection)
+        allowed_sort_fields = [
+            'contract_id',
+            'contract_type',
+            'client_nit',
+            'reviewed_at',
+            'data_snapshot->nombre_importador',
+            'data_snapshot->cupo_plataforma'
+        ]
+
+        # Determine sort field and order
+        if sort_by and sort_by in allowed_sort_fields:
+            sort_field = sort_by
+        else:
+            # Default to reviewed_at if invalid or not provided
+            sort_field = 'reviewed_at'
+
+        # Validate sort order
+        is_descending = sort_order != 'asc'  # Default to descending
+
+        response = query.order(sort_field, desc=is_descending).execute()
 
         return response.data if response.data else []
 

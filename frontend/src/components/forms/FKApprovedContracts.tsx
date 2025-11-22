@@ -18,6 +18,7 @@ import {
   Tooltip,
   Alert,
   CircularProgress,
+  TableSortLabel,
 } from '@mui/material';
 import {
   PictureAsPdf as PdfIcon,
@@ -25,29 +26,59 @@ import {
   CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
 import { operationsService } from '../../services/operationsService';
-import type { ContractGeneration } from '../../types/legal';
+import type { ContractGeneration, OperationsSortOrder } from '../../types/legal';
+
+// Mapping of frontend sort field names to backend database fields
+const SORT_FIELD_MAP: Record<string, string> = {
+  'contract_id': 'contract_id',
+  'contract_type': 'contract_type',
+  'nombre_importador': 'data_snapshot->nombre_importador',
+  'client_nit': 'client_nit',
+  'cupo_plataforma': 'data_snapshot->cupo_plataforma',
+  'reviewed_at': 'reviewed_at',
+};
 
 const FKApprovedContracts: React.FC = () => {
   const [contracts, setContracts] = useState<ContractGeneration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadApprovedContracts();
-  }, []);
+  const [sortBy, setSortBy] = useState<string>('reviewed_at');
+  const [sortOrder, setSortOrder] = useState<OperationsSortOrder>('desc');
 
   const loadApprovedContracts = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await operationsService.getApprovedContracts();
+      // Map frontend field name to backend field name
+      const backendSortField = SORT_FIELD_MAP[sortBy] || 'reviewed_at';
+      const data = await operationsService.getApprovedContracts(
+        undefined,
+        backendSortField,
+        sortOrder
+      );
       setContracts(data);
     } catch (err) {
       console.error('Error loading approved contracts:', err);
       setError('Error al cargar los contratos aprobados');
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadApprovedContracts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortBy, sortOrder]);
+
+  const handleSortRequest = (column: string) => {
+    // If clicking the current sort column, toggle the order
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // If clicking a new column, set it as the sort column with descending order
+      setSortBy(column);
+      setSortOrder('desc');
     }
   };
 
@@ -155,12 +186,60 @@ const FKApprovedContracts: React.FC = () => {
         <Table>
           <TableHead sx={{ bgcolor: 'grey.50' }}>
             <TableRow>
-              <TableCell sx={{ fontWeight: 600 }}>ID Contrato</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Tipo</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Cliente</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>NIT</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Cupo Aprobado</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Fecha Aprobación</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>
+                <TableSortLabel
+                  active={sortBy === 'contract_id'}
+                  direction={sortBy === 'contract_id' ? sortOrder : 'desc'}
+                  onClick={() => handleSortRequest('contract_id')}
+                >
+                  ID Contrato
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>
+                <TableSortLabel
+                  active={sortBy === 'contract_type'}
+                  direction={sortBy === 'contract_type' ? sortOrder : 'desc'}
+                  onClick={() => handleSortRequest('contract_type')}
+                >
+                  Tipo
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>
+                <TableSortLabel
+                  active={sortBy === 'nombre_importador'}
+                  direction={sortBy === 'nombre_importador' ? sortOrder : 'desc'}
+                  onClick={() => handleSortRequest('nombre_importador')}
+                >
+                  Cliente
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>
+                <TableSortLabel
+                  active={sortBy === 'client_nit'}
+                  direction={sortBy === 'client_nit' ? sortOrder : 'desc'}
+                  onClick={() => handleSortRequest('client_nit')}
+                >
+                  NIT
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>
+                <TableSortLabel
+                  active={sortBy === 'cupo_plataforma'}
+                  direction={sortBy === 'cupo_plataforma' ? sortOrder : 'desc'}
+                  onClick={() => handleSortRequest('cupo_plataforma')}
+                >
+                  Cupo Aprobado
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>
+                <TableSortLabel
+                  active={sortBy === 'reviewed_at'}
+                  direction={sortBy === 'reviewed_at' ? sortOrder : 'desc'}
+                  onClick={() => handleSortRequest('reviewed_at')}
+                >
+                  Fecha Aprobación
+                </TableSortLabel>
+              </TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
               <TableCell align="center" sx={{ fontWeight: 600 }}>Acciones</TableCell>
             </TableRow>

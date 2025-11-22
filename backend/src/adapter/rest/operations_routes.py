@@ -162,6 +162,8 @@ async def request_contract_generation(
 @router.get("/contracts/approved", response_model=List[ContractGenerationDetail])
 async def get_approved_contracts(
     contract_type: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_order: Optional[str] = None,
     contract_repo: ContractRepository = Depends(get_contract_repo),
     current_user: dict = Depends(require_operations_role)
 ):
@@ -169,12 +171,22 @@ async def get_approved_contracts(
     Get all approved contracts for Operations team (Operations role or Admin required)
 
     Query Parameters:
-        contract_type: Optional filter by contract type ('activos' or 'otrosi')
+        contract_type: Optional filter by contract type ('activos', 'otrosi', or 'inventario_bodega')
+        sort_by: Optional field to sort by (contract_id, contract_type, client_nit, reviewed_at,
+                 data_snapshot->nombre_importador, data_snapshot->cupo_plataforma)
+        sort_order: Optional sort order ('asc' or 'desc', defaults to 'desc')
 
     Returns contracts with approved status and document URLs for download
     """
     try:
-        contracts = await contract_repo.get_approved_contracts(contract_type)
+        # Validate sort_order
+        validated_sort_order = sort_order if sort_order in ['asc', 'desc'] else 'desc'
+
+        contracts = await contract_repo.get_approved_contracts(
+            contract_type=contract_type,
+            sort_by=sort_by,
+            sort_order=validated_sort_order
+        )
         return contracts
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,110 +1,400 @@
-# Finkargo Automation Hub - Project Template
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
-This template is based on the **Finkargo Pre-Approval System** architecture, UX/UI patterns, and deployment approach. Use this document to bootstrap a new Finkargo Automation Hub application with the same enterprise standards.
 
-## Core Principles (Inherited from Base Template)
-**CRITICAL**: All code MUST follow Clean Architecture and SOLID design principles. Never violate these principles - refactoring will be required if they are not followed.
+**Finkargo Automation Hub** is an enterprise automation platform for Finkargo's business operations, built with a monorepo structure containing React frontend and FastAPI backend. The system automates legal contract generation, operations workflows, and financial reporting for Colombian logistics operations.
 
-## Technology Stack (Company Standard)
+**Production URLs:**
+- Frontend: https://finkargo-automation-hub.vercel.app/
+- Backend: https://finkargo-automation-hub.onrender.com/api
 
-### Frontend
-- **Framework**: React 18.2.0
-- **Build Tool**: Vite 5.0.8
-- **Language**: TypeScript 5.2.2
-- **UI Library**: Material-UI (MUI) v5
-- **State Management**: useReducer for complex state, Context API for global state
-- **Forms**: react-hook-form with Material-UI integration (mandatory)
-- **HTTP Client**: Axios with interceptors
-- **Authentication**: Supabase Auth with JWT
-- **Routing**: React Router v6
+## Core Architecture Principles
 
-### Backend
-- **Framework**: FastAPI 0.104.1
-- **Language**: Python 3.11.9
-- **Database**: PostgreSQL (via Supabase)
-- **ORM**: SQLAlchemy 2.0.23
-- **Migrations**: Alembic 1.12.1
-- **Authentication**: Supabase + JWT with role-based access control
-- **Validation**: Pydantic 2.5.2 with pydantic-settings 2.1.0
+**CRITICAL**: All code MUST follow Clean Architecture and SOLID principles. Never violate these - refactoring will be required if not followed.
 
-### Deployment Stack
-- **Frontend Hosting**: Vercel.com
-- **Backend Hosting**: Render.com
-- **Database**: Supabase (PostgreSQL + Auth)
-- **Version Control**: GitHub with feature branch workflow
+### Clean Architecture Layers
 
-## Enterprise Project Structure
-
-### Frontend Architecture
 ```
-frontend/
-├── src/
-│   ├── api/
-│   │   └── clients/           # HTTP clients with interceptors
-│   ├── components/
-│   │   ├── forms/             # FK-prefixed form components
-│   │   └── ui/                # FK-prefixed reusable components
-│   ├── hooks/                 # Custom hooks (useAuth, useAPI, etc.)
-│   ├── store/
-│   │   └── reducers/          # useReducer implementations
-│   ├── services/              # Business logic services
-│   ├── types/                 # TypeScript interfaces and domain models
-│   ├── utils/                 # Utility functions
-│   ├── pages/                 # Application routes
-│   └── App.tsx
-├── public/
-├── .env                       # Local environment variables
-├── .env.example               # Template for environment variables
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-└── vercel.json                # Vercel deployment config
+Frontend:  pages/ → components/ → services/ → api/
+           (UI)     (Reusable)   (Logic)    (HTTP)
+
+Backend:   adapter/rest/ → core/servicios/ → repositorio/ → database
+           (Controllers)   (Business Logic)  (Data Access)
 ```
 
-### Backend Architecture
-```
-backend/
-├── src/
-│   ├── adapter/
-│   │   └── rest/              # FastAPI controllers and routes
-│   ├── core/
-│   │   └── servicios/         # Business logic services
-│   ├── repositorio/           # Data access layer with docstrings
-│   ├── interface/             # DTOs and contracts
-│   ├── models/                # SQLAlchemy models
-│   └── config/                # Application configuration
-├── alembic/                   # Database migrations
-├── .env                       # Local environment variables
-├── .env.example               # Template for environment variables
-├── requirements.txt
-├── runtime.txt                # Python version (python-3.11.9)
-└── main.py                    # FastAPI application entry
+## Technology Stack
+
+### Frontend (Current Versions)
+- **React**: 19.1.1 + **TypeScript**: 5.9.3
+- **Build Tool**: Vite 7.1.7
+- **UI Library**: Material-UI 7.3.4 (Finkargo branded)
+- **Routing**: React Router 7.9.3
+- **Forms**: react-hook-form 7.64.0 (mandatory)
+- **HTTP**: Axios 1.12.2 with interceptors
+- **Auth**: Supabase Client 2.58.0 (JWT-based)
+- **Data Grid**: MUI Data Grid 7.29.11
+- **Date Utils**: date-fns 4.1.0
+
+### Backend (Current Versions)
+- **Python**: 3.11.9-3.13.6 (Render uses 3.11.9)
+- **FastAPI**: 0.104.1+
+- **Server**: Uvicorn 0.24.0+
+- **Validation**: Pydantic 2.5.2+
+- **Database**: Supabase (PostgreSQL) via supabase-py 2.0.0+
+- **ORM**: SQLAlchemy 2.0.23+ (minimal usage)
+- **Migrations**: Alembic 1.12.1+
+- **Document Processing**: PyMuPDF 1.23.0+, python-docx 1.0.0+
+- **Data Processing**: Pandas 2.0.0+
+
+### Infrastructure
+- **Database**: PostgreSQL (Supabase) with Row Level Security
+- **Auth**: Supabase Auth with JWT tokens
+- **Storage**: Supabase Storage (PDFs, RUTs)
+- **Frontend Hosting**: Vercel (auto-deploy from GitHub)
+- **Backend Hosting**: Render (auto-deploy from GitHub)
+
+## Development Commands
+
+### Frontend Development
+
+```bash
+# Navigate to frontend
+cd frontend
+
+# Install dependencies
+npm install
+
+# Development server (http://localhost:5173)
+npm run dev
+
+# Production build
+npm run build  # Runs: tsc -b && vite build
+
+# Lint code
+npm run lint
+
+# Preview production build
+npm run preview
 ```
 
-## Code Standards (Non-negotiable)
+**Important Frontend Notes:**
+- Dev server runs on port 5173 (strict)
+- Path alias: `@/` → `src/`
+- HMR (Hot Module Replacement) enabled
+- Output directory: `dist/`
+
+### Backend Development
+
+```bash
+# Navigate to backend
+cd backend
+
+# Create virtual environment (first time)
+python -m venv venv
+
+# Activate virtual environment
+# Windows:
+venv\Scripts\activate
+# Mac/Linux:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Development server (http://localhost:8000)
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# Production server (Render command)
+uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+**Important Backend Notes:**
+- API routes prefixed with `/api`
+- Auto-generated docs at `/docs` (Swagger UI)
+- Health check endpoint: `/api/health`
+- Backend runs on port 8000
+
+### Testing Commands
+
+**Backend Testing:**
+```bash
+cd backend
+pytest tests/
+```
+
+**Current Testing State:**
+- Backend: pytest configured, minimal test coverage
+- Frontend: No testing framework configured yet
+- Test file exists: `backend/test_document_generation.py`
+- Need to expand coverage for services and API endpoints
+
+## Project Structure
+
+### Frontend Structure
+
+```
+frontend/src/
+├── api/clients/              # Axios HTTP clients with auth interceptors
+├── components/
+│   ├── forms/                # FK-prefixed form components
+│   │   ├── FKContractRequest.tsx
+│   │   ├── FKClientDataImport.tsx
+│   │   └── FKReviewQueue.tsx
+│   ├── ui/                   # FK-prefixed reusable UI
+│   │   ├── FKMainLayout.tsx
+│   │   ├── FKSidebar.tsx
+│   │   └── FKTopNavbar.tsx
+│   ├── declaraciones/        # Module-specific components
+│   ├── ProtectedRoute.tsx    # Authentication guard
+│   └── RoleProtectedRoute.tsx # Authorization guard
+├── contexts/
+│   └── AuthContext.tsx       # Global auth state (Context API)
+├── hooks/
+│   └── useAuth.ts            # Authentication hook
+├── pages/
+│   ├── legal/                # Legal module pages
+│   ├── operations/           # Operations module pages
+│   ├── finance/              # Finance module pages
+│   ├── LoginPage.tsx
+│   └── HomePage.tsx
+├── services/                 # Business logic services
+│   ├── supabase.ts
+│   ├── legalService.ts
+│   └── operationsService.ts
+├── types/                    # TypeScript types
+│   ├── index.ts              # Core types
+│   └── legal.ts              # Legal-specific types
+├── theme/
+│   └── theme.ts              # Finkargo brand theme
+└── App.tsx                   # Root component with routing
+```
+
+### Backend Structure
+
+```
+backend/src/
+├── adapter/rest/             # FastAPI routes (API layer)
+│   ├── legal_routes.py       # Legal department endpoints
+│   ├── operations_routes.py  # Operations endpoints
+│   ├── auth_routes.py        # Authentication endpoints
+│   ├── dependencies.py       # Dependency injection
+│   └── rbac_dependencies.py  # Role-based access control
+├── core/servicios/           # Business logic (Core layer)
+│   ├── contract_service.py   # Contract generation logic
+│   ├── document_service.py   # Document processing
+│   ├── csv_template_mapper.py # CSV to template mapping
+│   └── rut_parser_service.py # Tax ID parsing
+├── repositorio/              # Data access (Repository layer)
+│   ├── contract_repository.py # Contract CRUD
+│   ├── client_repository.py   # Client data access
+│   └── template_repository.py # Template management
+├── interface/                # DTOs (Data Transfer Objects)
+│   ├── legal_dtos.py
+│   └── auth_dtos.py
+├── config/                   # Configuration
+│   ├── settings.py           # Pydantic settings
+│   └── supabase_config.py    # Supabase client init
+└── models/                   # SQLAlchemy models (minimal)
+```
+
+## Code Standards (Non-Negotiable)
 
 ### TypeScript Standards
-- **Component Naming**: All form/business components must start with FK prefix (e.g., `FKAutomationForm.tsx`)
-- **Type Coverage**: 100% TypeScript coverage, no `any` types in production code
-- **Imports**: Absolute imports from `@/` alias
+- **Component Naming**: Business/form components MUST use `FK` prefix (e.g., `FKContractForm.tsx`)
+- **Type Coverage**: 100% TypeScript, NO `any` types in production
+- **Imports**: Use `@/` alias for absolute imports
 - **File Naming**: PascalCase for components, camelCase for utilities
 
 ### Python Standards
-- **Type Hints**: All functions must have type hints
-- **Docstrings**: Comprehensive docstrings for all public APIs
-- **Clean Architecture**: Clear separation of concerns (adapter → core → repositorio)
+- **Type Hints**: Required on all functions
+- **Docstrings**: Required for all public APIs
+- **Clean Architecture**: Strict layer separation (adapter → core → repositorio)
 - **Error Handling**: Structured exceptions with proper HTTP status codes
 
 ### Component Standards
 - **Forms**: Always use react-hook-form with Material-UI
-- **API Calls**: Use custom hooks (useAPI, useQuery pattern)
-- **State**: useReducer for complex state, useState for simple state
-- **Error Boundaries**: Wrap major sections in error boundaries
+- **State**: Context API for global, useState for local, useReducer for complex
+- **API Calls**: Use service layer, never direct axios in components
+- **Auth**: Use `useAuth()` hook, `ProtectedRoute` and `RoleProtectedRoute` components
 
-## UI Design System (Finkargo Brand)
+## API Endpoints
+
+### Base URLs
+- **Development**: `http://localhost:8000/api`
+- **Production**: `https://finkargo-automation-hub.onrender.com/api`
+
+### Key Endpoints
+
+**Health & Utils:**
+- `GET /api/health` - Health check
+- `GET /api/departments` - Department list
+- `GET /api/debug/cors` - CORS debug info
+
+**Authentication** (`auth_routes.py`):
+- `POST /api/auth/login` - User login
+- `POST /api/auth/register` - User registration
+- `GET /api/auth/me` - Current user profile
+
+**Legal Module** (`legal_routes.py`):
+- `GET /api/legal/clients` - List clients
+- `GET /api/legal/clients/search?nit=<NIT>` - Search by tax ID
+- `POST /api/legal/clients/import` - Import from CSV/Excel
+- `POST /api/legal/contracts/generate` - Generate contract
+- `GET /api/legal/contracts/{id}` - Contract details
+- `PUT /api/legal/contracts/{id}/review` - Review (approve/reject)
+- `GET /api/legal/contracts/pending-review` - Pending queue
+- `GET /api/legal/contracts` - History with filters
+- `GET /api/legal/contracts/stats` - Statistics
+- `GET /api/legal/templates/active` - Active template
+
+**Operations Module** (`operations_routes.py`):
+- `GET /api/operations/dashboard` - Dashboard data
+- `GET /api/operations/imports` - Import history
+- `POST /api/operations/imports/validate` - Validate import
+
+**API Documentation:**
+- Swagger UI: http://localhost:8000/docs
+- Auto-generated from FastAPI
+- Interactive testing available
+
+## Authentication & Authorization
+
+### Authentication Flow (Supabase JWT)
+
+```
+1. User logs in via LoginPage
+2. Calls supabase.auth.signInWithPassword()
+3. Supabase returns JWT token + user object
+4. Token auto-stored in localStorage
+5. AuthContext fetches user_profiles from database
+6. App renders with user context
+```
+
+### Frontend Auth Pattern
+
+**Global Auth State:**
+```typescript
+// AuthContext provides:
+interface AuthContextType {
+  user: User | null;
+  session: Session | null;
+  userProfile: UserProfile | null;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  isAuthenticated: boolean;
+}
+```
+
+**Route Protection:**
+```typescript
+// Authentication required:
+<ProtectedRoute>
+  <DashboardPage />
+</ProtectedRoute>
+
+// Specific role(s) required:
+<RoleProtectedRoute allowedRoles={['admin', 'legal']}>
+  <LegalDashboard />
+</RoleProtectedRoute>
+```
+
+### Backend Auth Pattern
+
+**JWT Validation:**
+```python
+# dependencies.py
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> dict:
+    """Validate JWT and return user data"""
+    token = credentials.credentials
+    user = supabase_client.get_user_from_token(token)
+    return user
+```
+
+**RBAC (Role-Based Access Control):**
+```python
+# rbac_dependencies.py
+from rbac_dependencies import require_roles
+
+@router.post("/contracts/generate")
+async def generate_contract(
+    current_user: dict = Depends(require_roles(['admin', 'legal']))
+):
+    # Only admins and legal users can access
+    pass
+```
+
+**Available Roles:**
+- `admin` - Full system access
+- `legal` - Legal contract management
+- `operations` - Operations workflows
+- `mesa_control` - Control desk
+- `commercial` - Sales operations
+- `analyst` - Data analysis
+- `manager` - Department supervision
+- `user` - Basic authenticated user
+- `cliente` - External client (limited access)
+
+## Database
+
+### Schema Location
+`backend/database/` contains all SQL migrations and schema definitions.
+
+### Core Tables
+
+**Authentication:**
+- `auth.users` (Supabase built-in)
+- `user_profiles` - Extended user data with roles
+
+**Legal Contracts:**
+- `clients` - Imported client data (NIT, company info)
+- `contract_templates` - Versioned templates
+- `contract_generations` - Audit trail
+- `contract_id_sequence` - Sequential ID generator (ACT-2025-001)
+- `data_imports` - CSV/Excel import history
+
+### Migration Workflow
+
+**Apply migrations in order:**
+1. `schema.sql` - Base schema
+2. `migration_create_user_profiles.sql` - User profiles
+3. `migration_add_legal_operations_roles.sql` - Roles
+4. `migration_add_user_type.sql` - User types
+5. `migration_add_contract_fields.sql` - Contract fields
+6. `migration_add_otrosi_support.sql` - "Otrosi" type
+7. `migration_add_inventario_bodega_support.sql` - Inventory type
+8. `migration_add_approved_document_url.sql` - Document storage
+9. `migration_allow_null_audit_fields.sql` - Audit flexibility
+10. `migration_fix_user_profiles_rls.sql` - RLS fixes
+
+**How to apply:**
+1. Open Supabase SQL Editor
+2. Execute migrations sequentially
+3. Verify with: `SELECT tablename FROM pg_tables WHERE schemaname = 'public';`
+
+### Row Level Security (RLS)
+
+All tables have RLS enabled:
+- Authenticated users can read most data
+- Role-based write permissions
+- Service role (backend) bypasses RLS
+
+**Example Policy:**
+```sql
+CREATE POLICY "Authenticated users can read clients"
+ON clients FOR SELECT
+TO authenticated
+USING (true);
+```
+
+## Finkargo Design System
 
 ### Color Palette
+
 ```css
 /* Primary Colors */
 --primary-darkest: #050A53;
@@ -136,17 +426,19 @@ backend/
 ```
 
 ### Component Specifications
+
 - **Buttons**:
   - Large: 52px height, 8px border-radius
   - Medium: 44px height, 8px border-radius
   - Small: 36px height, 8px border-radius
 - **Cards**: 8px border-radius, 24px padding
 - **Inputs**: 48px height, 8px border-radius
-- **Typography**: Epilogue font (weights: 400, 500, 600, 700)
+- **Typography**: Epilogue font (400, 500, 600, 700)
 
 ### Responsive Breakpoints
+
 ```typescript
-// Use these breakpoints in MUI theme
+// MUI theme breakpoints
 const breakpoints = {
   mobile: 0,      // 0px - 719px
   tablet: 720,    // 720px - 1023px
@@ -154,31 +446,25 @@ const breakpoints = {
 };
 ```
 
-## Language Guidelines
-- **UI Text**: Spanish (all user-facing content)
-- **Code**: English (variables, functions, comments)
-- **Documentation**: Spanish for user docs, English for technical docs
-- **Git Commits**: English
-
 ## Environment Variables
 
 ### Frontend (.env)
+
 ```bash
-# Supabase Configuration
+# Supabase
 VITE_SUPABASE_URL=https://[project-id].supabase.co
 VITE_SUPABASE_ANON_KEY=[anon-key]
 
-# API Configuration
+# API
 VITE_API_URL=http://localhost:8000/api
 VITE_API_TIMEOUT=30000
 
-# Application Settings
+# App Settings
 VITE_APP_NAME=Finkargo Automation Hub
 VITE_APP_VERSION=1.0.0
 VITE_ENABLE_DEBUG=false
-VITE_ENABLE_ANALYTICS=false
 
-# File Upload Settings
+# File Upload
 VITE_MAX_FILE_SIZE=10485760
 VITE_ALLOWED_FILE_TYPES=.pdf,.jpg,.jpeg,.png,.xlsx,.xls
 
@@ -188,13 +474,14 @@ VITE_DEFAULT_CURRENCY=MXN
 ```
 
 ### Backend (.env)
+
 ```bash
-# Application Settings
+# App Settings
 DEBUG=true
 APP_NAME=Finkargo Automation Hub
-PYTHON_VERSION=3.11.9
+PYTHON_VERSION=3.11.9  # CRITICAL for Render deployment
 
-# Supabase Configuration
+# Supabase
 SUPABASE_URL=https://[project-id].supabase.co
 SUPABASE_ANON_KEY=[anon-key]
 SUPABASE_SERVICE_KEY=[service-key]
@@ -205,31 +492,28 @@ SECRET_KEY=[generate-secret-key]
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
-# CORS (JSON array format required!)
-CORS_ORIGINS=["http://localhost:5173","https://your-app.vercel.app"]
+# CORS (MUST be JSON array format!)
+CORS_ORIGINS=["http://localhost:5173","https://finkargo-automation-hub.vercel.app","https://*.vercel.app"]
 
-# Database (provided by Supabase)
+# Database
 DATABASE_URL=postgresql://[connection-string]
 
 # File Upload
 MAX_UPLOAD_SIZE=10485760
 SUPPORTED_FILE_TYPES=[".pdf",".jpg",".jpeg",".png",".xlsx",".xls"]
-
-# External APIs (if needed)
-# Add your automation service APIs here
 ```
 
 ## Deployment Configuration
 
-### Vercel Configuration (vercel.json)
+### Vercel (Frontend)
+
+**Configuration in `frontend/vercel.json`:**
 ```json
 {
   "version": 2,
   "name": "finkargo-automation-hub",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
   "framework": "vite",
   "rewrites": [
     {
@@ -240,312 +524,210 @@ SUPPORTED_FILE_TYPES=[".pdf",".jpg",".jpeg",".png",".xlsx",".xls"]
 }
 ```
 
-**Important Vercel Settings**:
-- **Root Directory**: `frontend`
-- **Framework Preset**: Vite
-- **Node Version**: 18.x or 20.x
-- **Environment Variables**: Set all `VITE_*` variables in Vercel dashboard
+**Vercel Dashboard Settings:**
+- Root Directory: `frontend`
+- Framework Preset: Vite
+- Node Version: 18.x or 20.x
+- Environment Variables: Set all `VITE_*` variables
 
-### Render Configuration
+### Render (Backend)
 
-**Service Settings**:
-- **Environment**: Python 3
-- **Root Directory**: `backend`
-- **Build Command**: `pip install -r requirements.txt`
-- **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- **Python Version**: Set `PYTHON_VERSION=3.11.9` in environment variables
+**Service Settings:**
+- Environment: Python 3
+- Root Directory: `backend`
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 
-**Critical Render Notes**:
-- Use environment variable `PYTHON_VERSION=3.11.9` (runtime.txt is ignored with Root Directory setting)
-- CORS_ORIGINS MUST be JSON array format: `["url1","url2"]`, NOT comma-separated string
-- Include both production and preview Vercel URLs in CORS_ORIGINS
+**CRITICAL Environment Variables:**
+- `PYTHON_VERSION=3.11.9` - Required! (runtime.txt ignored with Root Directory)
+- `CORS_ORIGINS` - MUST be JSON array: `["url1","url2"]`, NOT comma-separated
 
-### GitHub Workflow
-1. Create feature branch: `feature-[brief-description]`
-2. Develop and test locally
-3. Commit with descriptive messages
-4. Push to GitHub
-5. Vercel auto-deploys from feature branch
-6. Render deploys from same branch (or configure separate branch)
+### Git Workflow
 
-## Required Dependencies
-
-### Frontend (package.json)
-```json
-{
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.1",
-    "@mui/material": "^5.14.20",
-    "@mui/icons-material": "^5.14.19",
-    "@emotion/react": "^11.11.1",
-    "@emotion/styled": "^11.11.0",
-    "react-hook-form": "^7.49.2",
-    "axios": "^1.6.2",
-    "@supabase/supabase-js": "^2.39.0",
-    "date-fns": "^3.0.6"
-  },
-  "devDependencies": {
-    "@types/react": "^18.2.43",
-    "@types/react-dom": "^18.2.17",
-    "@vitejs/plugin-react": "^4.2.1",
-    "typescript": "^5.2.2",
-    "vite": "^5.0.8",
-    "eslint": "^8.55.0",
-    "@typescript-eslint/eslint-plugin": "^6.14.0",
-    "@typescript-eslint/parser": "^6.14.0"
-  }
-}
-```
-
-### Backend (requirements.txt)
-```txt
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-sqlalchemy==2.0.23
-alembic==1.12.1
-psycopg2-binary==2.9.9
-pydantic==2.5.2
-pydantic-settings==2.1.0
-email-validator==2.1.0
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
-httpx==0.24.1
-pytest==7.4.3
-pytest-asyncio==0.21.1
-python-dotenv==1.0.0
-supabase==2.3.0
-gotrue==2.1.0
-postgrest==0.13.0
-realtime==1.0.2
-storage3==0.6.1
-
-# Add automation-specific packages here
-# celery==5.3.4  # If using task queue
-# redis==5.0.1   # If using Redis
-```
-
-## Development Workflow
-
-### Initial Setup
 ```bash
-# 1. Create project structure
-mkdir finkargo-automation-hub && cd finkargo-automation-hub
-mkdir frontend backend
+# 1. Create feature branch
+git checkout -b feature-description
 
-# 2. Initialize frontend
-cd frontend
-npm create vite@latest . -- --template react-ts
-npm install
+# 2. Develop and test locally
+npm run dev  # frontend
+python -m uvicorn main:app --reload  # backend
 
-# 3. Initialize backend
-cd ../backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+# 3. Commit with conventional commits
+git commit -m "feat: add new feature"
+# Prefixes: feat, fix, docs, refactor, test, chore
 
-# 4. Setup Supabase
-# - Create new project at supabase.com
-# - Copy connection details
-# - Update .env files
+# 4. Push to GitHub
+git push origin feature-description
 
-# 5. Initialize Git
-cd ..
-git init
-git checkout -b feature-initial-setup
+# 5. Auto-deploy
+# - Vercel creates preview URL for frontend
+# - Render deploys backend (if configured)
+
+# 6. Merge to master for production deployment
 ```
 
-### Local Development
-```bash
-# Terminal 1 - Backend
-cd backend
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-# Terminal 2 - Frontend
-cd frontend
-npm run dev
-
-# Access app at http://localhost:5173
-# API docs at http://localhost:8000/api/docs
-```
-
-## Deployment Steps
-
-### Step 1: Deploy Backend to Render
-1. Create new Web Service on Render
-2. Connect GitHub repository
-3. Configure:
-   - Root Directory: `backend`
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Set environment variables (PYTHON_VERSION=3.11.9 is critical!)
-5. Deploy and verify at `https://your-service.onrender.com/api/health`
-
-### Step 2: Deploy Frontend to Vercel
-1. Import project on Vercel
-2. Configure:
-   - Root Directory: `frontend`
-   - Framework: Vite
-   - Build Command: `npm run build`
-   - Output Directory: `dist`
-3. Set all `VITE_*` environment variables
-4. Set `VITE_API_URL` to Render backend URL
-5. Deploy and verify
-
-### Step 3: Configure CORS
-1. Go to Render → Environment Variables
-2. Update `CORS_ORIGINS` to JSON array:
-   ```json
-   ["http://localhost:5173","https://your-app.vercel.app","https://*.vercel.app"]
-   ```
-3. Redeploy backend
-
-### Step 4: Verify Deployment
-- [ ] Frontend loads without errors
-- [ ] Backend health check responds
-- [ ] API calls succeed (no CORS errors)
-- [ ] Authentication works
-- [ ] Database operations work
-
-## Common Deployment Issues & Solutions
+## Common Deployment Issues
 
 ### Issue 1: Python Version Incompatibility
 **Error**: Package build failures with Python 3.13
-**Solution**: Add `PYTHON_VERSION=3.11.9` environment variable in Render
+**Solution**: Set `PYTHON_VERSION=3.11.9` in Render environment variables
 
 ### Issue 2: CORS Errors
 **Error**: "No 'Access-Control-Allow-Origin' header"
 **Solution**:
-- Ensure CORS_ORIGINS is JSON array format (NOT comma-separated)
-- Include Vercel preview URLs pattern: `https://*.vercel.app`
+- Ensure `CORS_ORIGINS` is JSON array format: `["url1","url2"]`
+- Include Vercel preview pattern: `https://*.vercel.app`
 
 ### Issue 3: Vercel Build Path Errors
 **Error**: "cd: frontend: No such file or directory"
-**Solution**: When Root Directory is set, don't use `cd` commands in vercel.json
+**Solution**: When Root Directory is set, don't use `cd` in vercel.json
 
 ### Issue 4: Missing Dependencies
-**Error**: ModuleNotFoundError during backend startup
-**Solution**: Do comprehensive import analysis and add all packages to requirements.txt
+**Error**: ModuleNotFoundError during startup
+**Solution**: Do comprehensive import analysis, add all packages to requirements.txt
 
-### Issue 5: Vercel API URL Typo
+### Issue 5: API URL Typo
 **Error**: API calls going to wrong path
-**Solution**: Double-check `VITE_API_URL` in Vercel environment variables (common typo: `/ap` instead of `/api`)
+**Solution**: Verify `VITE_API_URL` ends with `/api` (NOT `/ap`)
 
-## Quality Checklist
+## Language Guidelines
 
-### Code Quality
-- [ ] TypeScript: No `any` types, 100% type coverage
-- [ ] Python: Type hints on all functions, comprehensive docstrings
-- [ ] Clean Architecture: Proper separation of concerns
-- [ ] Error Handling: Structured exceptions with appropriate HTTP codes
-- [ ] Testing: Unit tests for business logic
+- **UI Text**: Spanish (all user-facing content)
+- **Code**: English (variables, functions, comments)
+- **Documentation**: Spanish for user docs, English for technical docs
+- **Git Commits**: English (conventional format)
 
-### Security
-- [ ] JWT authentication properly configured
-- [ ] CORS properly restricted
-- [ ] Environment variables not committed
-- [ ] SQL injection prevention (use SQLAlchemy parameterized queries)
-- [ ] Input validation with Pydantic
+## Documentation Files
 
-### Performance
-- [ ] API response times < 500ms for standard queries
-- [ ] Proper database indexing
-- [ ] Frontend bundle size optimized
-- [ ] Images optimized and lazy-loaded
+### Primary Docs (Project Root)
+- `CLAUDE.md` - This file (Claude Code guidance)
+- `TECHNICAL_INTEGRATION_BLUEPRINT.md` - Comprehensive integration guide
+- `COLLABORATIVE_LOCAL_SETUP_GUIDE.md` - Developer onboarding
+- `PROGRESS.md` - Development status tracker
+- `SUPABASE_AUTH_DOCUMENTATION.md` - Auth deep-dive
 
-### UX/UI
-- [ ] Responsive design (mobile, tablet, desktop)
-- [ ] Loading states for all async operations
-- [ ] Error messages in Spanish, user-friendly
-- [ ] Accessibility standards (WCAG AA)
-- [ ] Consistent with Finkargo design system
+### Implementation Notes
+- `implementations/` - Feature implementation docs
+- Format: `YYYYMMDD_feature_name.md`
+- Recent: TypeScript fixes, missing dependencies, contract types
 
-## Support Resources
+### Backend Guides
+- `backend/CSV_IMPORT_GUIDE.md` - CSV/Excel import
+- `backend/DEPLOYMENT_PDF_SETUP.md` - PDF generation setup
+- `backend/OPERATIONS_WORKFLOW_GUIDE.md` - Operations module
+- `backend/database/README.md` - Database setup
 
-### Documentation
-- **Vercel Docs**: https://vercel.com/docs
-- **Render Docs**: https://render.com/docs
-- **FastAPI Docs**: https://fastapi.tiangolo.com
-- **React Docs**: https://react.dev
-- **Supabase Docs**: https://supabase.com/docs
+## Quick Reference
 
-### Reference Implementation
-- **Source Repository**: `DR-Danke/02-ob-preaprobados-mx`
-- **Deployment Notes**: See session notes files in repo
-  - `20251004_SESSION_NOTES_RENDER_DEPLOYMENT.md`
-  - `20251004_SESSION_NOTES_VERCEL_DEPLOYMENT.md`
+### Most Common Commands
 
-## Project-Specific Instructions
+```bash
+# Start development
+cd frontend && npm run dev  # Terminal 1
+cd backend && python -m uvicorn main:app --reload  # Terminal 2
 
-### Automation Hub Features (Define Your Own)
-Replace this section with your specific automation features:
+# Access points
+# Frontend: http://localhost:5173
+# Backend API: http://localhost:8000/api
+# API Docs: http://localhost:8000/docs
 
-1. **Core Functionality**:
-   - [ ] Define automation workflows
-   - [ ] Define data sources
-   - [ ] Define integration points
+# Build production
+cd frontend && npm run build  # Creates dist/
+```
 
-2. **User Roles** (adapt as needed):
-   - Admin: Full system access
-   - Manager: Create and manage automations
-   - User: Execute and view automations
-   - API: Programmatic access
+### Key File Locations
 
-3. **Data Models**:
-   - [ ] Define your domain entities
-   - [ ] Create SQLAlchemy models
-   - [ ] Generate Alembic migrations
+**Frontend:**
+- Routes: `frontend/src/App.tsx`
+- Auth: `frontend/src/contexts/AuthContext.tsx`
+- Theme: `frontend/src/theme/theme.ts`
+- Services: `frontend/src/services/`
 
-4. **API Endpoints**:
-   - [ ] List your required endpoints
-   - [ ] Define request/response schemas
-   - [ ] Implement with FastAPI
+**Backend:**
+- Main app: `backend/main.py`
+- Routes: `backend/src/adapter/rest/`
+- Services: `backend/src/core/servicios/`
+- Repos: `backend/src/repositorio/`
 
-5. **UI Pages**:
-   - [ ] Dashboard
-   - [ ] Automation management
-   - [ ] Execution history
-   - [ ] Settings
+**Database:**
+- Migrations: `backend/database/migration_*.sql`
+- Schema: `backend/database/schema.sql`
 
-## Getting Started Checklist
+### Common Patterns
 
-When starting a new Finkargo Automation Hub project:
+**Creating a New Form Component:**
+```typescript
+// frontend/src/components/forms/FKMyForm.tsx
+import { useForm } from 'react-hook-form';
+import { TextField, Button } from '@mui/material';
 
-1. [ ] Copy this template to new project root as `CLAUDE.md`
-2. [ ] Create GitHub repository
-3. [ ] Set up Supabase project
-4. [ ] Define specific automation features (replace section above)
-5. [ ] Create frontend from Vite React-TS template
-6. [ ] Set up FastAPI backend structure
-7. [ ] Configure environment variables
-8. [ ] Implement authentication
-9. [ ] Create initial database models
-10. [ ] Build core automation features
-11. [ ] Deploy to Render (backend)
-12. [ ] Deploy to Vercel (frontend)
-13. [ ] Configure CORS
-14. [ ] End-to-end testing
-15. [ ] Document deployment in session notes
+export const FKMyForm: React.FC = () => {
+  const { register, handleSubmit, formState: { errors } } = useForm();
+
+  const onSubmit = async (data) => {
+    // Call service layer
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <TextField
+        {...register('fieldName', { required: 'Required' })}
+        error={!!errors.fieldName}
+        helperText={errors.fieldName?.message}
+      />
+      <Button type="submit">Submit</Button>
+    </form>
+  );
+};
+```
+
+**Creating a Protected Route:**
+```typescript
+// In App.tsx
+<Route path="/admin" element={
+  <RoleProtectedRoute allowedRoles={['admin']}>
+    <AdminPage />
+  </RoleProtectedRoute>
+} />
+```
+
+**Adding a Backend Endpoint:**
+```python
+# backend/src/adapter/rest/my_routes.py
+from fastapi import APIRouter, Depends
+from ..dependencies import get_current_user
+from ..rbac_dependencies import require_roles
+
+router = APIRouter(prefix="/api/my-module", tags=["My Module"])
+
+@router.get("/data")
+async def get_data(
+    current_user: dict = Depends(require_roles(['admin', 'user']))
+):
+    """Get data - requires admin or user role"""
+    # Call service layer
+    return {"data": "example"}
+```
 
 ## Notes for Claude Code
 
-When using this template:
+When working with this codebase:
 
-1. **Architecture**: Follow Clean Architecture strictly
-2. **Component Naming**: Always use FK prefix for form/business components
-3. **Type Safety**: No `any` types, proper TypeScript throughout
+1. **Architecture**: Follow Clean Architecture strictly (adapter → core → repositorio)
+2. **Component Naming**: MUST use FK prefix for business/form components
+3. **Type Safety**: NO `any` types - 100% TypeScript coverage required
 4. **Environment Variables**:
-   - Frontend: VITE_ prefix
-   - Backend: PYTHON_VERSION=3.11.9 is critical for Render
-   - CORS must be JSON array format
+   - Frontend: All prefixed with `VITE_`
+   - Backend: `PYTHON_VERSION=3.11.9` is CRITICAL for Render
+   - CORS MUST be JSON array format
 5. **Deployment**:
-   - Vercel for frontend (set Root Directory to `frontend`)
-   - Render for backend (set Root Directory to `backend`)
-   - Use feature branch workflow
-6. **Testing**: Test locally before deploying
-7. **Documentation**: Document all deployment steps in session notes with date-first naming
+   - Vercel for frontend (Root Directory: `frontend`)
+   - Render for backend (Root Directory: `backend`)
+   - Feature branch workflow with auto-deploy
+6. **Testing**: Test locally before deploying (both servers running)
+7. **Documentation**: Document major changes in `implementations/YYYYMMDD_feature.md`
+8. **Logging**: Add logging to debug errors (as noted in project instructions)
+9. **Forms**: ALWAYS use react-hook-form with Material-UI integration
+10. **State**: Context API for global state, NOT Redux
 
-This template is battle-tested and production-ready. Follow it closely for a smooth development and deployment experience.
-- add logging to debug errors
+This codebase is production-ready and battle-tested. Follow these patterns for consistent, maintainable code.
