@@ -173,15 +173,27 @@ class ContractRepository:
         self,
         contract_type: Optional[str] = None,
         sort_by: Optional[str] = None,
-        sort_order: Optional[str] = None
+        sort_order: Optional[str] = None,
+        client_name: Optional[str] = None,
+        client_nit: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        cupo_min: Optional[float] = None,
+        cupo_max: Optional[float] = None
     ) -> List[dict]:
         """
-        Get all approved contracts with document URLs for Operations team, optionally filtered by contract type
+        Get all approved contracts with document URLs for Operations team, with optional filters
 
         Args:
             contract_type: Optional filter by contract type ('activos', 'otrosi', or 'inventario_bodega')
             sort_by: Optional field to sort by (contract_id, contract_type, client_nit, reviewed_at, or JSONB fields)
             sort_order: Optional sort order ('asc' or 'desc', defaults to 'desc')
+            client_name: Optional filter by client name (nombre_importador) - partial match, case-insensitive
+            client_nit: Optional filter by NIT - partial match
+            date_from: Optional filter by approval date >= this date (ISO 8601 format)
+            date_to: Optional filter by approval date <= this date (ISO 8601 format)
+            cupo_min: Optional filter by credit limit >= this value
+            cupo_max: Optional filter by credit limit <= this value
 
         Returns:
             List[dict]: Approved contracts with document URLs
@@ -193,6 +205,27 @@ class ContractRepository:
         # Filter by contract type if specified
         if contract_type:
             query = query.eq('contract_type', contract_type)
+
+        # Filter by client name (JSONB field, partial match, case-insensitive)
+        if client_name:
+            query = query.ilike('data_snapshot->nombre_importador', f'%{client_name}%')
+
+        # Filter by client NIT (partial match)
+        if client_nit:
+            query = query.ilike('client_nit', f'%{client_nit}%')
+
+        # Filter by date range
+        if date_from:
+            query = query.gte('reviewed_at', date_from)
+        if date_to:
+            query = query.lte('reviewed_at', date_to)
+
+        # Filter by credit limit range (JSONB field, numeric comparison)
+        if cupo_min is not None:
+            # Cast JSONB field to numeric and compare
+            query = query.gte('data_snapshot->cupo_plataforma', cupo_min)
+        if cupo_max is not None:
+            query = query.lte('data_snapshot->cupo_plataforma', cupo_max)
 
         # Apply sorting
         # Allowed sort fields (whitelist to prevent SQL injection)

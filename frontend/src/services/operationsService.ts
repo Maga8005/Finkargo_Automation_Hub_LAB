@@ -5,6 +5,7 @@ import apiClient from '../api/clients/apiClient';
 import type {
   ContractGenerationRequest,
   ContractGeneration,
+  OperationsFilterParams,
 } from '../types/legal';
 
 const BASE_URL = '/operations';
@@ -34,21 +35,51 @@ export const operationsService = {
   },
 
   /**
-   * Get all approved contracts
-   * @param contractType - Optional filter by contract type
+   * Get all approved contracts with optional filters
+   * @param filters - Optional filter parameters
    * @param sortBy - Optional field to sort by
    * @param sortOrder - Optional sort order ('asc' or 'desc')
    */
   async getApprovedContracts(
-    contractType?: string,
+    filters?: OperationsFilterParams,
     sortBy?: string,
     sortOrder?: string
   ): Promise<ContractGeneration[]> {
-    const params: Record<string, string> = {};
+    const params: Record<string, string | number> = {};
 
-    if (contractType) {
-      params.contract_type = contractType;
+    // Add filter parameters
+    if (filters) {
+      // Handle contract_types array - send as single contract_type for now
+      // Backend expects single contract_type, frontend will handle multi-select UI
+      if (filters.contract_types && filters.contract_types.length > 0) {
+        // For now, if multiple types selected, don't filter by type (show all)
+        // If single type, filter by that type
+        if (filters.contract_types.length === 1) {
+          params.contract_type = filters.contract_types[0];
+        }
+      }
+
+      if (filters.client_name) {
+        params.client_name = filters.client_name;
+      }
+      if (filters.client_nit) {
+        params.client_nit = filters.client_nit;
+      }
+      if (filters.date_from) {
+        params.date_from = filters.date_from;
+      }
+      if (filters.date_to) {
+        params.date_to = filters.date_to;
+      }
+      if (filters.cupo_min !== undefined) {
+        params.cupo_min = filters.cupo_min;
+      }
+      if (filters.cupo_max !== undefined) {
+        params.cupo_max = filters.cupo_max;
+      }
     }
+
+    // Add sorting parameters
     if (sortBy) {
       params.sort_by = sortBy;
     }
@@ -90,7 +121,7 @@ export const operationsService = {
    * Get all approved Otrosí contracts
    */
   async getApprovedOtrosis(): Promise<ContractGeneration[]> {
-    return this.getApprovedContracts('otrosi');
+    return this.getApprovedContracts({ contract_types: ['otrosi'] });
   },
 
   /**
