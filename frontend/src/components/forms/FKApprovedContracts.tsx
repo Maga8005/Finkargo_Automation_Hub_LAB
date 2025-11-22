@@ -1,7 +1,7 @@
 /**
  * FK Approved Contracts - Operations view for downloading approved contracts
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -19,14 +19,25 @@ import {
   Alert,
   CircularProgress,
   TableSortLabel,
+  Collapse,
+  TextField,
+  Stack,
+  FormControl,
+  FormLabel,
+  FormGroup,
+  FormControlLabel,
+  Checkbox,
+  Badge,
 } from '@mui/material';
 import {
   PictureAsPdf as PdfIcon,
   Info as InfoIcon,
   CheckCircle as CheckCircleIcon,
+  FilterList as FilterListIcon,
+  Clear as ClearIcon,
 } from '@mui/icons-material';
 import { operationsService } from '../../services/operationsService';
-import type { ContractGeneration, OperationsSortOrder } from '../../types/legal';
+import type { ContractGeneration, OperationsSortOrder, OperationsFilterParams } from '../../types/legal';
 
 // Mapping of frontend sort field names to backend database fields
 const SORT_FIELD_MAP: Record<string, string> = {
@@ -46,14 +57,32 @@ const FKApprovedContracts: React.FC = () => {
   const [sortBy, setSortBy] = useState<string>('reviewed_at');
   const [sortOrder, setSortOrder] = useState<OperationsSortOrder>('desc');
 
-  const loadApprovedContracts = async () => {
+  // Filter state
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<OperationsFilterParams>({});
+  const [activeFilterCount, setActiveFilterCount] = useState(0);
+
+  // Count active filters
+  const countActiveFilters = useCallback((filterParams: OperationsFilterParams): number => {
+    let count = 0;
+    if (filterParams.contract_types && filterParams.contract_types.length > 0) count++;
+    if (filterParams.client_name && filterParams.client_name.trim()) count++;
+    if (filterParams.client_nit && filterParams.client_nit.trim()) count++;
+    if (filterParams.date_from) count++;
+    if (filterParams.date_to) count++;
+    if (filterParams.cupo_min !== undefined) count++;
+    if (filterParams.cupo_max !== undefined) count++;
+    return count;
+  }, []);
+
+  const loadApprovedContracts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       // Map frontend field name to backend field name
       const backendSortField = SORT_FIELD_MAP[sortBy] || 'reviewed_at';
       const data = await operationsService.getApprovedContracts(
-        undefined,
+        filters,
         backendSortField,
         sortOrder
       );
@@ -64,12 +93,16 @@ const FKApprovedContracts: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, sortBy, sortOrder]);
 
   useEffect(() => {
     loadApprovedContracts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortBy, sortOrder]);
+  }, [loadApprovedContracts]);
+
+  // Update active filter count when filters change
+  useEffect(() => {
+    setActiveFilterCount(countActiveFilters(filters));
+  }, [filters, countActiveFilters]);
 
   const handleSortRequest = (column: string) => {
     // If clicking the current sort column, toggle the order
@@ -80,6 +113,22 @@ const FKApprovedContracts: React.FC = () => {
       setSortBy(column);
       setSortOrder('desc');
     }
+  };
+
+  // Filter handlers
+  const handleContractTypeChange = (type: string, checked: boolean) => {
+    setFilters((prev) => {
+      const currentTypes = prev.contract_types || [];
+      const newTypes = checked
+        ? [...currentTypes, type]
+        : currentTypes.filter((t) => t !== type);
+      return { ...prev, contract_types: newTypes.length > 0 ? newTypes : undefined };
+    });
+  };
+
+  const handleClearFilters = () => {
+    setFilters({});
+    setShowFilters(false);
   };
 
   const handleDownloadPDF = async (contract: ContractGeneration) => {
@@ -158,7 +207,7 @@ const FKApprovedContracts: React.FC = () => {
     return <Alert severity="error">{error}</Alert>;
   }
 
-  if (contracts.length === 0) {
+  if (contracts.length === 0 && activeFilterCount === 0) {
     return (
       <Alert severity="info" icon={<InfoIcon />}>
         No hay contratos aprobados disponibles para descarga.
@@ -169,18 +218,179 @@ const FKApprovedContracts: React.FC = () => {
   return (
     <Box>
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Contratos Aprobados ({contracts.length})
-        </Typography>
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={loadApprovedContracts}
-          sx={{ textTransform: 'none' }}
-        >
-          Actualizar
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            Contratos Aprobados ({contracts.length})
+          </Typography>
+          {activeFilterCount > 0 && (
+            <Chip
+              label={`${activeFilterCount} filtro${activeFilterCount > 1 ? 's' : ''} activo${activeFilterCount > 1 ? 's' : ''}`}
+              size="small"
+              color="primary"
+              onDelete={handleClearFilters}
+            />
+          )}
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Badge badgeContent={activeFilterCount} color="primary">
+            <Button
+              variant={showFilters ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setShowFilters(!showFilters)}
+              startIcon={<FilterListIcon />}
+              sx={{ textTransform: 'none' }}
+            >
+              Filtros
+            </Button>
+          </Badge>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={loadApprovedContracts}
+            sx={{ textTransform: 'none' }}
+          >
+            Actualizar
+          </Button>
+        </Box>
       </Box>
+
+      {/* Filter Panel */}
+      <Collapse in={showFilters}>
+        <Paper sx={{ p: 3, mb: 3, bgcolor: 'grey.50', border: 1, borderColor: 'divider' }}>
+          <Stack spacing={3}>
+            {/* Contract Type Filter */}
+            <FormControl component="fieldset">
+              <FormLabel component="legend" sx={{ fontWeight: 600, mb: 1 }}>
+                Tipo de Contrato
+              </FormLabel>
+              <FormGroup row>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filters.contract_types?.includes('activos') || false}
+                      onChange={(e) => handleContractTypeChange('activos', e.target.checked)}
+                    />
+                  }
+                  label={<Chip label="Activos" color="info" size="small" />}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filters.contract_types?.includes('otrosi') || false}
+                      onChange={(e) => handleContractTypeChange('otrosi', e.target.checked)}
+                    />
+                  }
+                  label={<Chip label="Otrosí No. 1" color="warning" size="small" />}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={filters.contract_types?.includes('inventario_bodega') || false}
+                      onChange={(e) => handleContractTypeChange('inventario_bodega', e.target.checked)}
+                    />
+                  }
+                  label={<Chip label="Inventario Bodega 3ro" color="success" size="small" />}
+                />
+              </FormGroup>
+            </FormControl>
+
+            {/* Text Filters Row */}
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="Nombre del Cliente"
+                placeholder="Buscar por nombre..."
+                value={filters.client_name || ''}
+                onChange={(e) => setFilters({ ...filters, client_name: e.target.value || undefined })}
+                size="small"
+                sx={{ flex: '1 1 300px' }}
+              />
+              <TextField
+                label="NIT"
+                placeholder="Buscar por NIT..."
+                value={filters.client_nit || ''}
+                onChange={(e) => setFilters({ ...filters, client_nit: e.target.value || undefined })}
+                size="small"
+                sx={{ flex: '1 1 200px' }}
+              />
+            </Box>
+
+            {/* Date and Cupo Filters Row */}
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="Fecha Desde"
+                type="date"
+                value={filters.date_from || ''}
+                onChange={(e) => setFilters({ ...filters, date_from: e.target.value || undefined })}
+                InputLabelProps={{ shrink: true }}
+                size="small"
+                sx={{ flex: '1 1 200px' }}
+              />
+              <TextField
+                label="Fecha Hasta"
+                type="date"
+                value={filters.date_to || ''}
+                onChange={(e) => setFilters({ ...filters, date_to: e.target.value || undefined })}
+                InputLabelProps={{ shrink: true }}
+                size="small"
+                sx={{ flex: '1 1 200px' }}
+              />
+              <TextField
+                label="Cupo Mínimo"
+                type="number"
+                placeholder="0"
+                value={filters.cupo_min !== undefined ? filters.cupo_min : ''}
+                onChange={(e) => {
+                  const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                  setFilters({ ...filters, cupo_min: val });
+                }}
+                size="small"
+                sx={{ flex: '1 1 150px' }}
+              />
+              <TextField
+                label="Cupo Máximo"
+                type="number"
+                placeholder="999999999"
+                value={filters.cupo_max !== undefined ? filters.cupo_max : ''}
+                onChange={(e) => {
+                  const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                  setFilters({ ...filters, cupo_max: val });
+                }}
+                size="small"
+                sx={{ flex: '1 1 150px' }}
+              />
+            </Box>
+
+            {/* Action Buttons */}
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleClearFilters}
+                startIcon={<ClearIcon />}
+                sx={{ textTransform: 'none' }}
+              >
+                Limpiar Filtros
+              </Button>
+            </Box>
+          </Stack>
+        </Paper>
+      </Collapse>
+
+      {/* Empty state with filters active */}
+      {contracts.length === 0 && activeFilterCount > 0 && (
+        <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            No se encontraron contratos con los filtros aplicados. Intenta ajustar los filtros.
+          </Typography>
+          <Button
+            size="small"
+            onClick={handleClearFilters}
+            sx={{ mt: 1, textTransform: 'none' }}
+          >
+            Limpiar Filtros
+          </Button>
+        </Alert>
+      )}
 
       <TableContainer component={Paper} elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
         <Table>

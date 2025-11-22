@@ -136,3 +136,14 @@ export interface OperationsSortParams {
   sort_by?: OperationsSortField;
   sort_order?: OperationsSortOrder;
 }
+
+// Operations Filter Types
+export interface OperationsFilterParams {
+  contract_types?: string[];
+  client_name?: string;
+  client_nit?: string;
+  date_from?: string;
+  date_to?: string;
+  cupo_min?: number;
+  cupo_max?: number;
+}

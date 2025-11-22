@@ -164,6 +164,12 @@ async def get_approved_contracts(
     contract_type: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = None,
+    client_name: Optional[str] = None,
+    client_nit: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    cupo_min: Optional[float] = None,
+    cupo_max: Optional[float] = None,
     contract_repo: ContractRepository = Depends(get_contract_repo),
     current_user: dict = Depends(require_operations_role)
 ):
@@ -175,6 +181,12 @@ async def get_approved_contracts(
         sort_by: Optional field to sort by (contract_id, contract_type, client_nit, reviewed_at,
                  data_snapshot->nombre_importador, data_snapshot->cupo_plataforma)
         sort_order: Optional sort order ('asc' or 'desc', defaults to 'desc')
+        client_name: Optional filter by client name (partial match, case-insensitive)
+        client_nit: Optional filter by NIT (partial match)
+        date_from: Optional filter by approval date >= this date (ISO 8601 format)
+        date_to: Optional filter by approval date <= this date (ISO 8601 format)
+        cupo_min: Optional filter by credit limit >= this value
+        cupo_max: Optional filter by credit limit <= this value
 
     Returns contracts with approved status and document URLs for download
     """
@@ -182,12 +194,44 @@ async def get_approved_contracts(
         # Validate sort_order
         validated_sort_order = sort_order if sort_order in ['asc', 'desc'] else 'desc'
 
+        # Validate date range
+        if date_from and date_to:
+            try:
+                from_date = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+                to_date = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+                if from_date > to_date:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="date_from must be less than or equal to date_to"
+                    )
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid date format. Use ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
+                )
+
+        # Validate credit limit range
+        if cupo_min is not None and cupo_max is not None:
+            if cupo_min > cupo_max:
+                raise HTTPException(
+                    status_code=400,
+                    detail="cupo_min must be less than or equal to cupo_max"
+                )
+
         contracts = await contract_repo.get_approved_contracts(
             contract_type=contract_type,
             sort_by=sort_by,
-            sort_order=validated_sort_order
+            sort_order=validated_sort_order,
+            client_name=client_name,
+            client_nit=client_nit,
+            date_from=date_from,
+            date_to=date_to,
+            cupo_min=cupo_min,
+            cupo_max=cupo_max
         )
         return contracts
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
