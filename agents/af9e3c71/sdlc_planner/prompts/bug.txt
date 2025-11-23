@@ -1,0 +1,1 @@
+/bug Improve dark mode: The dark mode implemented recently is applying partially in the app. It only applies to the main module screens within the departments but does not apply to the menu to the left or the background where the module screens are placed on top. 

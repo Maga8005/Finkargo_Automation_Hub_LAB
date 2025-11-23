@@ -107,7 +107,7 @@ const FKSidebarWithCollapse: React.FC = () => {
       try {
         const data = await departmentService.getDepartments();
         setDepartments(data.length > 0 ? data : mockDepartments);
-      } catch (apiError) {
+      } catch {
         console.log('[Sidebar] Using mock departments data');
         setDepartments(mockDepartments);
       }
@@ -119,7 +119,7 @@ const FKSidebarWithCollapse: React.FC = () => {
     }
   };
 
-  const hasAccessToDepartment = (_departmentId: string): boolean => {
+  const hasAccessToDepartment = (): boolean => {
     // Show all departments to all users
     // Access control is enforced at the route/page level
     return true;
@@ -146,7 +146,7 @@ const FKSidebarWithCollapse: React.FC = () => {
         '& .MuiDrawer-paper': {
           width: DRAWER_WIDTH,
           boxSizing: 'border-box',
-          backgroundColor: 'grey.50',
+          backgroundColor: 'background.paper',
         },
       }}
     >
@@ -157,7 +157,7 @@ const FKSidebarWithCollapse: React.FC = () => {
           sx={{
             px: 2,
             py: 1,
-            color: 'grey.600',
+            color: 'text.secondary',
             fontWeight: 600,
             letterSpacing: '0.5px',
           }}
@@ -174,7 +174,7 @@ const FKSidebarWithCollapse: React.FC = () => {
             {/* Departments List */}
             <List sx={{ mt: 1 }}>
               {departments
-                .filter((department) => hasAccessToDepartment(department.id))
+                .filter(() => hasAccessToDepartment())
                 .map((department) => {
                   // Special handling for Finance department (has submenu)
                   if (department.id === 'finance') {
@@ -189,9 +189,9 @@ const FKSidebarWithCollapse: React.FC = () => {
                               borderRadius: 2,
                               py: 1.5,
                               backgroundColor: 'transparent',
-                              color: hasActiveSubmenu ? 'primary.main' : 'grey.800',
+                              color: hasActiveSubmenu ? 'primary.main' : 'text.primary',
                               '&:hover': {
-                                backgroundColor: 'grey.100',
+                                backgroundColor: 'action.hover',
                               },
                             }}
                           >
@@ -211,9 +211,9 @@ const FKSidebarWithCollapse: React.FC = () => {
                               }}
                             />
                             {financeOpen ? (
-                              <ExpandLess sx={{ color: 'grey.600' }} />
+                              <ExpandLess sx={{ color: 'text.secondary' }} />
                             ) : (
-                              <ExpandMore sx={{ color: 'grey.600' }} />
+                              <ExpandMore sx={{ color: 'text.secondary' }} />
                             )}
                           </ListItemButton>
                         </ListItem>
@@ -229,7 +229,7 @@ const FKSidebarWithCollapse: React.FC = () => {
                                 top: 0,
                                 bottom: 0,
                                 width: '2px',
-                                backgroundColor: 'grey.200',
+                                backgroundColor: 'divider',
                               }}
                             />
                             {financeModules.map((module) => {
@@ -245,15 +245,15 @@ const FKSidebarWithCollapse: React.FC = () => {
                                       ml: 1,
                                       py: 1,
                                       backgroundColor: isModuleActive ? 'primary.main' : 'transparent',
-                                      color: isModuleActive ? 'white' : 'grey.600',
+                                      color: isModuleActive ? 'white' : 'text.secondary',
                                       '&:hover': {
-                                        backgroundColor: isModuleActive ? 'primary.dark' : 'grey.100',
+                                        backgroundColor: isModuleActive ? 'primary.dark' : 'action.hover',
                                       },
                                     }}
                                   >
                                     <ListItemIcon
                                       sx={{
-                                        color: isModuleActive ? 'white' : 'grey.400',
+                                        color: isModuleActive ? 'white' : 'text.disabled',
                                         minWidth: 32,
                                       }}
                                     >
@@ -302,9 +302,9 @@ const FKSidebarWithCollapse: React.FC = () => {
                           borderRadius: 2,
                           py: 1.5,
                           backgroundColor: isActive ? 'primary.main' : 'transparent',
-                          color: isActive ? 'white' : 'grey.800',
+                          color: isActive ? 'white' : 'text.primary',
                           '&:hover': {
-                            backgroundColor: isActive ? 'primary.dark' : 'grey.100',
+                            backgroundColor: isActive ? 'primary.dark' : 'action.hover',
                           },
                         }}
                       >

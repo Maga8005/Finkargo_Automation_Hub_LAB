@@ -1,0 +1,1 @@
+/implement specs/20251123_bug_fix_dark_mode_sidebar_background.md
