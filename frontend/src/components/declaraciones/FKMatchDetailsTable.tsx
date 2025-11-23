@@ -392,7 +392,8 @@ const FKMatchDetailsTable: React.FC<FKMatchDetailsTableProps> = ({
             backgroundColor: 'action.hover',
           },
           '& .MuiDataGrid-columnHeaders': {
-            backgroundColor: 'grey.100',
+            backgroundColor: (theme) =>
+              theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
             borderBottom: '2px solid',
             borderColor: 'divider',
           },

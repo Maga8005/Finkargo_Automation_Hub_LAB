@@ -172,7 +172,13 @@ const FKUnmatchedRecordsView: React.FC<FKUnmatchedRecordsViewProps> = ({
             <TableContainer component={Paper} variant="outlined">
               <Table>
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: 'grey.100' }}>
+                  {/* Theme-aware table header background: light gray in light mode, dark gray in dark mode */}
+                  <TableRow
+                    sx={{
+                      backgroundColor: (theme) =>
+                        theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
+                    }}
+                  >
                     <TableCell>Payment Date</TableCell>
                     <TableCell>Amount</TableCell>
                     <TableCell>Customer Name</TableCell>
@@ -272,7 +278,13 @@ const FKUnmatchedRecordsView: React.FC<FKUnmatchedRecordsViewProps> = ({
             <TableContainer component={Paper} variant="outlined">
               <Table>
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: 'grey.100' }}>
+                  {/* Theme-aware table header background: light gray in light mode, dark gray in dark mode */}
+                  <TableRow
+                    sx={{
+                      backgroundColor: (theme) =>
+                        theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
+                    }}
+                  >
                     <TableCell>Declaration Number</TableCell>
                     <TableCell>Declaration Date</TableCell>
                     <TableCell>Amount</TableCell>

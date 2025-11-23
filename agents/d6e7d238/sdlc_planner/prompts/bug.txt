@@ -1,0 +1,1 @@
+/bug Dark mode bug, Contratos Aprobados table headers: When using dark mode, the Contratos Aprobados table header is not showing correctly. It looks completely white. Using the color combination implemented for the table body may work better. 

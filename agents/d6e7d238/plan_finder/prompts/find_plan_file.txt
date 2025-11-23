@@ -1,0 +1,34 @@
+/find_plan_file Perfect! I've successfully created a comprehensive bug fix plan for the dark mode table headers issue. Here's a summary of the work completed:
+
+## Summary
+
+### Work Completed:
+- ✅ **Researched the codebase** to understand the dark mode implementation and table component structure
+- ✅ **Identified the root cause** in `FKApprovedContracts.tsx` at line 397 where `bgcolor: 'grey.50'` is hardcoded
+- ✅ **Found additional instances** of the same issue in `FKUnmatchedRecordsView.tsx` (lines 175, 275)
+- ✅ **Analyzed the dark theme palette** to determine appropriate dark mode colors
+- ✅ **Created a detailed bug fix plan** at `specs/20251123_bug_fix_dark_mode_table_headers.md`
+
+### Plan Location:
+📄 **`/Users/danielrestrepo/Finkargo_Automation_Hub/specs/20251123_bug_fix_dark_mode_table_headers.md`**
+
+### Key Findings:
+1. **Root Cause**: Table headers use hardcoded `bgcolor: 'grey.50'` which doesn't adapt to dark mode
+2. **Affected Components**: 
+   - `FKApprovedContracts.tsx` (Primary bug location)
+   - `FKUnmatchedRecordsView.tsx` (Similar issue)
+3. **Solution**: Implement theme-aware styling using conditional logic based on `theme.palette.mode`
+4. **Recommended Colors**:
+   - Light mode: `grey.50` (existing)
+   - Dark mode: `grey.900` (provides good contrast)
+
+### Plan Highlights:
+- **11 detailed step-by-step tasks** from fixing the primary component to final validation
+- **Comprehensive validation commands** for TypeScript, linting, build, and manual testing
+- **Root cause analysis** explaining why the bug occurs and how it relates to Material-UI theming
+- **Design decisions** documented with rationale for color choices
+- **Accessibility validation** steps to ensure WCAG AA compliance
+- **Cross-browser testing** checklist included
+- **Future improvements** suggested for long-term maintainability
+
+The plan is surgical and focused on fixing the specific bug without unnecessary changes, following the principle of minimal modifications to address the issue effectively.

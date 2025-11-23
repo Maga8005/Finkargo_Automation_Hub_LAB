@@ -237,7 +237,8 @@ const FKConfidenceDistributionChart: React.FC<FKConfidenceDistributionChartProps
             mt: 3,
             p: 2,
             borderRadius: 1,
-            backgroundColor: 'grey.100',
+            backgroundColor: (theme) =>
+              theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
             border: '1px solid',
             borderColor: 'divider',
           }}
