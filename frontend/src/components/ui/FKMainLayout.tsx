@@ -17,7 +17,7 @@ const FKMainLayout: React.FC = () => {
         sx={{
           flexGrow: 1,
           p: 3,
-          backgroundColor: 'grey.50',
+          backgroundColor: 'background.default',
           minHeight: '100vh',
         }}
       >

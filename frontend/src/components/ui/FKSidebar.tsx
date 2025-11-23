@@ -159,7 +159,7 @@ const FKSidebar: React.FC = () => {
         '& .MuiDrawer-paper': {
           width: DRAWER_WIDTH,
           boxSizing: 'border-box',
-          backgroundColor: 'grey.50',
+          backgroundColor: 'background.paper',
         },
       }}
     >
@@ -170,7 +170,7 @@ const FKSidebar: React.FC = () => {
           sx={{
             px: 2,
             py: 1,
-            color: 'grey.600',
+            color: 'text.secondary',
             fontWeight: 600,
             letterSpacing: '0.5px'
           }}
@@ -226,9 +226,9 @@ const FKSidebar: React.FC = () => {
                         borderRadius: 2,
                         py: 1.5,
                         backgroundColor: isActive ? 'primary.main' : 'transparent',
-                        color: isActive ? 'white' : 'grey.800',
+                        color: isActive ? 'white' : 'text.primary',
                         '&:hover': {
-                          backgroundColor: isActive ? 'primary.dark' : 'grey.100',
+                          backgroundColor: isActive ? 'primary.dark' : 'action.hover',
                         },
                       }}
                     >
