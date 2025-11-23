@@ -1,0 +1,36 @@
+/find_plan_file Perfect! I've created a comprehensive bug fix plan. Let me provide you with a summary:
+
+## Report
+
+I've successfully analyzed the dark mode bug and created a detailed fix plan:
+
+### Summary of Work Completed:
+
+- ✅ **Researched the codebase** to understand the dark mode implementation and identified the root cause
+- ✅ **Identified the problematic files**:
+  - `FKSidebarWithCollapse.tsx` - Uses hardcoded `grey.50` instead of `background.paper`
+  - `FKMainLayout.tsx` - Uses hardcoded `grey.50` instead of `background.default`
+  - `FKSidebar.tsx` - Same issue (for consistency)
+- ✅ **Analyzed root cause**: Components use fixed palette values (`grey.50`) instead of theme-aware semantic values (`background.default`, `background.paper`)
+- ✅ **Created comprehensive bug fix plan** with:
+  - Detailed problem analysis
+  - Step-by-step reproduction steps
+  - Root cause analysis with code references
+  - Surgical fix approach (minimal changes)
+  - Complete validation checklist
+  - Manual testing procedures
+  - Best practices documentation
+
+### Plan Location:
+📄 **`/Users/danielrestrepo/Finkargo_Automation_Hub/specs/20251123_bug_fix_dark_mode_sidebar_background.md`**
+
+### Key Findings:
+
+**The Bug**: Dark mode toggle works but sidebar and main background remain light because they use hardcoded `'grey.50'` color values instead of theme-aware colors.
+
+**The Fix**: Replace hardcoded colors with semantic theme values:
+- Sidebar: `'grey.50'` → `'background.paper'` (will show `#1E1E1E` in dark mode)
+- Main Layout: `'grey.50'` → `'background.default'` (will show `#121212` in dark mode)
+- Text colors: `'grey.600'` → `'text.secondary'` for theme-aware text
+
+**Impact**: Minimal code changes (3 lines per component) with maximum visual improvement. The fix is surgical and focused only on the reported issue.
