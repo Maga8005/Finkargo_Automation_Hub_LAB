@@ -1,0 +1,1 @@
+/feature Add dark mode to the application.: Add dark mode to the application. The user should be able to select to use dark or light mode from the user menu on the top right hand corner.
