@@ -1,6 +1,6 @@
 /**
  * FKUserMenu - User profile menu with logout functionality
- * Displays user avatar, name, role and logout button
+ * Displays user avatar, name, role, theme toggle and logout button
  */
 import React, { useState } from 'react';
 import {
@@ -19,13 +19,17 @@ import {
   Logout as LogoutIcon,
   Person as PersonIcon,
   ExpandMore as ExpandMoreIcon,
+  Brightness4 as DarkModeIcon,
+  Brightness7 as LightModeIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useThemeMode } from '../../hooks/useThemeMode';
 
 const FKUserMenu: React.FC = () => {
   const navigate = useNavigate();
   const { user, userProfile, signOut, loading } = useAuth();
+  const { isDarkMode, toggleTheme } = useThemeMode();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -274,6 +278,26 @@ const FKUserMenu: React.FC = () => {
         </Box>
 
         <Divider />
+
+        {/* Theme Toggle */}
+        <MenuItem
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleTheme();
+          }}
+          sx={{ py: 1.5 }}
+        >
+          <ListItemIcon>
+            {isDarkMode ? (
+              <LightModeIcon fontSize="small" />
+            ) : (
+              <DarkModeIcon fontSize="small" />
+            )}
+          </ListItemIcon>
+          <Typography variant="body2">
+            {isDarkMode ? 'Modo Claro' : 'Modo Oscuro'}
+          </Typography>
+        </MenuItem>
 
         {/* Profile Option (Optional - could navigate to profile page) */}
         <MenuItem sx={{ py: 1.5 }}>
