@@ -1,0 +1,20 @@
+/classify_issue {
+  "number": 14,
+  "title": "Dark mode bug, Contratos Aprobados table headers",
+  "body": "When using dark mode, the Contratos Aprobados table header is not showing correctly. It looks completely white. Using the color combination implemented for the table body may work better. ",
+  "state": "OPEN",
+  "author": {
+    "id": "U_kgDOCU6HBg",
+    "login": "DR-Danke",
+    "name": "",
+    "is_bot": false
+  },
+  "assignees": [],
+  "labels": [],
+  "milestone": null,
+  "comments": [],
+  "createdAt": "2025-11-23T19:17:43Z",
+  "updatedAt": "2025-11-23T19:17:43Z",
+  "closedAt": null,
+  "url": "https://github.com/DR-Danke/Finkargo_Automation_Hub/issues/14"
+}

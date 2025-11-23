@@ -394,7 +394,13 @@ const FKApprovedContracts: React.FC = () => {
 
       <TableContainer component={Paper} elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
         <Table>
-          <TableHead sx={{ bgcolor: 'grey.50' }}>
+          {/* Theme-aware table header background: light gray in light mode, dark gray in dark mode */}
+          <TableHead
+            sx={{
+              bgcolor: (theme) =>
+                theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+            }}
+          >
             <TableRow>
               <TableCell sx={{ fontWeight: 600 }}>
                 <TableSortLabel

@@ -1,0 +1,136 @@
+[
+  {
+    "type": "system",
+    "subtype": "init",
+    "cwd": "/Users/danielrestrepo/Finkargo_Automation_Hub",
+    "session_id": "30a75d45-c11e-4bcc-9c9c-96e9ed0a12a5",
+    "tools": [
+      "Task",
+      "Bash",
+      "Glob",
+      "Grep",
+      "ExitPlanMode",
+      "Read",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "WebFetch",
+      "TodoWrite",
+      "WebSearch",
+      "BashOutput",
+      "KillShell",
+      "Skill",
+      "SlashCommand"
+    ],
+    "mcp_servers": [],
+    "model": "claude-sonnet-4-5-20250929",
+    "permissionMode": "bypassPermissions",
+    "slash_commands": [
+      "classify_issue",
+      "tools",
+      "feature",
+      "start",
+      "commit",
+      "prime",
+      "chore",
+      "pull_request",
+      "bug",
+      "install",
+      "find_plan_file",
+      "generate_branch_name",
+      "implement",
+      "compact",
+      "context",
+      "cost",
+      "init",
+      "pr-comments",
+      "release-notes",
+      "todos",
+      "review",
+      "security-review"
+    ],
+    "apiKeySource": "ANTHROPIC_API_KEY",
+    "claude_code_version": "2.0.50",
+    "output_style": "default",
+    "agents": [
+      "general-purpose",
+      "statusline-setup",
+      "Explore",
+      "Plan"
+    ],
+    "skills": [],
+    "plugins": [],
+    "uuid": "3ba806d5-e1b0-4c06-866d-b61591607bb2"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01XFwJggfTNrdiNjiU6uRXSt",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "/bug"
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 3,
+        "cache_creation_input_tokens": 10877,
+        "cache_read_input_tokens": 12591,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 10877,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "30a75d45-c11e-4bcc-9c9c-96e9ed0a12a5",
+    "uuid": "8c0982ec-d82a-40b9-9d4b-9c1ded7f9c9e"
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 3102,
+    "duration_api_ms": 2973,
+    "num_turns": 1,
+    "result": "/bug",
+    "session_id": "30a75d45-c11e-4bcc-9c9c-96e9ed0a12a5",
+    "total_cost_usd": 0.04465005,
+    "usage": {
+      "input_tokens": 3,
+      "cache_creation_input_tokens": 10877,
+      "cache_read_input_tokens": 12591,
+      "output_tokens": 5,
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 10877
+      }
+    },
+    "modelUsage": {
+      "claude-sonnet-4-5-20250929": {
+        "inputTokens": 3,
+        "outputTokens": 5,
+        "cacheReadInputTokens": 12591,
+        "cacheCreationInputTokens": 10877,
+        "webSearchRequests": 0,
+        "costUSD": 0.04465005,
+        "contextWindow": 200000
+      }
+    },
+    "permission_denials": [],
+    "uuid": "a534b960-0b09-47e2-88b5-5051f179db9c"
+  }
+]
