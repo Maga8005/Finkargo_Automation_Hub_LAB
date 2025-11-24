@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     SUPPORTED_FILE_TYPES: str = '[".pdf",".jpg",".jpeg",".png",".xlsx",".xls"]'
 
     # Google Drive Configuration (for Facturación MX)
+    # For production (Render): Use GOOGLE_DRIVE_CREDENTIALS_JSON with base64-encoded or raw JSON
+    # For local dev: Use GOOGLE_DRIVE_CREDENTIALS_PATH with path to JSON file
+    GOOGLE_DRIVE_CREDENTIALS_JSON: str = ""  # Base64-encoded or raw JSON service account credentials
     GOOGLE_DRIVE_CREDENTIALS_PATH: str = "./credentials/drive-service-account.json"
     GOOGLE_DRIVE_FOLDER_ID: str = ""
     GOOGLE_DRIVE_SCOPES: str = '["https://www.googleapis.com/auth/drive"]'

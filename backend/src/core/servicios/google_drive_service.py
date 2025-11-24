@@ -7,6 +7,8 @@ Permite buscar y descargar archivos PDF y XML de facturas.
 
 import os
 import io
+import json
+import base64
 import logging
 from typing import Optional, Dict, List, Tuple
 from datetime import datetime
@@ -35,16 +37,23 @@ class GoogleDriveService:
     def __init__(self):
         """Inicializa el servicio de Google Drive."""
         settings = get_settings()
+        self.credentials_json = settings.GOOGLE_DRIVE_CREDENTIALS_JSON
         self.credentials_path = settings.GOOGLE_DRIVE_CREDENTIALS_PATH
         self.folder_id = settings.GOOGLE_DRIVE_FOLDER_ID
         self.master_excel_name = settings.GOOGLE_DRIVE_MASTER_EXCEL_NAME
 
         # Parse scopes from JSON string
-        import json
         self.scopes = json.loads(settings.GOOGLE_DRIVE_SCOPES)
         self.service: Optional[Resource] = None
 
-        logger.info(f"GoogleDriveService initialized - folder_id: {self.folder_id[:20]}...")
+        # Log credential source
+        if self.credentials_json:
+            logger.info("GoogleDriveService initialized with env-based credentials (GOOGLE_DRIVE_CREDENTIALS_JSON)")
+        else:
+            logger.info(f"GoogleDriveService initialized with file-based credentials: {self.credentials_path}")
+
+        if self.folder_id:
+            logger.info(f"GoogleDriveService folder_id: {self.folder_id[:20]}...")
 
         # Mapeo de meses para búsqueda en carpetas
         self.month_folders = {
@@ -62,30 +71,87 @@ class GoogleDriveService:
             12: "12 DICIEMBRE",
         }
 
+    def _parse_credentials_json(self, credentials_string: str) -> dict:
+        """
+        Parse credentials from string (base64-encoded or raw JSON).
+
+        Args:
+            credentials_string: Base64-encoded JSON or raw JSON string.
+
+        Returns:
+            dict: Parsed credentials dictionary.
+
+        Raises:
+            ValueError: If credentials cannot be parsed.
+        """
+        # Try to decode as base64 first
+        try:
+            decoded_bytes = base64.b64decode(credentials_string)
+            credentials_dict = json.loads(decoded_bytes.decode('utf-8'))
+            logger.debug("Credentials parsed from base64-encoded JSON")
+            return credentials_dict
+        except Exception:
+            pass  # Not base64, try raw JSON
+
+        # Try to parse as raw JSON
+        try:
+            credentials_dict = json.loads(credentials_string)
+            logger.debug("Credentials parsed from raw JSON string")
+            return credentials_dict
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse credentials JSON: {str(e)}")
+
     def authenticate(self) -> Resource:
         """
         Autentica con Google Drive usando Service Account.
+
+        Supports two credential sources:
+        1. Environment variable (GOOGLE_DRIVE_CREDENTIALS_JSON): base64-encoded or raw JSON
+        2. File path (GOOGLE_DRIVE_CREDENTIALS_PATH): fallback for local development
 
         Returns:
             Resource: Servicio de Google Drive autenticado.
 
         Raises:
             FileNotFoundError: Si no se encuentra el archivo de credenciales.
+            ValueError: Si las credenciales JSON son inválidas.
             Exception: Si falla la autenticación.
         """
         if self.service:
             return self.service
 
         try:
-            if not os.path.exists(self.credentials_path):
-                raise FileNotFoundError(
-                    f"Archivo de credenciales no encontrado: {self.credentials_path}"
+            creds = None
+
+            # Priority 1: Environment variable with JSON credentials
+            if self.credentials_json:
+                logger.info("Authenticating with env-based credentials (GOOGLE_DRIVE_CREDENTIALS_JSON)")
+                credentials_dict = self._parse_credentials_json(self.credentials_json)
+
+                # Validate required fields
+                required_fields = ['type', 'project_id', 'private_key', 'client_email']
+                missing_fields = [f for f in required_fields if f not in credentials_dict]
+                if missing_fields:
+                    raise ValueError(f"Credentials JSON missing required fields: {missing_fields}")
+
+                creds = Credentials.from_service_account_info(
+                    credentials_dict,
+                    scopes=self.scopes
                 )
 
-            creds = Credentials.from_service_account_file(
-                self.credentials_path,
-                scopes=self.scopes
-            )
+            # Priority 2: File-based credentials (local development fallback)
+            else:
+                logger.info(f"Authenticating with file-based credentials: {self.credentials_path}")
+                if not os.path.exists(self.credentials_path):
+                    raise FileNotFoundError(
+                        f"Archivo de credenciales no encontrado: {self.credentials_path}. "
+                        "Set GOOGLE_DRIVE_CREDENTIALS_JSON env var for production."
+                    )
+
+                creds = Credentials.from_service_account_file(
+                    self.credentials_path,
+                    scopes=self.scopes
+                )
 
             self.service = build("drive", "v3", credentials=creds)
             logger.info("Autenticación con Google Drive exitosa")
