@@ -48,7 +48,8 @@ class GoogleDriveService:
 
         # Log credential source
         if self.credentials_json:
-            logger.info("GoogleDriveService initialized with env-based credentials (GOOGLE_DRIVE_CREDENTIALS_JSON)")
+            creds_length = len(self.credentials_json)
+            logger.info(f"GoogleDriveService initialized with env-based credentials ({creds_length} chars)")
         else:
             logger.info(f"GoogleDriveService initialized with file-based credentials: {self.credentials_path}")
 
@@ -93,12 +94,25 @@ class GoogleDriveService:
         except Exception:
             pass  # Not base64, try raw JSON
 
+        # Sanitize control characters before JSON parsing
+        # Replace literal newlines with escaped newlines in string values
+        credentials_string = credentials_string.replace('\n', '\\n')
+        credentials_string = credentials_string.replace('\r', '\\r')
+        credentials_string = credentials_string.replace('\t', '\\t')
+
         # Try to parse as raw JSON
         try:
             credentials_dict = json.loads(credentials_string)
-            logger.debug("Credentials parsed from raw JSON string")
+            logger.debug(f"Credentials parsed from raw JSON string (project_id: {credentials_dict.get('project_id', 'unknown')})")
             return credentials_dict
         except json.JSONDecodeError as e:
+            # Log the position and surrounding characters for debugging
+            pos = e.pos
+            start = max(0, pos - 20)
+            end = min(len(credentials_string), pos + 20)
+            context = credentials_string[start:end]
+            logger.error(f"JSON parse error at position {pos}: {e.msg}")
+            logger.error(f"Context around error: ...{repr(context)}...")
             raise ValueError(f"Failed to parse credentials JSON: {str(e)}")
 
     def authenticate(self) -> Resource:

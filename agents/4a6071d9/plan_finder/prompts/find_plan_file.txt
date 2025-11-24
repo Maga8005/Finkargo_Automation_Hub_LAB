@@ -1,0 +1,25 @@
+/find_plan_file Perfect! I've created a comprehensive bug fix plan. Let me provide you with a summary:
+
+## Report
+
+I've analyzed the Google Drive credentials JSON parsing issue and created a detailed bug fix plan:
+
+**Summary of work completed:**
+
+- **Root Cause Identified**: The `GOOGLE_DRIVE_CREDENTIALS_JSON` environment variable in Render contains literal newline characters (at position 169, within the RSA private key) instead of escaped `\n` sequences, causing `json.loads()` to fail with "Invalid control character" error
+
+- **Impact Analysis**: This prevents all Google Drive operations, resulting in ZIP files that contain only Excel reports without PDF or XML invoice attachments
+
+- **Solution Designed**: Surgical fix to enhance `_parse_credentials_json()` method in `google_drive_service.py` to pre-process credentials by replacing literal control characters (`\n`, `\r`, `\t`) with escaped sequences before JSON parsing
+
+- **Plan Location**: `/Users/danielrestrepo/Finkargo_Automation_Hub/specs/20251124_bug_fix_google_drive_credentials_json_parsing.md`
+
+**Key aspects of the plan:**
+1. Minimal changes to maintain backward compatibility
+2. Enhanced error logging to diagnose parsing issues
+3. Pre-processing step to sanitize control characters
+4. Updated documentation in `.env.example`
+5. Comprehensive validation commands to ensure zero regressions
+6. Testing strategy for both local and Render deployment
+
+The fix is focused on the JSON parsing logic only, without changing authentication flow, API interactions, or deployment configuration.
