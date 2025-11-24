@@ -15,6 +15,7 @@ import OperationsDashboard from './pages/operations/OperationsDashboard';
 import ClientDashboard from './pages/ClientDashboard';
 import LoginPage from './pages/LoginPage';
 import ReporteriaAutomaticaCO from './pages/finance/ReporteriaAutomaticaCO';
+import ReporteriaAutomaticaMX from './pages/finance/ReporteriaAutomaticaMX';
 import { UserRole } from './types';
 
 function App() {
@@ -48,17 +49,9 @@ function App() {
                 }
               />
 
-              {/* Finance Routes - Reportería Automática (placeholder for migration) */}
+              {/* Finance Routes - Reportería Automática */}
               <Route path="finance/reporteria-automatica-co" element={<ReporteriaAutomaticaCO />} />
-              <Route
-                path="finance/reporteria-automatica-mx"
-                element={
-                  <div style={{ padding: '2rem' }}>
-                    <h2>🇲🇽 Reportería Automática MX</h2>
-                    <p>Funcionalidad pendiente de migración</p>
-                  </div>
-                }
-              />
+              <Route path="finance/reporteria-automatica-mx" element={<ReporteriaAutomaticaMX />} />
 
               {/* Department Routes - Accessible by funcionarios */}
               <Route

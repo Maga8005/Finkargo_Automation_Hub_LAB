@@ -34,6 +34,19 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10485760
     SUPPORTED_FILE_TYPES: str = '[".pdf",".jpg",".jpeg",".png",".xlsx",".xls"]'
 
+    # Google Drive Configuration (for Facturación MX)
+    GOOGLE_DRIVE_CREDENTIALS_PATH: str = "./credentials/drive-service-account.json"
+    GOOGLE_DRIVE_FOLDER_ID: str = ""
+    GOOGLE_DRIVE_SCOPES: str = '["https://www.googleapis.com/auth/drive"]'
+    GOOGLE_DRIVE_MASTER_EXCEL_NAME: str = "Facturación MX 2025.xlsx"
+
+    # Session Cache Configuration
+    SESSION_CACHE_TTL_MINUTES: int = 30
+    MAX_ZIP_SIZE_MB: int = 50
+
+    # Invoice Processing
+    SUPPORTED_INVOICE_FORMATS: str = '[".xlsx",".xls"]'
+
     class Config:
         env_file = ".env"
         case_sensitive = True
