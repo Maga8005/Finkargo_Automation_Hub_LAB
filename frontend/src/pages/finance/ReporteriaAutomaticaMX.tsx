@@ -36,7 +36,6 @@ import {
 } from '@mui/material';
 import {
   Description as DescriptionIcon,
-  CheckCircle as CheckCircleIcon,
   Upload as UploadIcon,
   Search as SearchIcon,
   Refresh as RefreshIcon,
@@ -297,7 +296,7 @@ const ReporteriaAutomaticaMX: React.FC = () => {
       {/* Upload Section - Outside Grid when showing Alert */}
       {!uploadSuccess ? (
         <Grid container spacing={3}>
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -380,7 +379,7 @@ const ReporteriaAutomaticaMX: React.FC = () => {
 
                   <Grid container spacing={2} alignItems="flex-end" sx={{ width: '100%', m: 0 }}>
                     {/* Search type selector */}
-                    <Grid item xs={12} sm={3}>
+                    <Grid size={{ xs: 12, sm: 3 }}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Tipo de búsqueda</InputLabel>
                         <Select
@@ -400,7 +399,7 @@ const ReporteriaAutomaticaMX: React.FC = () => {
                     </Grid>
 
                     {/* Primary search input (codigo or rfc) */}
-                    <Grid item xs={12} sm={3} key="search-value">
+                    <Grid size={{ xs: 12, sm: 3 }} key="search-value">
                       <TextField
                         fullWidth
                         size="small"
@@ -420,7 +419,7 @@ const ReporteriaAutomaticaMX: React.FC = () => {
                     </Grid>
 
                     {/* Date range inputs - always visible for combined filters */}
-                    <Grid item xs={12} sm={2} key="fecha-inicio">
+                    <Grid size={{ xs: 12, sm: 2 }} key="fecha-inicio">
                       <TextField
                         fullWidth
                         size="small"
@@ -431,7 +430,7 @@ const ReporteriaAutomaticaMX: React.FC = () => {
                         InputLabelProps={{ shrink: true }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={2} key="fecha-fin">
+                    <Grid size={{ xs: 12, sm: 2 }} key="fecha-fin">
                       <TextField
                         fullWidth
                         size="small"
@@ -444,7 +443,7 @@ const ReporteriaAutomaticaMX: React.FC = () => {
                     </Grid>
 
                     {/* Search button */}
-                    <Grid item xs={12} sm={2}>
+                    <Grid size={{ xs: 12, sm: 2 }}>
                       <Button
                         fullWidth
                         variant="contained"

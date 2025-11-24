@@ -24,7 +24,6 @@ import {
 import {
   CloudUpload as CloudUploadIcon,
   InsertDriveFile as FileIcon,
-  CheckCircle as CheckIcon,
   Error as ErrorIcon,
   Close as CloseIcon,
   Warning as WarningIcon,
