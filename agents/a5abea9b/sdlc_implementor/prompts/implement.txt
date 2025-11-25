@@ -1,0 +1,1 @@
+/implement specs/20251124_operations_contracts_submenu.md
