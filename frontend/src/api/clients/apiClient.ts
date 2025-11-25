@@ -1,6 +1,7 @@
 /**
  * API Client with Axios interceptors
  * Uses Supabase session for authentication
+ * Bug fix: Improved session synchronization to prevent stale tokens
  */
 import axios from 'axios';
 import type { AxiosInstance, AxiosError } from 'axios';
@@ -18,13 +19,16 @@ const apiClient: AxiosInstance = axios.create({
 });
 
 // Cache session in memory to avoid repeated getSession() calls
-let cachedSession: any = null;
+let cachedSession: { access_token: string } | null = null;
+let lastCacheUpdate = 0;
+const CACHE_TTL = 1000; // 1 second cache TTL to prevent stale tokens
 
 // Initialize session cache immediately
 (async () => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     cachedSession = session;
+    lastCacheUpdate = Date.now();
     console.log('[apiClient] Initial session loaded:', session ? 'Has token' : 'No session');
   } catch (error) {
     console.error('[apiClient] Error loading initial session:', error);
@@ -33,17 +37,40 @@ let cachedSession: any = null;
 
 // Update cache when auth state changes
 supabase.auth.onAuthStateChange((_event, session) => {
-  console.log('[apiClient] Auth state changed:', _event, session ? 'Has token' : 'No session');
+  const timestamp = new Date().toISOString();
+  console.log(`[apiClient] ${timestamp} - Auth state changed:`, _event, session ? 'Has token' : 'No session');
+
   cachedSession = session;
+  lastCacheUpdate = Date.now();
+
+  if (_event === 'TOKEN_REFRESHED') {
+    console.log('[apiClient] Token refreshed, cache updated');
+  }
 });
 
-// Request interceptor - synchronous, just add token
+// Request interceptor - add token with cache freshness check
 apiClient.interceptors.request.use(
-  (config) => {
-    // Use cached session (synchronous)
+  async (config) => {
+    // Check if cache is stale (older than TTL)
+    const cacheAge = Date.now() - lastCacheUpdate;
+    if (cacheAge > CACHE_TTL || !cachedSession) {
+      console.log('[apiClient] Cache stale or missing, refreshing from Supabase');
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        cachedSession = session;
+        lastCacheUpdate = Date.now();
+      } catch (error) {
+        console.error('[apiClient] Error refreshing cache:', error);
+      }
+    }
+
+    // Use cached session
     if (cachedSession?.access_token) {
       config.headers.Authorization = `Bearer ${cachedSession.access_token}`;
+    } else {
+      console.warn('[apiClient] No access token available for request');
     }
+
     return config;
   },
   (error) => {
@@ -55,7 +82,7 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as any;
+    const originalRequest = error.config as typeof error.config & { _retry?: boolean };
 
     if (error.response) {
       // Handle specific error codes

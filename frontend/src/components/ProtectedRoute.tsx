@@ -2,6 +2,7 @@
  * ProtectedRoute Component
  * Wrapper for routes that require authentication
  * Redirects to login if user is not authenticated
+ * Bug fix: Added session recovery to prevent false redirects
  */
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
@@ -23,23 +24,51 @@ interface ProtectedRouteProps {
  * } />
  */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, revalidateSession } = useAuth();
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [recoveryAttempted, setRecoveryAttempted] = useState(false);
 
   // Set a timeout to show a message if loading takes too long
   useEffect(() => {
     const timer = setTimeout(() => {
       if (loading) {
         setLoadingTimeout(true);
-        console.warn('Authentication check is taking longer than expected');
+        console.warn('[ProtectedRoute] Authentication check is taking longer than expected');
       }
     }, 5000); // 5 second timeout
 
     return () => clearTimeout(timer);
   }, [loading]);
 
-  // Show loading spinner while checking authentication
-  if (loading) {
+  // Attempt session recovery if not authenticated and recovery not yet attempted
+  useEffect(() => {
+    const attemptRecovery = async () => {
+      if (!isAuthenticated && !loading && !recoveryAttempted && !isRecovering) {
+        console.log('[ProtectedRoute] User appears unauthenticated, attempting session recovery...');
+        setIsRecovering(true);
+        setRecoveryAttempted(true);
+
+        try {
+          const recovered = await revalidateSession();
+          if (recovered) {
+            console.log('[ProtectedRoute] Session recovered successfully!');
+          } else {
+            console.log('[ProtectedRoute] No valid session found, will redirect to login');
+          }
+        } catch (error) {
+          console.error('[ProtectedRoute] Error during session recovery:', error);
+        } finally {
+          setIsRecovering(false);
+        }
+      }
+    };
+
+    attemptRecovery();
+  }, [isAuthenticated, loading, recoveryAttempted, isRecovering, revalidateSession]);
+
+  // Show loading spinner while checking authentication or recovering
+  if (loading || isRecovering) {
     return (
       <Box
         display="flex"
@@ -50,7 +79,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
         gap={2}
       >
         <CircularProgress />
-        {loadingTimeout && (
+        {isRecovering && (
+          <Typography variant="body2" color="text.secondary">
+            Verificando sesión...
+          </Typography>
+        )}
+        {loadingTimeout && !isRecovering && (
           <Typography variant="body2" color="text.secondary">
             Cargando... Si esto toma mucho tiempo, intenta refrescar la página.
           </Typography>
@@ -59,8 +93,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  // Redirect to login if not authenticated
-  if (!isAuthenticated) {
+  // Redirect to login if not authenticated (after recovery attempt)
+  if (!isAuthenticated && recoveryAttempted) {
+    console.log('[ProtectedRoute] Redirecting to login - no valid session found');
     return <Navigate to="/login" replace />;
   }
 

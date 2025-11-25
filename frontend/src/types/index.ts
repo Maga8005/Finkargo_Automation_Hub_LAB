@@ -110,6 +110,7 @@ export interface AuthContextType {
   ) => Promise<void>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
+  revalidateSession: () => Promise<boolean>;
 }
 
 export interface ApiResponse<T> {
