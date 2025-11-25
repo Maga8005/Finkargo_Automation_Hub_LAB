@@ -1,0 +1,38 @@
+/find_plan_file Perfect! I've created a comprehensive bug fix plan. Let me summarize the work:
+
+## Summary
+
+I've successfully analyzed the authentication token loss bug and created a detailed fix plan at:
+**`specs/20251125_bug_fix_auth_token_lost_mid_session.md`**
+
+### Key Findings:
+
+**Root Causes Identified:**
+1. **TOKEN_REFRESHED event not handled** - Supabase auto-refreshes tokens every ~55 minutes, but the AuthContext's `onAuthStateChange` listener may not be properly updating React state with the new session
+2. **API interceptor session cache staleness** - The apiClient maintains a separate cached session that can become desynchronized from the actual Supabase session
+3. **No session validation mechanism** - If the auth state change listener misses an event, there's no recovery mechanism to detect and fix the desynchronization
+4. **Profile fetch errors clear auth state** - Transient network errors during profile fetching set `userProfile` to null, making the user appear logged out
+5. **No window focus validation** - When users return to the tab after inactivity, expired tokens aren't detected and refreshed
+
+### Comprehensive Solution Plan:
+
+The plan includes **15 detailed steps** to fix the issue:
+1. Add comprehensive auth event logging for diagnostics
+2. Explicitly handle TOKEN_REFRESHED event in AuthContext
+3. Add periodic session validation (every 5 minutes) to detect desynchronization
+4. Add window focus listener to revalidate session when user returns
+5. Improve profile fetch error handling to preserve state on transient errors
+6. Synchronize apiClient session cache with AuthContext
+7. Add session validation before critical API operations
+8. Add recovery mechanism to ProtectedRoute before redirecting
+9. Create revalidateSession() method for manual state recovery
+10. Add development debugging UI for auth state monitoring
+11-15. Comprehensive testing procedures for all scenarios
+
+### Technical Details:
+
+- **Files to modify**: AuthContext.tsx, apiClient.ts, supabase.ts, ProtectedRoute.tsx
+- **Components affected**: All role-protected pages, sidebar, contract generation modules
+- **Validation commands**: TypeScript checks, linting, build verification, manual testing procedures
+
+The plan is surgical, focusing only on the authentication state synchronization issue without adding unnecessary features or refactoring unrelated code.

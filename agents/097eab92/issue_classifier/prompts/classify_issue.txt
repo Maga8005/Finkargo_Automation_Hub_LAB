@@ -1,0 +1,20 @@
+/classify_issue {
+  "number": 23,
+  "title": "Authentication token seems to get lost mid session",
+  "body": "When the user is logged in on the platform, it appears the authentication token seems to get lost mid session. For example, all of a sudden the contract generation modules disappear. To get them back, the user must refresh.",
+  "state": "OPEN",
+  "author": {
+    "id": "U_kgDOCU6HBg",
+    "login": "DR-Danke",
+    "name": "",
+    "is_bot": false
+  },
+  "assignees": [],
+  "labels": [],
+  "milestone": null,
+  "comments": [],
+  "createdAt": "2025-11-25T12:10:33Z",
+  "updatedAt": "2025-11-25T12:10:33Z",
+  "closedAt": null,
+  "url": "https://github.com/DR-Danke/Finkargo_Automation_Hub/issues/23"
+}

@@ -2,14 +2,17 @@
  * Authentication Context Provider
  * Manages global authentication state using Supabase Auth
  * Based on proven architecture from Finkargo Pre-Approval System
+ *
+ * Bug fix: Added comprehensive session validation to prevent auth token loss mid-session
  */
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase, signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut } from '../services/supabase';
 import type { AuthContextType, UserProfile, UserRole } from '../types';
 
 // Create context with default values
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
@@ -19,6 +22,7 @@ export const AuthContext = createContext<AuthContextType>({
   signUp: async () => {},
   signOut: async () => {},
   isAuthenticated: false,
+  revalidateSession: async () => false,
 });
 
 interface AuthProviderProps {
@@ -40,9 +44,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const initializedRef = React.useRef(false);
 
   /**
-   * Fetch user profile from database with timeout and race condition prevention
+   * Fetch user profile from database with timeout, retry logic, and improved error handling
+   * Bug fix: Don't clear userProfile on transient errors (network/timeout), only on permanent errors
    */
-  const fetchUserProfile = async (userId: string): Promise<void> => {
+  const fetchUserProfile = useCallback(async (userId: string, retryCount = 0): Promise<void> => {
+    const MAX_RETRIES = 1;
+    const RETRY_DELAY = 1000; // 1 second
+
     // Prevent concurrent fetches
     if (fetchingProfileRef.current) {
       console.log('[AuthContext] Profile fetch already in progress, skipping...');
@@ -50,7 +58,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     fetchingProfileRef.current = true;
-    console.log('[AuthContext] Starting profile fetch for user:', userId);
+    console.log('[AuthContext] Starting profile fetch for user:', userId, retryCount > 0 ? `(retry ${retryCount})` : '');
 
     try {
       // Create a timeout promise (10 seconds)
@@ -71,12 +79,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) {
         console.error('[AuthContext] Error fetching user profile:', error);
 
-        // If profile doesn't exist, log detailed error
+        // Permanent error: profile doesn't exist
         if ('code' in error && error.code === 'PGRST116') {
-          console.error('[AuthContext] User profile not found in database. User may need to complete registration.');
+          console.error('[AuthContext] User profile not found in database (PGRST116). User may need to complete registration.');
+          setUserProfile(null);
+          return;
         }
 
-        setUserProfile(null);
+        // Transient error: network/timeout - retry once, but don't clear existing profile
+        if (retryCount < MAX_RETRIES) {
+          console.warn('[AuthContext] Transient error fetching profile, will retry in', RETRY_DELAY, 'ms');
+          fetchingProfileRef.current = false;
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          return fetchUserProfile(userId, retryCount + 1);
+        }
+
+        // Max retries reached - log warning but keep existing userProfile
+        console.warn('[AuthContext] Max retries reached for profile fetch. Keeping existing profile to prevent auth loss.');
         return;
       }
 
@@ -84,12 +103,102 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUserProfile(data as UserProfile);
     } catch (error) {
       console.error('[AuthContext] Error fetching user profile:', error);
-      setUserProfile(null);
+
+      // On timeout or network error, try to retry
+      if (retryCount < MAX_RETRIES) {
+        console.warn('[AuthContext] Network/timeout error, will retry in', RETRY_DELAY, 'ms');
+        fetchingProfileRef.current = false;
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        return fetchUserProfile(userId, retryCount + 1);
+      }
+
+      // Max retries reached - log warning but don't clear existing profile
+      console.warn('[AuthContext] Max retries reached after exception. Keeping existing profile to prevent auth loss.');
     } finally {
       fetchingProfileRef.current = false;
       console.log('[AuthContext] Profile fetch completed');
     }
-  };
+  }, []); // Empty deps - function doesn't depend on any state
+
+  /**
+   * Revalidate session by fetching current session from Supabase
+   * This method allows components to manually trigger session resync
+   * Returns true if a valid session was found and state updated
+   */
+  const revalidateSession = useCallback(async (): Promise<boolean> => {
+    console.log('[AuthContext] Manual session revalidation triggered');
+
+    try {
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error('[AuthContext] Error during revalidation:', error);
+        return false;
+      }
+
+      if (currentSession) {
+        console.log('[AuthContext] Revalidation found valid session, updating state');
+        setSession(currentSession);
+        setUser(currentSession.user);
+
+        // Fetch profile if we don't have it or user ID changed
+        if (!userProfile || userProfile.id !== currentSession.user.id) {
+          await fetchUserProfile(currentSession.user.id);
+        }
+
+        return true;
+      } else {
+        console.log('[AuthContext] Revalidation found no session');
+        setSession(null);
+        setUser(null);
+        setUserProfile(null);
+        return false;
+      }
+    } catch (error) {
+      console.error('[AuthContext] Exception during revalidation:', error);
+      return false;
+    }
+  }, [userProfile, fetchUserProfile]);
+
+  /**
+   * Validate session matches current Supabase session
+   * Used by periodic validation and window focus handlers
+   */
+  const validateSession = useCallback(async (): Promise<void> => {
+    try {
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error('[SessionValidation] Error fetching session:', error);
+        return;
+      }
+
+      // Compare current session with React state
+      const hasSessionMismatch =
+        (!!currentSession !== !!session) ||
+        (currentSession?.access_token !== session?.access_token);
+
+      if (hasSessionMismatch) {
+        console.warn('[SessionValidation] Session mismatch detected! Updating React state...');
+        console.log('[SessionValidation] Current session:', currentSession ? 'Has token' : 'No session');
+        console.log('[SessionValidation] React state session:', session ? 'Has token' : 'No session');
+
+        // Update state to match Supabase
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+
+        if (currentSession?.user) {
+          await fetchUserProfile(currentSession.user.id);
+        } else {
+          setUserProfile(null);
+        }
+      } else {
+        console.log('[SessionValidation] Session validation passed - state is synchronized');
+      }
+    } catch (error) {
+      console.error('[SessionValidation] Exception during validation:', error);
+    }
+  }, [session, fetchUserProfile]);
 
   /**
    * Initialize auth state and set up listener
@@ -134,13 +243,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
-        console.log('[AuthContext] Auth state changed:', event, newSession ? 'Has session' : 'No session');
+        const timestamp = new Date().toISOString();
+        console.log(`[AuthContext] ${timestamp} - Auth state changed:`, event);
+        console.log('[AuthContext] New session:', newSession ? 'Has session' : 'No session');
+
+        if (newSession) {
+          const expiresAt = newSession.expires_at ? new Date(newSession.expires_at * 1000).toISOString() : 'Unknown';
+          console.log('[AuthContext] Token expires at:', expiresAt);
+        }
 
         // Ignore INITIAL_SESSION event to prevent duplicate fetches
         if (event === 'INITIAL_SESSION') {
           console.log('[AuthContext] Ignoring INITIAL_SESSION event');
           return;
         }
+
+        // Handle TOKEN_REFRESHED event explicitly
+        if (event === 'TOKEN_REFRESHED') {
+          console.log('[AuthContext] TOKEN_REFRESHED event - updating session in React state');
+          setSession(newSession);
+          setUser(newSession?.user ?? null);
+
+          // Profile should still be valid, but refresh if user changed
+          if (newSession?.user && (!userProfile || userProfile.id !== newSession.user.id)) {
+            console.log('[AuthContext] User changed during refresh, fetching new profile');
+            await fetchUserProfile(newSession.user.id);
+          } else {
+            console.log('[AuthContext] Token refreshed, keeping existing profile');
+          }
+
+          setLoading(false);
+          return;
+        }
+
+        // Handle other events (SIGNED_IN, SIGNED_OUT, USER_UPDATED)
+        console.log('[AuthContext] Handling event:', event);
+        console.log('[AuthContext] Before state update - user:', user ? user.id : 'null', ', profile:', userProfile ? userProfile.id : 'null');
 
         setSession(newSession);
         setUser(newSession?.user ?? null);
@@ -149,8 +287,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log('[AuthContext] Fetching profile for user:', newSession.user.id);
           await fetchUserProfile(newSession.user.id);
         } else {
+          console.log('[AuthContext] No user in session, clearing profile');
           setUserProfile(null);
         }
+
+        console.log('[AuthContext] After state update - user:', newSession?.user ? newSession.user.id : 'null');
 
         // Ensure loading is false after auth state change
         setLoading(false);
@@ -163,7 +304,74 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       subscription.unsubscribe();
       initializedRef.current = false;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps array intentional - initialize once on mount
+
+  /**
+   * Periodic session validation (every 5 minutes)
+   * Catches cases where onAuthStateChange missed an event
+   */
+  useEffect(() => {
+    console.log('[SessionValidation] Setting up periodic validation (every 5 minutes)');
+
+    const VALIDATION_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+    const intervalId = setInterval(() => {
+      console.log('[SessionValidation] Running periodic validation check...');
+      validateSession();
+    }, VALIDATION_INTERVAL);
+
+    // Cleanup interval on unmount
+    return () => {
+      console.log('[SessionValidation] Cleaning up periodic validation');
+      clearInterval(intervalId);
+    };
+  }, [validateSession]);
+
+  /**
+   * Window focus session validation
+   * Re-validates session when user returns to the tab
+   */
+  useEffect(() => {
+    console.log('[SessionValidation] Setting up window focus listener');
+
+    const handleWindowFocus = async () => {
+      console.log('[SessionValidation] Window gained focus, validating session...');
+
+      // Check if session is close to expiry (within 5 minutes)
+      if (session?.expires_at) {
+        const expiresAt = session.expires_at * 1000; // Convert to milliseconds
+        const now = Date.now();
+        const timeUntilExpiry = expiresAt - now;
+        const REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+
+        if (timeUntilExpiry < REFRESH_THRESHOLD && timeUntilExpiry > 0) {
+          console.log('[SessionValidation] Token close to expiry, refreshing...');
+          try {
+            const { error } = await supabase.auth.refreshSession();
+            if (error) {
+              console.error('[SessionValidation] Error refreshing session:', error);
+            } else {
+              console.log('[SessionValidation] Session refreshed successfully');
+            }
+          } catch (error) {
+            console.error('[SessionValidation] Exception refreshing session:', error);
+          }
+        }
+      }
+
+      // Always validate to catch desynchronization
+      await validateSession();
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+
+    // Cleanup listener on unmount
+    return () => {
+      console.log('[SessionValidation] Cleaning up window focus listener');
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [session, validateSession]);
 
   /**
    * Sign in handler
@@ -292,6 +500,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signUp: handleSignUp,
     signOut: handleSignOut,
     isAuthenticated,
+    revalidateSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,0 +1,1 @@
+/bug Authentication token seems to get lost mid session: When the user is logged in on the platform, it appears the authentication token seems to get lost mid session. For example, all of a sudden the contract generation modules disappear. To get them back, the user must refresh.
