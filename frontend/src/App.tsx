@@ -10,7 +10,8 @@ import FKMainLayout from './components/ui/FKMainLayout';
 import HomePage from './pages/HomePage';
 import DepartmentPage from './pages/DepartmentPage';
 import LegalDashboard from './pages/legal/LegalDashboard';
-import OperationsDashboard from './pages/operations/OperationsDashboard';
+import OperationsContractsColombia from './pages/operations/OperationsContractsColombia';
+import OperationsContractsMexico from './pages/operations/OperationsContractsMexico';
 import ClientDashboard from './pages/ClientDashboard';
 import LoginPage from './pages/LoginPage';
 import ReporteriaAutomaticaCO from './pages/finance/ReporteriaAutomaticaCO';
@@ -51,6 +52,10 @@ function App() {
               <Route path="finance/reporteria-automatica-co" element={<ReporteriaAutomaticaCO />} />
               <Route path="finance/reporteria-automatica-mx" element={<ReporteriaAutomaticaMX />} />
 
+              {/* Operations Routes - Country-specific contracts */}
+              <Route path="operations/contratos-colombia" element={<OperationsContractsColombia />} />
+              <Route path="operations/contratos-mexico" element={<OperationsContractsMexico />} />
+
               {/* Department Routes - Accessible by funcionarios */}
               <Route
                 path="department/legal"
@@ -60,13 +65,10 @@ function App() {
                   </RoleProtectedRoute>
                 }
               />
+              {/* Legacy route - Redirect to Colombia contracts for backward compatibility */}
               <Route
                 path="department/operations"
-                element={
-                  <RoleProtectedRoute allowedRoles={[UserRole.OPERATIONS]}>
-                    <OperationsDashboard />
-                  </RoleProtectedRoute>
-                }
+                element={<Navigate to="/operations/contratos-colombia" replace />}
               />
               <Route path="department/:departmentId" element={<DepartmentPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />

@@ -83,6 +83,31 @@ const financeModules: FinanceModule[] = [
   },
 ];
 
+// Operations sub-modules (direct navigation, country-specific contracts)
+interface OperationsModule {
+  id: string;
+  name: string;
+  route: string;
+  icon: React.ReactElement;
+  badge?: string;
+}
+
+const operationsModules: OperationsModule[] = [
+  {
+    id: 'contratos-colombia',
+    name: 'Contratos Colombia - Solicitar',
+    route: '/operations/contratos-colombia',
+    icon: <Description fontSize="small" />,
+  },
+  {
+    id: 'contratos-mexico',
+    name: 'Contratos México - Solicitar',
+    route: '/operations/contratos-mexico',
+    icon: <Description fontSize="small" />,
+    badge: 'Próximo',
+  },
+];
+
 const FKSidebarWithCollapse: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -91,6 +116,7 @@ const FKSidebarWithCollapse: React.FC = () => {
 
   // Collapse state for departments with submenus
   const [financeOpen, setFinanceOpen] = useState(false);
+  const [operationsOpen, setOperationsOpen] = useState(false);
 
   useEffect(() => {
     loadDepartments();
@@ -98,6 +124,11 @@ const FKSidebarWithCollapse: React.FC = () => {
     // Auto-expand finance if on a finance route
     if (location.pathname.includes('/finance/')) {
       setFinanceOpen(true);
+    }
+
+    // Auto-expand operations if on an operations route
+    if (location.pathname.includes('/operations/')) {
+      setOperationsOpen(true);
     }
   }, [location.pathname]);
 
@@ -134,6 +165,14 @@ const FKSidebarWithCollapse: React.FC = () => {
   };
 
   const handleFinanceModuleClick = (route: string) => {
+    navigate(route);
+  };
+
+  const handleOperationsToggle = () => {
+    setOperationsOpen(!operationsOpen);
+  };
+
+  const handleOperationsModuleClick = (route: string) => {
     navigate(route);
   };
 
@@ -238,6 +277,121 @@ const FKSidebarWithCollapse: React.FC = () => {
                                 <ListItem key={module.id} disablePadding sx={{ mb: 0.5 }}>
                                   <ListItemButton
                                     onClick={() => handleFinanceModuleClick(module.route)}
+                                    sx={{
+                                      pl: 7,
+                                      pr: 2,
+                                      borderRadius: 2,
+                                      ml: 1,
+                                      py: 1,
+                                      backgroundColor: isModuleActive ? 'primary.main' : 'transparent',
+                                      color: isModuleActive ? 'white' : 'text.secondary',
+                                      '&:hover': {
+                                        backgroundColor: isModuleActive ? 'primary.dark' : 'action.hover',
+                                      },
+                                    }}
+                                  >
+                                    <ListItemIcon
+                                      sx={{
+                                        color: isModuleActive ? 'white' : 'text.disabled',
+                                        minWidth: 32,
+                                      }}
+                                    >
+                                      {module.icon}
+                                    </ListItemIcon>
+                                    <ListItemText
+                                      primary={module.name}
+                                      primaryTypographyProps={{
+                                        fontWeight: isModuleActive ? 600 : 500,
+                                        fontSize: '0.8125rem',
+                                      }}
+                                    />
+                                    {module.badge && (
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          backgroundColor: 'coral.main',
+                                          color: 'white',
+                                          px: 1,
+                                          py: 0.25,
+                                          borderRadius: 1,
+                                          fontSize: '0.625rem',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {module.badge}
+                                      </Typography>
+                                    )}
+                                  </ListItemButton>
+                                </ListItem>
+                              );
+                            })}
+                          </List>
+                        </Collapse>
+                      </React.Fragment>
+                    );
+                  }
+
+                  // Special handling for Operations department (has submenu)
+                  if (department.id === 'operations') {
+                    const hasActiveSubmenu = operationsModules.some(m => location.pathname === m.route);
+                    return (
+                      <React.Fragment key={department.id}>
+                        <ListItem disablePadding sx={{ mb: 0.5 }}>
+                          <ListItemButton
+                            onClick={handleOperationsToggle}
+                            sx={{
+                              borderRadius: 2,
+                              py: 1.5,
+                              backgroundColor: 'transparent',
+                              color: hasActiveSubmenu ? 'primary.main' : 'text.primary',
+                              '&:hover': {
+                                backgroundColor: 'action.hover',
+                              },
+                            }}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                color: hasActiveSubmenu ? 'primary.main' : 'primary.main',
+                                minWidth: 40,
+                              }}
+                            >
+                              {iconMap[department.icon] || <Settings />}
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={department.name}
+                              primaryTypographyProps={{
+                                fontWeight: hasActiveSubmenu ? 600 : 500,
+                                fontSize: '0.95rem',
+                              }}
+                            />
+                            {operationsOpen ? (
+                              <ExpandLess sx={{ color: 'text.secondary' }} />
+                            ) : (
+                              <ExpandMore sx={{ color: 'text.secondary' }} />
+                            )}
+                          </ListItemButton>
+                        </ListItem>
+
+                        {/* Operations Modules Submenu */}
+                        <Collapse in={operationsOpen} timeout="auto" unmountOnExit>
+                          <List component="div" disablePadding sx={{ position: 'relative' }}>
+                            {/* Visual separator/connector for hierarchy */}
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                left: 20,
+                                top: 0,
+                                bottom: 0,
+                                width: '2px',
+                                backgroundColor: 'divider',
+                              }}
+                            />
+                            {operationsModules.map((module) => {
+                              const isModuleActive = location.pathname === module.route;
+                              return (
+                                <ListItem key={module.id} disablePadding sx={{ mb: 0.5 }}>
+                                  <ListItemButton
+                                    onClick={() => handleOperationsModuleClick(module.route)}
                                     sx={{
                                       pl: 7,
                                       pr: 2,
