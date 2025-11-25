@@ -121,7 +121,7 @@ def classify_issue(
         slash_command="/classify_issue",
         args=[issue.model_dump_json(indent=2, by_alias=True)],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     logger.debug(
@@ -157,7 +157,7 @@ def build_plan(
         slash_command=command,
         args=[issue.title + ": " + issue.body],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     logger.debug(
@@ -183,7 +183,7 @@ def get_plan_file(
         slash_command="/find_plan_file",
         args=[plan_output],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     response = execute_template(request)
@@ -213,7 +213,7 @@ def implement_plan(
         slash_command="/implement",
         args=[plan_file],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     logger.debug(
@@ -245,7 +245,7 @@ def git_branch(
         slash_command="/generate_branch_name",
         args=[issue_type, adw_id, issue.model_dump_json(by_alias=True)],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     response = execute_template(request)
@@ -278,7 +278,7 @@ def git_commit(
         slash_command="/commit",
         args=[agent_name, issue_type, issue.model_dump_json(by_alias=True)],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     response = execute_template(request)
@@ -305,7 +305,7 @@ def pull_request(
         slash_command="/pull_request",
         args=[branch_name, issue.model_dump_json(by_alias=True), plan_file, adw_id],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     response = execute_template(request)
