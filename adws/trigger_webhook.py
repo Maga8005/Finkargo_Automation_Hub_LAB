@@ -79,7 +79,7 @@ async def github_webhook(request: Request):
             
             # Build command to run adw_plan_build.py with adw_id
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(script_dir)
+            project_root = "/Users/danielrestrepo/Finkargo_Automation_Hub" #project_root = os.path.dirname(script_dir)
             trigger_script = os.path.join(script_dir, "adw_plan_build.py")
             
             cmd = ["uv", "run", trigger_script, str(issue_number), adw_id]
