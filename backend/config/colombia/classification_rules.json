@@ -1,0 +1,113 @@
+{
+  "clasificacion_conceptos": {
+    "costos_fijos": {
+      "keywords": [
+        "comision",
+        "comisión",
+        "originacion",
+        "originación",
+        "costo",
+        "gestion",
+        "gestión",
+        "administrativa",
+        "administracion",
+        "estructuracion",
+        "estructuración",
+        "swift",
+        "giro",
+        "reintegro",
+        "devolucion",
+        "devolución"
+      ],
+      "exact_match": [
+        "Servicio de Originación",
+        "Comisión Estructuración",
+        "Otras Comisiones",
+        "Cobro por ejecución de nueva instrucción de Giro (Swift)",
+        "Cobro por menor valor recibido en devolución de Fondos, rechazado de Banco Beneficiario",
+        "Reintegro por Servicio de Giro"
+      ]
+    },
+    "seguro_iva": {
+      "keywords": [
+        "seguro",
+        "cobertura",
+        "póliza",
+        "poliza",
+        "iva",
+        "riesgo",
+        "garantia",
+        "garantía",
+        "asesoramiento"
+      ],
+      "exact_match": [
+        "Seguro + IVA",
+        "Póliza de Seguro",
+        "Cobertura de riesgo crediticio - Garantías Comunitarias",
+        "Servicio Asesoramiento en administración de riesgos y seguros"
+      ]
+    },
+    "intereses_corriente": {
+      "keywords": [
+        "interes corriente",
+        "interés corriente",
+        "int corriente",
+        "int. corriente",
+        "intereses corriente",
+        "intereses sobre préstamo",
+        "intereses sobre prestamo",
+        "inversion financiera",
+        "inversión financiera",
+        "operaciones financiadas"
+      ],
+      "exact_match": [
+        "Interés Corriente",
+        "Int. Corriente",
+        "Intereses corriente por concepto de inversión financiera por compra de obligación en el exterior del mes de Agosto de 2025",
+        "Intereses sobre préstamo del mes agosto 2025",
+        "Servicio intereses Corriente operaciones financiadas mes de Agosto 2025",
+        "Servicio intereses operaciones financiadas mes de Agosto 2025"
+      ]
+    },
+    "intereses_mora": {
+      "keywords": [
+        "interes mora",
+        "interés mora",
+        "int mora",
+        "int. mora",
+        "mora",
+        "intereses mora",
+        "intereses por mora"
+      ],
+      "exact_match": [
+        "Interés de Mora",
+        "Int. Mora",
+        "Intereses Mora por concepto de inversión financiera por compra de obligación en el exterior del mes de Agosto de 2025",
+        "Servicio intereses Mora operaciones financiadas mes de Septiembre 2025",
+        "Servicio intereses por mora operaciones financiadas mes de Agosto 2025"
+      ]
+    }
+  },
+  "tipo_factura_por_prefijo": {
+    "FE": {
+      "tipo": "Finkargo",
+      "hoja_destino": "Relacion facturas Costos Fijos"
+    },
+    "NCFE": {
+      "tipo": "Nota Crédito Finkargo",
+      "hoja_destino": "Relacion facturas Costos Fijos"
+    },
+    "ITPA": {
+      "tipo": "Mandato",
+      "hoja_destino": "Relación facturas mandato"
+    },
+    "ITGC": {
+      "tipo": "Interés GC",
+      "hoja_destino": "Relacion facturas Costos Fijos"
+    },
+    "GL": {
+      "tipo": "GL",
+      "hoja_destino": "Relacion facturas Costos Fijos"
+    }
+  }
+}

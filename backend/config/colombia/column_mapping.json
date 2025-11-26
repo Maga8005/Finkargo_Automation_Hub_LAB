@@ -1,0 +1,48 @@
+{
+  "netsuite": {
+    "sheet_name": "VistapredeterminadaTransaccin",
+    "columns": {
+      "numero_factura": "Número de documento",
+      "moneda": "Moneda",
+      "valor": "Importe (moneda extranjera)"
+    }
+  },
+  "netsuite_nc": {
+    "sheet_name": "VistapredeterminadaTransaccin",
+    "columns": {
+      "numero_factura": "Número de documento",
+      "moneda": "Moneda",
+      "valor": "Importe (moneda extranjera)"
+    }
+  },
+  "noova_facturas": {
+    "sheet_name": "Documentos",
+    "columns": {
+      "fecha": "RECEPCIÓN",
+      "numero_factura": "NÚMERO",
+      "nit": "CÓDIGO TERCERO",
+      "nombre_cliente": "NOMBRE TERCERO",
+      "email": "EMAIL TERCERO",
+      "estado": "ESTADO",
+      "envio": "ENVIO TERCERO",
+      "codigo_operacion": "ORDEN DE COMPRA",
+      "codigo_producto": "PRODUCTO",
+      "concepto": "NOMBRE PRODUCTO"
+    }
+  },
+  "noova_notas_credito": {
+    "sheet_name": "Documentos",
+    "columns": {
+      "fecha": "RECEPCIÓN",
+      "numero_factura": "NÚMERO",
+      "nit": "CÓDIGO TERCERO",
+      "nombre_cliente": "NOMBRE TERCERO",
+      "email": "EMAIL TERCERO",
+      "estado": "ESTADO",
+      "envio": "ENVIO TERCERO",
+      "codigo_operacion": "ORDEN DE COMPRA",
+      "codigo_producto": "PRODUCTO",
+      "concepto": "NOMBRE PRODUCTO"
+    }
+  }
+}

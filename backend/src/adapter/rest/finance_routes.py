@@ -6,8 +6,11 @@ automation feature including Excel upload, search, and ZIP generation.
 """
 
 import logging
+import uuid
+from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import StreamingResponse
+from typing import Optional, Dict
 import io
 
 from src.interface.finance_dtos import (
@@ -15,6 +18,16 @@ from src.interface.finance_dtos import (
     InvoiceSearchRequest,
     InvoiceSearchResponse,
     ZipGenerationRequest
+)
+from src.interface.finance_dtos_co import (
+    COProcessingResponse,
+    COProcessingStats,
+    COReportSheet,
+    COValidationError,
+    FileType,
+    SheetDestination,
+    COSTOS_FIJOS_COLUMNS,
+    MANDATO_COLUMNS
 )
 from src.core.servicios.excel_validation_service import ExcelValidationService
 from src.core.servicios.invoice_search_service import (
@@ -24,11 +37,16 @@ from src.core.servicios.invoice_search_service import (
 from src.core.servicios.zip_generator_service import get_zip_service
 from src.core.servicios.google_drive_service import get_drive_service
 from src.core.servicios.excel_merge_service import get_excel_merge_service
+from src.core.servicios.file_processor_co import get_co_file_processor
 from src.adapter.rest.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/finance", tags=["Finance - Facturación MX"])
+
+# Temporary session storage for CO reports (in-memory)
+# In production, use Redis or persistent storage
+_co_report_sessions: Dict[str, bytes] = {}
 
 
 def get_excel_validation_service() -> ExcelValidationService:
@@ -475,4 +493,321 @@ async def generate_zip(
         raise HTTPException(
             status_code=500,
             detail=f"Error al generar el paquete ZIP: {str(e)}"
+        )
+
+
+# ============================================================================
+# Colombia (CO) Endpoints
+# ============================================================================
+
+@router.post(
+    "/co/process-files",
+    response_model=COProcessingResponse,
+    summary="Process Colombia Excel files (by pairs)",
+    description="""
+    Process Colombia invoicing files and generate consolidated report.
+
+    You can upload files in pairs:
+    - Pair 1: Netsuite Facturas + Noova Facturas
+    - Pair 2: Netsuite NC + Noova NC
+
+    At least ONE complete pair is required (both Netsuite and Noova from the same category).
+
+    The endpoint will:
+    1. Read and validate uploaded files
+    2. Consolidate data with LEFT JOIN by numero_factura
+    3. Classify by product code (146 codes) and keywords
+    4. Separate into 2 sheets (Costos Fijos and Mandato)
+    5. Generate Excel report
+
+    Returns processing statistics and download URL.
+    """,
+    tags=["Finance - Facturación CO"]
+)
+async def process_co_files(
+    netsuite: Optional[UploadFile] = File(None, description="Netsuite Facturas Excel file (optional)"),
+    netsuite_nc: Optional[UploadFile] = File(None, description="Netsuite NC Excel file (optional)"),
+    noova_facturas: Optional[UploadFile] = File(None, description="Noova Facturas Excel file (optional)"),
+    noova_nc: Optional[UploadFile] = File(None, description="Noova NC Excel file (optional)"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Process 4 Colombia Excel files and generate consolidated report.
+
+    Args:
+        netsuite: Netsuite facturas file
+        netsuite_nc: Netsuite notas de crédito file
+        noova_facturas: Noova facturas file
+        noova_nc: Noova notas de crédito file
+        current_user: Authenticated user
+
+    Returns:
+        COProcessingResponse with statistics and download URL
+
+    Raises:
+        HTTPException: If validation or processing fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    session_id = f"co_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+
+    logger.info(f"User {user_email} processing CO files - Session {session_id}")
+
+    try:
+        # Validate that at least one complete pair is present
+        facturas_pair_complete = netsuite and noova_facturas
+        nc_pair_complete = netsuite_nc and noova_nc
+
+        if not (facturas_pair_complete or nc_pair_complete):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Debe subir al menos una pareja completa de archivos:\n"
+                    "- Pareja 1: Netsuite Facturas + Noova Facturas\n"
+                    "- Pareja 2: Netsuite NC + Noova NC"
+                )
+            )
+
+        # Validate uploaded files are Excel
+        files_to_validate = [
+            ("Netsuite Facturas", netsuite),
+            ("Netsuite NC", netsuite_nc),
+            ("Noova Facturas", noova_facturas),
+            ("Noova NC", noova_nc)
+        ]
+
+        for file_label, file in files_to_validate:
+            if file:  # Only validate if file was uploaded
+                if not file.filename:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Nombre de archivo es requerido para {file_label}"
+                    )
+                if not file.filename.endswith(('.xlsx', '.xls')):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Formato inválido para {file_label}. Use .xlsx o .xls"
+                    )
+
+        # Initialize processor
+        processor = get_co_file_processor()
+
+        # Step 1: Read Netsuite files (if uploaded)
+        logger.info("Leyendo archivos Netsuite...")
+        netsuite_records = []
+        netsuite_errors = []
+        netsuite_nc_records = []
+        netsuite_nc_errors = []
+
+        if netsuite:
+            netsuite_records, netsuite_errors = await processor.read_excel_file(
+                netsuite, FileType.NETSUITE
+            )
+            logger.info(f"Netsuite Facturas: {len(netsuite_records)} registros")
+
+        if netsuite_nc:
+            netsuite_nc_records, netsuite_nc_errors = await processor.read_excel_file(
+                netsuite_nc, FileType.NETSUITE_NC
+            )
+            logger.info(f"Netsuite NC: {len(netsuite_nc_records)} registros")
+
+        all_netsuite = netsuite_records + netsuite_nc_records
+        logger.info(f"Total Netsuite records: {len(all_netsuite)}")
+
+        # Step 2: Read Noova files (if uploaded)
+        logger.info("Leyendo archivos Noova...")
+        noova_facturas_records = []
+        noova_f_errors = []
+        noova_nc_records = []
+        noova_nc_errors = []
+
+        if noova_facturas:
+            noova_facturas_records, noova_f_errors = await processor.read_excel_file(
+                noova_facturas, FileType.NOOVA_FACTURAS
+            )
+            logger.info(f"Noova Facturas: {len(noova_facturas_records)} registros")
+
+        if noova_nc:
+            noova_nc_records, noova_nc_errors = await processor.read_excel_file(
+                noova_nc, FileType.NOOVA_NC
+            )
+            logger.info(f"Noova NC: {len(noova_nc_records)} registros")
+
+        all_noova = noova_facturas_records + noova_nc_records
+        logger.info(f"Total Noova records: {len(all_noova)}")
+
+        # Collect all errors
+        all_errors = (
+            netsuite_errors + netsuite_nc_errors +
+            noova_f_errors + noova_nc_errors
+        )
+
+        if len(all_errors) > 100:
+            logger.warning(f"Demasiados errores de validación: {len(all_errors)}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Demasiados errores de validación: {len(all_errors)}. "
+                       f"Revise la estructura de los archivos."
+            )
+
+        # Step 3: Consolidate data (LEFT JOIN by numero_factura)
+        logger.info("Consolidando datos (LEFT JOIN)...")
+        consolidated = processor.consolidate_data(all_noova, all_netsuite)
+
+        # Step 4: Classify records
+        logger.info("Clasificando registros por código de producto...")
+        classified = processor.classify_records(consolidated)
+
+        # Step 5: Separate by destination sheet
+        logger.info("Separando por hoja de destino...")
+        costos_fijos, mandato = processor.separate_by_sheet(classified)
+
+        # Step 6: Generate Excel report
+        logger.info("Generando reporte Excel...")
+        excel_bytes = processor.generate_excel_report(costos_fijos, mandato)
+
+        # Store in session
+        _co_report_sessions[session_id] = excel_bytes
+        logger.info(f"Reporte almacenado en sesión {session_id}")
+
+        # Calculate statistics
+        matched_count = sum(1 for r in consolidated if r.valor_netsuite is not None)
+        stats = COProcessingStats(
+            total_records_noova=len(all_noova),
+            total_records_netsuite=len(all_netsuite),
+            total_consolidated=len(consolidated),
+            matched_with_netsuite=matched_count,
+            unmatched_noova=len(consolidated) - matched_count,
+            costos_fijos_count=len(costos_fijos),
+            mandato_count=len(mandato),
+            errors=[f"{e.file_type}: {e.message}" for e in all_errors[:10]]  # First 10 errors
+        )
+
+        # Sheet information
+        sheets = [
+            COReportSheet(
+                sheet_name=SheetDestination.COSTOS_FIJOS,
+                column_count=len(COSTOS_FIJOS_COLUMNS),
+                row_count=len(costos_fijos),
+                columns=COSTOS_FIJOS_COLUMNS
+            ),
+            COReportSheet(
+                sheet_name=SheetDestination.MANDATO,
+                column_count=len(MANDATO_COLUMNS),
+                row_count=len(mandato),
+                columns=MANDATO_COLUMNS
+            )
+        ]
+
+        response = COProcessingResponse(
+            success=True,
+            session_id=session_id,
+            stats=stats,
+            sheets=sheets,
+            download_url=f"/api/finance/co/download/{session_id}",
+            message="Procesamiento completado exitosamente"
+        )
+
+        logger.info(f"Procesamiento CO completado: {stats.total_consolidated} registros")
+        return response
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Error de validación en procesamiento CO: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error inesperado en procesamiento CO: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al procesar archivos CO: {str(e)}"
+        )
+
+
+@router.get(
+    "/co/download/{session_id}",
+    summary="Download CO processed report",
+    description="Download the generated Excel report from a CO processing session.",
+    tags=["Finance - Facturación CO"]
+)
+async def download_co_report(
+    session_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Download generated CO report Excel file.
+
+    Args:
+        session_id: Session ID from processing request
+        current_user: Authenticated user
+
+    Returns:
+        StreamingResponse: Excel file download
+
+    Raises:
+        HTTPException: If session not found or download fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} downloading CO report: {session_id}")
+
+    # Check if session exists
+    if session_id not in _co_report_sessions:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Sesión no encontrada o expirada: {session_id}"
+        )
+
+    try:
+        excel_bytes = _co_report_sessions[session_id]
+
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Reporte_Facturacion_CO_{timestamp}.xlsx"
+
+        logger.info(f"Enviando reporte CO: {filename}, {len(excel_bytes)} bytes")
+
+        # Return as streaming response
+        return StreamingResponse(
+            io.BytesIO(excel_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "X-Session-ID": session_id
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error descargando reporte CO: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al descargar reporte: {str(e)}"
+        )
+
+
+@router.delete(
+    "/co/session/{session_id}",
+    summary="Clear CO session data",
+    description="Remove CO session data from cache to free memory.",
+    tags=["Finance - Facturación CO"]
+)
+async def clear_co_session(
+    session_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Clear CO session data from cache.
+
+    Args:
+        session_id: Session ID to clear
+        current_user: Authenticated user
+
+    Returns:
+        Success message
+    """
+    if session_id in _co_report_sessions:
+        del _co_report_sessions[session_id]
+        return {"message": f"Sesión CO {session_id} eliminada exitosamente"}
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Sesión no encontrada: {session_id}"
         )
