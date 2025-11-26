@@ -5,8 +5,9 @@
  *
  * Bug fix: Added comprehensive session validation to prevent auth token loss mid-session
  * Performance fix: Added profile caching and optimized initialization flow
+ * Performance fix v2: Eliminated redundant profile fetches, aggressive caching, timing diagnostics
  */
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase, signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut } from '../services/supabase';
@@ -122,16 +123,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Track if we're currently fetching a profile to prevent concurrent fetches
-  const fetchingProfileRef = React.useRef(false);
+  const fetchingProfileRef = useRef(false);
   // Track initialization to prevent duplicate fetches
-  const initializedRef = React.useRef(false);
+  const initializedRef = useRef(false);
   // Track login timestamp to prevent redundant recovery attempts
-  const lastLoginTimestampRef = React.useRef<number>(0);
+  const lastLoginTimestampRef = useRef<number>(0);
+  // Track current user profile ID to prevent redundant fetches
+  const currentProfileIdRef = useRef<string | null>(null);
 
   /**
    * Fetch user profile from database with timeout, retry logic, and improved error handling
    * Bug fix: Don't clear userProfile on transient errors (network/timeout), only on permanent errors
    * Performance fix: Added isInitialLoad parameter for shorter timeout on initial load
+   * Performance fix v2: Added timing diagnostics
    */
   const fetchUserProfile = useCallback(async (
     userId: string,
@@ -149,7 +153,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
 
+    // Skip if we already have this user's profile loaded
+    if (currentProfileIdRef.current === userId) {
+      console.log('[AuthContext] Profile already loaded for user:', userId, '- skipping fetch');
+      return;
+    }
+
     fetchingProfileRef.current = true;
+    const timingLabel = `[AuthContext] fetchUserProfile ${userId}`;
+    console.time(timingLabel);
     console.log('[AuthContext] Starting profile fetch for user:', userId, retryCount > 0 ? `(retry ${retryCount})` : '', isInitialLoad ? '(initial load)' : '');
 
     try {
@@ -175,6 +187,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if ('code' in error && error.code === 'PGRST116') {
           console.error('[AuthContext] User profile not found in database (PGRST116). User may need to complete registration.');
           setUserProfile(null);
+          currentProfileIdRef.current = null;
           return;
         }
 
@@ -191,10 +204,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
-      console.log('[AuthContext] Profile fetched successfully:', data);
+      console.log('[AuthContext] Profile fetched successfully:', data?.id);
       const profileData = data as UserProfile;
       setUserProfile(profileData);
-      // Cache the profile for future use (Step 9)
+      currentProfileIdRef.current = userId;
+      // Cache the profile for future use
       setCachedProfile(userId, profileData);
     } catch (error) {
       console.error('[AuthContext] Error fetching user profile:', error);
@@ -211,7 +225,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.warn('[AuthContext] Max retries reached after exception. Keeping existing profile to prevent auth loss.');
     } finally {
       fetchingProfileRef.current = false;
-      console.log('[AuthContext] Profile fetch completed');
+      console.timeEnd(timingLabel);
     }
   }, []); // Empty deps - function doesn't depend on any state
 
@@ -297,6 +311,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   /**
    * Initialize auth state and set up listener
+   * Performance fix v2: Added timing diagnostics and aggressive caching
    */
   useEffect(() => {
     // Prevent double initialization in development mode (React strict mode)
@@ -306,12 +321,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     initializedRef.current = true;
-    console.log('[AuthContext] Initializing authentication...');
+    console.log('[AuthContext] Init started at:', new Date().toISOString());
+    console.time('[AuthContext] Total initialization');
 
     // Get initial session - optimized with profile caching
     const initializeAuth = async () => {
+      console.time('[AuthContext] initializeAuth');
       try {
+        console.time('[AuthContext] getSession');
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+        console.timeEnd('[AuthContext] getSession');
 
         if (error) {
           console.error('[AuthContext] Error getting initial session:', error);
@@ -325,15 +344,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const userId = initialSession.user.id;
           console.log('[AuthContext] Checking cached profile for user:', userId);
 
-          // Step 2: Try to use cached profile for instant UI render
+          // Try to use cached profile for instant UI render
           const cachedProfile = getCachedProfile(userId);
           if (cachedProfile) {
             // Use cached profile immediately
             setUserProfile(cachedProfile);
+            currentProfileIdRef.current = userId;
             setLoading(false);
-            console.log('[AuthContext] Using cached profile, loading complete');
+            console.log('[AuthContext] Loaded from cache, loading=false');
+            console.timeEnd('[AuthContext] initializeAuth');
+            console.timeEnd('[AuthContext] Total initialization');
 
-            // Background refresh - don't await (Step 3 optimization)
+            // Background refresh - don't await, don't block UI
             fetchUserProfile(userId, 0, true).catch(err => {
               console.warn('[AuthContext] Background profile refresh failed:', err);
             });
@@ -342,19 +364,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           // No cache - fetch profile with initial load timeout
           console.log('[AuthContext] No cached profile, fetching from server...');
+          console.time('[AuthContext] fetchUserProfile (no cache)');
           await fetchUserProfile(userId, 0, true);
+          console.timeEnd('[AuthContext] fetchUserProfile (no cache)');
         }
       } catch (error) {
         console.error('[AuthContext] Error initializing auth:', error);
       } finally {
-        console.log('[AuthContext] Initialization complete, setting loading to false');
         setLoading(false);
+        console.timeEnd('[AuthContext] initializeAuth');
+        console.timeEnd('[AuthContext] Total initialization');
       }
     };
 
     initializeAuth();
 
-    // Listen for auth state changes
+    // Listen for auth state changes - optimized to use cache
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         const timestamp = new Date().toISOString();
@@ -377,35 +402,64 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log('[AuthContext] TOKEN_REFRESHED event - updating session in React state');
           setSession(newSession);
           setUser(newSession?.user ?? null);
-
-          // Profile should still be valid, but refresh if user changed
-          if (newSession?.user && (!userProfile || userProfile.id !== newSession.user.id)) {
-            console.log('[AuthContext] User changed during refresh, fetching new profile');
-            await fetchUserProfile(newSession.user.id);
-          } else {
-            console.log('[AuthContext] Token refreshed, keeping existing profile');
-          }
-
+          // Profile should still be valid - don't re-fetch unless user changed
+          console.log('[AuthContext] Token refreshed, keeping existing profile');
           setLoading(false);
           return;
         }
 
-        // Handle other events (SIGNED_IN, SIGNED_OUT, USER_UPDATED)
-        console.log('[AuthContext] Handling event:', event);
-        console.log('[AuthContext] Before state update - user:', user ? user.id : 'null', ', profile:', userProfile ? userProfile.id : 'null');
+        // Handle SIGNED_OUT event
+        if (event === 'SIGNED_OUT') {
+          console.log('[AuthContext] SIGNED_OUT event - clearing state');
+          setSession(null);
+          setUser(null);
+          setUserProfile(null);
+          currentProfileIdRef.current = null;
+          setLoading(false);
+          return;
+        }
 
+        // Handle SIGNED_IN and USER_UPDATED events
+        console.log('[AuthContext] Handling event:', event);
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
         if (newSession?.user) {
-          console.log('[AuthContext] Fetching profile for user:', newSession.user.id);
-          await fetchUserProfile(newSession.user.id);
+          const userId = newSession.user.id;
+
+          // Check if we already have this user's profile in memory
+          if (currentProfileIdRef.current === userId) {
+            console.log('[AuthContext] Profile already in memory for user:', userId, '- skipping fetch');
+            setLoading(false);
+            if (event === 'SIGNED_IN') {
+              setIsTransitioning(false);
+            }
+            return;
+          }
+
+          // Check localStorage cache before network fetch
+          const cachedProfile = getCachedProfile(userId);
+          if (cachedProfile) {
+            console.log('[AuthContext] Using cached profile from onAuthStateChange');
+            setUserProfile(cachedProfile);
+            currentProfileIdRef.current = userId;
+            setLoading(false);
+            if (event === 'SIGNED_IN') {
+              setIsTransitioning(false);
+            }
+            // Background refresh - don't block
+            fetchUserProfile(userId, 0, true).catch(console.warn);
+            return;
+          }
+
+          // No cache - must fetch from server
+          console.log('[AuthContext] No cache, fetching profile for user:', userId);
+          await fetchUserProfile(userId);
         } else {
           console.log('[AuthContext] No user in session, clearing profile');
           setUserProfile(null);
+          currentProfileIdRef.current = null;
         }
-
-        console.log('[AuthContext] After state update - user:', newSession?.user ? newSession.user.id : 'null');
 
         // Ensure loading is false after auth state change
         setLoading(false);
@@ -495,14 +549,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Sign in handler
    * Performance fix: Removed 100ms artificial delay and made last_login update non-blocking
+   * Performance fix v2: Immediately set profile from cache to unblock UI faster
    */
   const handleSignIn = async (email: string, password: string): Promise<void> => {
     console.log('[AuthContext] handleSignIn called for:', email);
+    console.time('[AuthContext] Total signIn');
     setIsTransitioning(true);
     lastLoginTimestampRef.current = Date.now();
 
     try {
+      console.time('[AuthContext] supabaseSignIn');
       const { user: signedInUser, session: signedInSession, error } = await supabaseSignIn(email, password);
+      console.timeEnd('[AuthContext] supabaseSignIn');
 
       console.log('[AuthContext] Sign in result:', {
         user: signedInUser ? 'User returned' : 'No user',
@@ -512,13 +570,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (error) {
         setIsTransitioning(false);
+        console.timeEnd('[AuthContext] Total signIn');
         throw new Error(error.message);
       }
 
-      // Don't set state here - let onAuthStateChange handle it
-      // This prevents race conditions
+      // Immediately set session and user to unblock UI faster
+      if (signedInSession && signedInUser) {
+        setSession(signedInSession);
+        setUser(signedInUser);
 
-      // Step 6: Update last login timestamp non-blocking (fire and forget)
+        // Try to use cached profile immediately for instant UI
+        const cachedProfile = getCachedProfile(signedInUser.id);
+        if (cachedProfile) {
+          console.log('[AuthContext] Login complete with cached profile');
+          setUserProfile(cachedProfile);
+          currentProfileIdRef.current = signedInUser.id;
+          setLoading(false);
+          setIsTransitioning(false);
+          console.timeEnd('[AuthContext] Total signIn');
+
+          // Background refresh - don't block
+          fetchUserProfile(signedInUser.id, 0, true).catch(console.warn);
+
+          // Non-blocking last_login update
+          supabase
+            .from('user_profiles')
+            .update({ last_login: new Date().toISOString() })
+            .eq('id', signedInUser.id)
+            .then(({ error: updateError }) => {
+              if (updateError) {
+                console.warn('[AuthContext] Failed to update last_login:', updateError);
+              }
+            });
+
+          return; // Exit early - login complete
+        }
+      }
+
+      // No cache - let onAuthStateChange handle profile fetch
+      // Non-blocking last_login update
       if (signedInUser) {
         supabase
           .from('user_profiles')
@@ -531,10 +621,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           });
       }
 
-      // Step 5: Removed artificial 100ms delay
+      console.timeEnd('[AuthContext] Total signIn');
       // onAuthStateChange will fire and update the state automatically
     } catch (error) {
       console.error('[AuthContext] Sign in error:', error);
+      console.timeEnd('[AuthContext] Total signIn');
       setIsTransitioning(false);
       throw error;
     }
@@ -596,7 +687,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   /**
    * Sign out handler
-   * Step 10: Added cache invalidation on logout
+   * Added cache invalidation on logout
    */
   const handleSignOut = async (): Promise<void> => {
     setLoading(true);
@@ -617,6 +708,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       setSession(null);
       setUserProfile(null);
+      currentProfileIdRef.current = null;
       setIsTransitioning(false);
     } catch (error) {
       console.error('Sign out error:', error);

@@ -1,6 +1,7 @@
 /**
  * Supabase Client Configuration and Auth Helper Functions
  * Based on proven architecture from Finkargo Pre-Approval System
+ * Performance fix v2: Added connection warmup for faster first request
  */
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient, Session, User, AuthError } from '@supabase/supabase-js';
@@ -12,6 +13,8 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env');
 }
+
+console.log('[Supabase] Initializing client at:', new Date().toISOString());
 
 /**
  * Supabase client instance with auto-refresh and session persistence
@@ -29,6 +32,21 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
     },
   },
 });
+
+/**
+ * Warm up Supabase connection (non-blocking)
+ * This pre-establishes the connection to reduce latency on first auth call
+ */
+setTimeout(() => {
+  console.time('[Supabase] Connection warmup');
+  supabase.auth.getSession().then(({ data }) => {
+    console.timeEnd('[Supabase] Connection warmup');
+    console.log('[Supabase] Warmup complete, session:', data.session ? 'exists' : 'none');
+  }).catch((error) => {
+    console.timeEnd('[Supabase] Connection warmup');
+    console.log('[Supabase] Warmup completed with error (expected if no session):', error?.message || 'unknown');
+  });
+}, 0);
 
 /**
  * Sign in with email and password
