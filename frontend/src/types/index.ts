@@ -98,6 +98,8 @@ export interface AuthContextType {
   session: Session | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  isTransitioning: boolean;
+  lastLoginTimestamp: number;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (
     email: string,

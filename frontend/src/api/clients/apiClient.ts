@@ -2,6 +2,7 @@
  * API Client with Axios interceptors
  * Uses Supabase session for authentication
  * Bug fix: Improved session synchronization to prevent stale tokens
+ * Performance fix v2: Removed competing IIFE session call - let onAuthStateChange handle it
  */
 import axios from 'axios';
 import type { AxiosInstance, AxiosError } from 'axios';
@@ -21,24 +22,15 @@ const apiClient: AxiosInstance = axios.create({
 // Cache session in memory to avoid repeated getSession() calls
 let cachedSession: { access_token: string } | null = null;
 let lastCacheUpdate = 0;
-const CACHE_TTL = 1000; // 1 second cache TTL to prevent stale tokens
+const CACHE_TTL = 5000; // 5 second cache TTL - increased to reduce getSession() calls
 
-// Initialize session cache immediately
-(async () => {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    cachedSession = session;
-    lastCacheUpdate = Date.now();
-    console.log('[apiClient] Initial session loaded:', session ? 'Has token' : 'No session');
-  } catch (error) {
-    console.error('[apiClient] Error loading initial session:', error);
-  }
-})();
+// REMOVED: Competing IIFE that called getSession() on module load
+// This was causing redundant network calls competing with AuthContext
+// The onAuthStateChange listener below will populate the cache when auth state changes
 
-// Update cache when auth state changes
+// Update cache when auth state changes - this is the primary way cache gets populated
 supabase.auth.onAuthStateChange((_event, session) => {
-  const timestamp = new Date().toISOString();
-  console.log(`[apiClient] ${timestamp} - Auth state changed:`, _event, session ? 'Has token' : 'No session');
+  console.log(`[apiClient] Auth state changed:`, _event, session ? 'Has token' : 'No session');
 
   cachedSession = session;
   lastCacheUpdate = Date.now();
