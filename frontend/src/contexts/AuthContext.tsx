@@ -4,12 +4,92 @@
  * Based on proven architecture from Finkargo Pre-Approval System
  *
  * Bug fix: Added comprehensive session validation to prevent auth token loss mid-session
+ * Performance fix: Added profile caching and optimized initialization flow
  */
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase, signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut } from '../services/supabase';
 import type { AuthContextType, UserProfile, UserRole } from '../types';
+
+// Profile cache constants
+const PROFILE_CACHE_PREFIX = 'finkargo_profile_cache_';
+const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+// Profile cache helper types
+interface CachedProfile {
+  profile: UserProfile;
+  timestamp: number;
+}
+
+/**
+ * Get cached profile from localStorage
+ */
+const getCachedProfile = (userId: string): UserProfile | null => {
+  try {
+    const cacheKey = `${PROFILE_CACHE_PREFIX}${userId}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (!cached) return null;
+
+    const { profile, timestamp }: CachedProfile = JSON.parse(cached);
+    const now = Date.now();
+
+    // Check if cache is still valid
+    if (now - timestamp < PROFILE_CACHE_TTL) {
+      console.log('[AuthContext] Using cached profile for user:', userId);
+      return profile;
+    }
+
+    console.log('[AuthContext] Cached profile expired for user:', userId);
+    return null;
+  } catch (error) {
+    console.warn('[AuthContext] Error reading cached profile:', error);
+    return null;
+  }
+};
+
+/**
+ * Set cached profile in localStorage
+ */
+const setCachedProfile = (userId: string, profile: UserProfile): void => {
+  try {
+    const cacheKey = `${PROFILE_CACHE_PREFIX}${userId}`;
+    const cacheData: CachedProfile = {
+      profile,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+    console.log('[AuthContext] Cached profile for user:', userId);
+  } catch (error) {
+    console.warn('[AuthContext] Error caching profile:', error);
+  }
+};
+
+/**
+ * Clear cached profile from localStorage
+ */
+const clearCachedProfile = (userId?: string): void => {
+  try {
+    if (userId) {
+      const cacheKey = `${PROFILE_CACHE_PREFIX}${userId}`;
+      localStorage.removeItem(cacheKey);
+      console.log('[AuthContext] Cleared cached profile for user:', userId);
+    } else {
+      // Clear all profile caches
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith(PROFILE_CACHE_PREFIX)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      console.log('[AuthContext] Cleared all cached profiles');
+    }
+  } catch (error) {
+    console.warn('[AuthContext] Error clearing cached profile:', error);
+  }
+};
 
 // Create context with default values
 // eslint-disable-next-line react-refresh/only-export-components
@@ -18,6 +98,8 @@ export const AuthContext = createContext<AuthContextType>({
   session: null,
   userProfile: null,
   loading: true,
+  isTransitioning: false,
+  lastLoginTimestamp: 0,
   signIn: async () => {},
   signUp: async () => {},
   signOut: async () => {},
@@ -37,19 +119,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Track if we're currently fetching a profile to prevent concurrent fetches
   const fetchingProfileRef = React.useRef(false);
   // Track initialization to prevent duplicate fetches
   const initializedRef = React.useRef(false);
+  // Track login timestamp to prevent redundant recovery attempts
+  const lastLoginTimestampRef = React.useRef<number>(0);
 
   /**
    * Fetch user profile from database with timeout, retry logic, and improved error handling
    * Bug fix: Don't clear userProfile on transient errors (network/timeout), only on permanent errors
+   * Performance fix: Added isInitialLoad parameter for shorter timeout on initial load
    */
-  const fetchUserProfile = useCallback(async (userId: string, retryCount = 0): Promise<void> => {
+  const fetchUserProfile = useCallback(async (
+    userId: string,
+    retryCount = 0,
+    isInitialLoad = false
+  ): Promise<void> => {
     const MAX_RETRIES = 1;
     const RETRY_DELAY = 1000; // 1 second
+    // Use shorter timeout for initial load to improve perceived performance
+    const TIMEOUT = isInitialLoad ? 3000 : 10000;
 
     // Prevent concurrent fetches
     if (fetchingProfileRef.current) {
@@ -58,12 +150,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     fetchingProfileRef.current = true;
-    console.log('[AuthContext] Starting profile fetch for user:', userId, retryCount > 0 ? `(retry ${retryCount})` : '');
+    console.log('[AuthContext] Starting profile fetch for user:', userId, retryCount > 0 ? `(retry ${retryCount})` : '', isInitialLoad ? '(initial load)' : '');
 
     try {
-      // Create a timeout promise (10 seconds)
+      // Create a timeout promise
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000);
+        setTimeout(() => reject(new Error('Profile fetch timeout')), TIMEOUT);
       });
 
       // Race between fetch and timeout
@@ -91,7 +183,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.warn('[AuthContext] Transient error fetching profile, will retry in', RETRY_DELAY, 'ms');
           fetchingProfileRef.current = false;
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-          return fetchUserProfile(userId, retryCount + 1);
+          return fetchUserProfile(userId, retryCount + 1, isInitialLoad);
         }
 
         // Max retries reached - log warning but keep existing userProfile
@@ -100,7 +192,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       console.log('[AuthContext] Profile fetched successfully:', data);
-      setUserProfile(data as UserProfile);
+      const profileData = data as UserProfile;
+      setUserProfile(profileData);
+      // Cache the profile for future use (Step 9)
+      setCachedProfile(userId, profileData);
     } catch (error) {
       console.error('[AuthContext] Error fetching user profile:', error);
 
@@ -109,7 +204,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.warn('[AuthContext] Network/timeout error, will retry in', RETRY_DELAY, 'ms');
         fetchingProfileRef.current = false;
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-        return fetchUserProfile(userId, retryCount + 1);
+        return fetchUserProfile(userId, retryCount + 1, isInitialLoad);
       }
 
       // Max retries reached - log warning but don't clear existing profile
@@ -213,7 +308,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initializedRef.current = true;
     console.log('[AuthContext] Initializing authentication...');
 
-    // Get initial session
+    // Get initial session - optimized with profile caching
     const initializeAuth = async () => {
       try {
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
@@ -227,8 +322,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(initialSession?.user ?? null);
 
         if (initialSession?.user) {
-          console.log('[AuthContext] Fetching profile for user:', initialSession.user.id);
-          await fetchUserProfile(initialSession.user.id);
+          const userId = initialSession.user.id;
+          console.log('[AuthContext] Checking cached profile for user:', userId);
+
+          // Step 2: Try to use cached profile for instant UI render
+          const cachedProfile = getCachedProfile(userId);
+          if (cachedProfile) {
+            // Use cached profile immediately
+            setUserProfile(cachedProfile);
+            setLoading(false);
+            console.log('[AuthContext] Using cached profile, loading complete');
+
+            // Background refresh - don't await (Step 3 optimization)
+            fetchUserProfile(userId, 0, true).catch(err => {
+              console.warn('[AuthContext] Background profile refresh failed:', err);
+            });
+            return; // Exit early since we've already set loading to false
+          }
+
+          // No cache - fetch profile with initial load timeout
+          console.log('[AuthContext] No cached profile, fetching from server...');
+          await fetchUserProfile(userId, 0, true);
         }
       } catch (error) {
         console.error('[AuthContext] Error initializing auth:', error);
@@ -295,6 +409,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Ensure loading is false after auth state change
         setLoading(false);
+
+        // Reset transitioning flag after login completes
+        if (event === 'SIGNED_IN') {
+          setIsTransitioning(false);
+        }
       }
     );
 
@@ -375,9 +494,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   /**
    * Sign in handler
+   * Performance fix: Removed 100ms artificial delay and made last_login update non-blocking
    */
   const handleSignIn = async (email: string, password: string): Promise<void> => {
     console.log('[AuthContext] handleSignIn called for:', email);
+    setIsTransitioning(true);
+    lastLoginTimestampRef.current = Date.now();
+
     try {
       const { user: signedInUser, session: signedInSession, error } = await supabaseSignIn(email, password);
 
@@ -388,25 +511,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       if (error) {
+        setIsTransitioning(false);
         throw new Error(error.message);
       }
 
       // Don't set state here - let onAuthStateChange handle it
       // This prevents race conditions
 
-      // Update last login timestamp
+      // Step 6: Update last login timestamp non-blocking (fire and forget)
       if (signedInUser) {
-        await supabase
+        supabase
           .from('user_profiles')
           .update({ last_login: new Date().toISOString() })
-          .eq('id', signedInUser.id);
+          .eq('id', signedInUser.id)
+          .then(({ error: updateError }) => {
+            if (updateError) {
+              console.warn('[AuthContext] Failed to update last_login:', updateError);
+            }
+          });
       }
 
-      // onAuthStateChange will fire and update the state
-      // Wait a bit for it to process
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Step 5: Removed artificial 100ms delay
+      // onAuthStateChange will fire and update the state automatically
     } catch (error) {
       console.error('[AuthContext] Sign in error:', error);
+      setIsTransitioning(false);
       throw error;
     }
   };
@@ -467,10 +596,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   /**
    * Sign out handler
+   * Step 10: Added cache invalidation on logout
    */
   const handleSignOut = async (): Promise<void> => {
     setLoading(true);
     try {
+      // Clear profile cache before signing out
+      if (user?.id) {
+        clearCachedProfile(user.id);
+      } else {
+        clearCachedProfile(); // Clear all cached profiles as fallback
+      }
+
       const { error } = await supabaseSignOut();
 
       if (error) {
@@ -480,6 +617,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       setSession(null);
       setUserProfile(null);
+      setIsTransitioning(false);
     } catch (error) {
       console.error('Sign out error:', error);
       throw error;
@@ -496,6 +634,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     session,
     userProfile,
     loading,
+    isTransitioning,
+    lastLoginTimestamp: lastLoginTimestampRef.current,
     signIn: handleSignIn,
     signUp: handleSignUp,
     signOut: handleSignOut,
