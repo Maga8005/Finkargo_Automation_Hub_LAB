@@ -355,35 +355,66 @@ class RUTParserService:
         """
         Extract NIT with verification digit from fields 5 and 6
 
-        Field 5: NIT digits (space-separated: "9 0 0 9 8 9 9 2 5")
+        Field 5: NIT digits (space-separated: "9 0 0 9 8 9 9 2 5" or newline-separated)
         Field 6: DV digit ("7")
         Returns formatted NIT: "900989925-7"
         """
         logger.debug("Extracting NIT with DV (fields 5 and 6)")
 
-        # Search for NIT pattern: space-separated digits near field 5
-        # Pattern: sequence of single digits separated by spaces
-        pattern = r'5\.\s*Número de Identificación Tributaria[^0-9]*?((?:\d\s+){8,}\d)'
-        match = re.search(pattern, page_text, re.IGNORECASE | re.MULTILINE)
-
         nit_digits = None
         dv_digit = None
 
-        if match:
-            nit_raw = match.group(1).strip()
-            # Remove all spaces to get digits
-            nit_digits = re.sub(r'\s+', '', nit_raw)
-            logger.debug(f"Extracted NIT digits: {nit_digits}")
+        # Strategy 1: Look for newline-separated digits (GAMALOG format)
+        # Pattern: 9 digits on separate lines followed by DV digit
+        # These appear after form number and before "Impuestos de" or similar
+        lines = page_text.split('\n')
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            # Look for single digit that could start NIT sequence
+            if line_stripped.isdigit() and len(line_stripped) == 1:
+                # Check if we have 9 consecutive single-digit lines (NIT) + 1 (DV)
+                digit_sequence = []
+                for j in range(i, min(i + 12, len(lines))):
+                    next_line = lines[j].strip()
+                    if next_line.isdigit() and len(next_line) == 1:
+                        digit_sequence.append(next_line)
+                    elif next_line == '':
+                        continue  # Skip empty lines
+                    else:
+                        break
 
-        # Search for DV (field 6)
-        dv_pattern = r'6\.\s*DV[^0-9]*?(\d)'
-        dv_match = re.search(dv_pattern, page_text, re.IGNORECASE)
+                # Valid NIT: 9 digits + 1 DV = 10 total
+                if len(digit_sequence) >= 10:
+                    potential_nit = ''.join(digit_sequence[:9])
+                    potential_dv = digit_sequence[9]
+                    # Validate: NIT should start with 8 or 9 for most Colombian companies
+                    if potential_nit[0] in ['8', '9'] and len(potential_nit) == 9:
+                        nit_digits = potential_nit
+                        dv_digit = potential_dv
+                        logger.debug(f"Extracted NIT (newline format): {nit_digits}-{dv_digit}")
+                        break
 
-        if dv_match:
-            dv_digit = dv_match.group(1).strip()
-            logger.debug(f"Extracted DV: {dv_digit}")
+        # Strategy 2: Search for NIT pattern: space-separated digits near field 5
+        if not nit_digits:
+            pattern = r'5\.\s*Número de Identificación Tributaria[^0-9]*?((?:\d\s+){8,}\d)'
+            match = re.search(pattern, page_text, re.IGNORECASE | re.MULTILINE)
 
-        # Alternative: Extract from formatted display
+            if match:
+                nit_raw = match.group(1).strip()
+                # Remove all spaces to get digits
+                nit_digits = re.sub(r'\s+', '', nit_raw)
+                logger.debug(f"Extracted NIT digits (strategy 2): {nit_digits}")
+
+        # Search for DV (field 6) if not found yet
+        if not dv_digit:
+            dv_pattern = r'6\.\s*DV[^0-9]*?(\d)'
+            dv_match = re.search(dv_pattern, page_text, re.IGNORECASE)
+
+            if dv_match:
+                dv_digit = dv_match.group(1).strip()
+                logger.debug(f"Extracted DV: {dv_digit}")
+
+        # Strategy 3: Extract from formatted display (space-separated)
         if not nit_digits or not dv_digit:
             # Look for pattern like "9 0 0 9 8 9 9 2 5 7" in the text
             alt_pattern = r'((?:\d\s+){8,}\d)\s+(\d)'
@@ -449,6 +480,10 @@ class RUTParserService:
         - 107: Otros nombres
 
         Only extract from first "REPRS LEGAL PRIN" section
+
+        Note: In some RUT formats (like GAMALOG), names appear in columnar format
+        where multiple representatives' names are interleaved (e.g., GALVIS, NAVARRO, ROZO
+        are first names of 3 different reps). We need to extract only the first rep's name parts.
         """
         logger.debug("Extracting legal representative name (fields 104-107)")
 
@@ -459,37 +494,82 @@ class RUTParserService:
         if not reprs_match:
             raise ValueError("Could not find REPRS LEGAL PRIN section")
 
-        # Extract text after REPRS LEGAL PRIN (next 1000 chars should be enough)
-        text_after_reprs = page_text[reprs_match.end():reprs_match.end() + 1000]
+        # Extract text after REPRS LEGAL PRIN (next 2000 chars to include name section)
+        text_after_reprs = page_text[reprs_match.end():reprs_match.end() + 2000]
         lines = text_after_reprs.split('\n')
 
         name_parts = []
 
-        # Strategy 1: Look for all 4 capitalized words in sequence
+        # Strategy 1 (GAMALOG format): Find capitalized names appearing in columnar format
+        # In this format, names appear on separate lines and we need every Nth name
+        # The pattern is: first names of all reps, then second names of all reps, etc.
+        # Count how many reps there are by looking for REPRS sections
+        num_reps = 1  # At least 1 (REPRS LEGAL PRIN)
+        if 'REPRS LEGAL SUPL' in text_after_reprs:
+            num_reps += 1
+        if 'APOD. ESPECIAL' in text_after_reprs:
+            num_reps += 1
+        if 'APOD. GENERAL' in text_after_reprs:
+            num_reps += 1
+
+        # Look for sequence of capitalized names (single words on their own lines)
+        # These appear after the ID numbers section
+        cap_name_lines = []
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            # Name must be all caps, letters only, 2-15 chars, and on its own line
+            if (re.match(r'^[A-ZÁÉÍÓÚÑ]{2,15}$', line_stripped) and
+                    line_stripped not in ['COLOMBIA', 'SI', 'NO', 'DV', 'NIT']):
+                cap_name_lines.append((i, line_stripped))
+
+        # If we found capitalized names in columnar format
+        if len(cap_name_lines) >= num_reps * 2:  # At least 2 name parts per rep
+            # Extract first rep's name parts (every num_reps-th name)
+            # Names appear as: [rep1_apellido1, rep2_apellido1, rep3_apellido1, rep1_apellido2, ...]
+            first_rep_names = []
+            # Take the first name from each group of num_reps names
+            for j in range(0, min(len(cap_name_lines), num_reps * 4), num_reps):
+                if j < len(cap_name_lines):
+                    first_rep_names.append(cap_name_lines[j][1])
+
+            # Should have up to 4 parts (primer apellido, segundo apellido, primer nombre, otros nombres)
+            if len(first_rep_names) >= 2:
+                name_parts = first_rep_names[:4]
+                full_name = ' '.join(name_parts)
+                logger.info(f"Extracted legal representative name (columnar format, {num_reps} reps): {full_name}")
+                return full_name
+
+        # Strategy 2: Look for all 4 capitalized words in sequence on same line
         # Pattern: OLEA SALGADO LILIANA ISABEL
         cap_pattern = r'([A-ZÁÉÍÓÚÑ]+)\s+([A-ZÁÉÍÓÚÑ]+)\s+([A-ZÁÉÍÓÚÑ]+)\s+([A-ZÁÉÍÓÚÑ]+)'
         cap_match = re.search(cap_pattern, text_after_reprs)
 
         if cap_match:
             name_parts = [p.strip() for p in cap_match.groups() if p]
-            logger.info(f"Extracted legal representative name (4 parts): {' '.join(name_parts)}")
-            return ' '.join(name_parts)
+            # Make sure it's not from rep type labels
+            combined = ' '.join(name_parts)
+            if 'LEGAL' not in combined and 'ESPECIAL' not in combined:
+                logger.info(f"Extracted legal representative name (4 parts): {combined}")
+                return combined
 
-        # Strategy 2: Look for at least 3 capitalized words
+        # Strategy 3: Look for at least 3 capitalized words
         cap_pattern_3 = r'([A-ZÁÉÍÓÚÑ]+)\s+([A-ZÁÉÍÓÚÑ]+)\s+([A-ZÁÉÍÓÚÑ]+)'
         cap_match_3 = re.search(cap_pattern_3, text_after_reprs)
 
         if cap_match_3:
             name_parts = [p.strip() for p in cap_match_3.groups() if p]
-            logger.info(f"Extracted legal representative name (3 parts): {' '.join(name_parts)}")
-            return ' '.join(name_parts)
+            combined = ' '.join(name_parts)
+            if 'LEGAL' not in combined and 'ESPECIAL' not in combined:
+                logger.info(f"Extracted legal representative name (3 parts): {combined}")
+                return combined
 
-        # Strategy 3: Search for fields 104-107 labels and extract text after them
+        # Strategy 4: Search for fields 104-107 labels and extract text after them
         field_104_pattern = r'104\.\s*Primer apellido[^\n]*\n\s*([A-ZÁÉÍÓÚÑ]+)'
         field_105_pattern = r'105\.\s*Segundo apellido[^\n]*\n\s*([A-ZÁÉÍÓÚÑ]+)'
         field_106_pattern = r'106\.\s*Primer nombre[^\n]*\n\s*([A-ZÁÉÍÓÚÑ]+)'
         field_107_pattern = r'107\.\s*Otros nombres[^\n]*\n\s*([A-ZÁÉÍÓÚÑ]+)'
 
+        name_parts = []
         for pattern in [field_104_pattern, field_105_pattern, field_106_pattern, field_107_pattern]:
             match = re.search(pattern, text_after_reprs, re.IGNORECASE)
             if match:
@@ -500,7 +580,7 @@ class RUTParserService:
             logger.info(f"Extracted legal representative name (field labels): {full_name}")
             return full_name
 
-        # Strategy 4: Look for name on single line after field labels
+        # Strategy 5: Look for name on single line after field labels
         for i, line in enumerate(lines[:20]):
             # Check if line contains all uppercase letters and spaces only (name format)
             if re.match(r'^[A-ZÁÉÍÓÚÑ\s]+$', line.strip(), re.IGNORECASE) and len(line.strip()) > 10:
@@ -526,16 +606,25 @@ class RUTParserService:
 
         Located in first REPRS LEGAL PRIN section
 
-        Structure in RUT:
-        100. Tipo de documento
-        101. Número de identificación
-        102. DV 103. Número de tarjeta profesional
-        Cédula de Ciudadaní 1 3
-        3  3  1  0  1  5  5  1
-        1
+        Structure in RUT can vary:
+        Format 1 (space-separated):
+            Cédula de Ciudadaní 1 3
+            3  3  1  0  1  5  5  1
 
-        The ID number is on the line(s) after "Cédula de Ciudadaní"
-        Format: space-separated digits like "3  3  1  0  1  5  5  1" -> "33101551"
+        Format 2 (newline-separated, GAMALOG):
+            Cédula de Ciudadaní
+            1 3
+            ...
+            7
+            3
+            0
+            9
+            4
+            0
+            9
+            7
+
+        The ID number needs to be extracted as the first column of digits when multiple reps exist.
         """
         logger.debug("Extracting legal representative ID (field 101)")
 
@@ -546,69 +635,108 @@ class RUTParserService:
         if not reprs_match:
             raise ValueError("Could not find REPRS LEGAL PRIN section")
 
-        # Extract text after REPRS LEGAL PRIN (next 1000 chars should be enough)
-        text_after_reprs = page_text[reprs_match.end():reprs_match.end() + 1000]
+        # Extract text after REPRS LEGAL PRIN (next 1500 chars to include ID section)
+        text_after_reprs = page_text[reprs_match.end():reprs_match.end() + 1500]
+        lines = text_after_reprs.split('\n')
 
-        # Strategy 1: Look for ID type text (Cédula de Ciudadaní, etc.), then find space-separated digits on next line
-        # The pattern should match ID type, skip any digits on same line (field 102), then capture next line digits
-        # Typical format: 7-10 digits (most Colombian cédulas are 8-10 digits)
-        # Use [ \t] instead of \s to avoid matching across newlines
+        # Count number of representatives (for columnar format)
+        num_reps = 1
+        if 'REPRS LEGAL SUPL' in text_after_reprs:
+            num_reps += 1
+        if 'APOD. ESPECIAL' in text_after_reprs:
+            num_reps += 1
+        if 'APOD. GENERAL' in text_after_reprs:
+            num_reps += 1
+
+        # Strategy 1 (GAMALOG format): Look for newline-separated single digits after "Cédula"
+        # The ID digits appear as single digits on separate lines
+        # IDs for multiple reps appear sequentially (not interleaved), separated by empty lines
+        id_type_match = re.search(r'C[eé]dula\s+de\s+Ciudadan[íi]?', text_after_reprs, re.IGNORECASE)
+        if id_type_match:
+            # Find the start of single-digit lines after the ID type
+            text_after_id_type = text_after_reprs[id_type_match.end():]
+            id_lines = text_after_id_type.split('\n')
+
+            # Collect sequences of single digit lines (each sequence is one ID)
+            # IDs appear as: [ID1 digits] [empty lines] [ID2 digits] [empty lines] [ID3 digits]
+            current_sequence = []
+            all_sequences = []
+
+            for i, line in enumerate(id_lines):
+                line_stripped = line.strip()
+                # Skip lines that are field codes like "1 3" or dates like "2 0 1 6 1 0 2 0"
+                if re.match(r'^\d\s+\d(\s+\d)*$', line_stripped) and len(line_stripped) > 2:
+                    continue
+                # Single digit line
+                if line_stripped.isdigit() and len(line_stripped) == 1:
+                    current_sequence.append(line_stripped)
+                elif line_stripped == '' and current_sequence:
+                    # Empty line after digits - sequence might be ending
+                    # Check if we have a complete ID (7-10 digits)
+                    if len(current_sequence) >= 7:
+                        all_sequences.append(current_sequence)
+                        current_sequence = []
+                elif line_stripped != '' and current_sequence:
+                    # Non-digit, non-empty line - sequence ended
+                    if len(current_sequence) >= 7:
+                        all_sequences.append(current_sequence)
+                    current_sequence = []
+
+            # Don't forget the last sequence if not saved
+            if current_sequence and len(current_sequence) >= 7:
+                all_sequences.append(current_sequence)
+
+            # First sequence is the first legal rep's ID
+            if all_sequences:
+                first_rep_digits = all_sequences[0]
+                cedula = ''.join(first_rep_digits[:10])  # Max 10 digits
+                if 7 <= len(cedula) <= 10:
+                    logger.info(f"Extracted legal representative ID (newline sequential format): {cedula}")
+                    return cedula
+
+        # Strategy 2: Look for ID type text, then find space-separated digits on next line
         id_type_pattern = r'C[eé]dula\s+de\s+Ciudadan[íi]a?[^\n]*\n[ \t]*(\d(?:[ \t]+\d){6,9})(?=[ \t]*\n)'
         id_type_match = re.search(id_type_pattern, text_after_reprs, re.IGNORECASE)
 
         if id_type_match:
-            # Remove spaces from digit sequence
             cedula = re.sub(r'[ \t]+', '', id_type_match.group(1))
-            # Valid cedula length: 7-10 digits (exclude 11+ which might include DV field)
             if 7 <= len(cedula) <= 10:
                 logger.info(f"Extracted legal representative ID (after ID type): {cedula}")
                 return cedula
 
-        # Strategy 2: Look for field 101 label, skip to after 102/103, find first line with only space-separated digits
-        # Pattern: Find "101. Número", skip 2-3 lines, find line with space-separated digits only
+        # Strategy 3: Look for field 101 label, skip to after 102/103, find space-separated digits
         field_101_pattern = r'101\.\s*Número de identificación[^\n]*\n[^\n]*\n[^\n]*\n\s*(\d(?:\s+\d){6,10})'
         field_101_match = re.search(field_101_pattern, text_after_reprs, re.IGNORECASE)
 
         if field_101_match:
-            # Remove spaces from digit sequence
             cedula = re.sub(r'\s+', '', field_101_match.group(1))
             if 7 <= len(cedula) <= 11:
                 logger.info(f"Extracted legal representative ID (field 101 pattern): {cedula}")
                 return cedula
 
-        # Strategy 3: Find all space-separated digit sequences, filter by position and length
-        # Exclude sequences that appear before ID type text (those are from date field 99)
-        id_type_search = re.search(r'C[eé]dula\s+de\s+Ciudadan[íi]a?', text_after_reprs, re.IGNORECASE)
-        if id_type_search:
-            # Only search AFTER the ID type text
-            text_after_id_type = text_after_reprs[id_type_search.end():]
+        # Strategy 4: Find space-separated digit sequences after ID type
+        if id_type_match:
+            text_after_id_type = text_after_reprs[id_type_match.end():]
 
             space_digits_pattern = r'^\s*(\d(?:\s+\d){6,10})\s*$'
-            for line in text_after_id_type.split('\n')[:5]:  # Check first 5 lines after ID type
+            for line in text_after_id_type.split('\n')[:5]:
                 line_match = re.match(space_digits_pattern, line)
                 if line_match:
                     cedula = re.sub(r'\s+', '', line_match.group(1))
-                    # Valid cedula length: 7-11 digits (typically 8-10)
                     if 7 <= len(cedula) <= 11:
                         logger.info(f"Extracted legal representative ID (line after ID type): {cedula}")
                         return cedula
 
-        # Strategy 4: Look for 7-10 digit sequences in lines, excluding field 99 (date)
-        # Field 99 format is typically 18 20250515 or similar (date format)
-        # Look for lines with only space-separated single digits (not date format)
-        lines = text_after_reprs.split('\n')
+        # Strategy 5: Look for 7-10 space-separated digit sequences in lines
         for i, line in enumerate(lines):
-            # Skip lines that look like dates (2 digits, then 8 digits)
             if re.match(r'^\s*\d\s+\d\s*\n', line):
                 continue
-            # Look for lines with 7-10 space-separated digits
             line_pattern = r'^\s*(\d(?:\s+\d){6,9})\s*$'
             line_match = re.match(line_pattern, line)
             if line_match:
                 cedula = re.sub(r'\s+', '', line_match.group(1))
                 if 7 <= len(cedula) <= 10:
-                    # Additional check: should appear after field 100/101
-                    if i > 2:  # Skip first few lines (date field 99)
+                    if i > 2:
                         logger.info(f"Extracted legal representative ID (line scan): {cedula}")
                         return cedula
 
