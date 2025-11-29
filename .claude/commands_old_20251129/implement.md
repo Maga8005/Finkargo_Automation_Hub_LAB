@@ -10,3 +10,5 @@ $ARGUMENTS
 ## Report
 - Summarize the work you've just done in a concise bullet point list.
 - Report the files and total lines changed with `git diff --stat`
+- Write report in the `implementations/*.md` file. Name it appropriately based on the `Report`. Use the naming convention [year][month][day]_[module]_[name]
+

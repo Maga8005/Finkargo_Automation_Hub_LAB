@@ -6,4 +6,3 @@ git ls-files
 
 ## Read
 README.md
-adws/README.md

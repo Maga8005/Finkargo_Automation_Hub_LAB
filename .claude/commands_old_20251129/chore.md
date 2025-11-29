@@ -1,19 +1,13 @@
 # Chore Planning
 
-Create a new plan to resolve the `Chore` using the exact specified markdown `Plan Format`. Follow the `Instructions` to create the plan use the `Relevant Files` to focus on the right files. Follow the `Report` section to properly report the results of your work.
-
-## Variables
-issue_number: $1
-adw_id: $2
-issue_json: $3
+Create a new plan in specs/*.md to resolve the `Chore` using the exact specified markdown `Plan Format`. Follow the `Instructions` to create the plan use the `Relevant Files` to focus on the right files. Follow the `Report` section to properly report the results of your work.
 
 ## Instructions
 
 - IMPORTANT: You're writing a plan to resolve a chore based on the `Chore` that will add value to the application.
 - IMPORTANT: The `Chore` describes the chore that will be resolved but remember we're not resolving the chore, we're creating the plan that will be used to resolve the chore based on the `Plan Format` below.
 - You're writing a plan to resolve a chore, it should be simple but we need to be thorough and precise so we don't miss anything or waste time with any second round of changes.
-- Create the plan in the `specs/` directory with filename: `issue-{issue_number}-adw-{adw_id}-sdlc_planner-{descriptive-name}.md`
-  - Replace `{descriptive-name}` with a short, descriptive name based on the chore (e.g., "update-readme", "fix-tests", "refactor-auth")
+- Create the plan in the `specs/*.md` file. Name it appropriately based on the `Chore`.
 - Use the plan format below to create the plan. 
 - Research the codebase and put together a plan to accomplish the chore.
 - IMPORTANT: Replace every <placeholder> in the `Plan Format` with the requested value. Add as much detail as needed to accomplish the chore.
@@ -62,8 +56,8 @@ Execute every command to validate the chore is complete with zero regressions.
 ```
 
 ## Chore
-Extract the chore details from the `issue_json` variable (parse the JSON and use the title and body fields).
+$ARGUMENTS
 
 ## Report
 - Summarize the work you've just done in a concise bullet point list.
-- Include the full path to the plan file you created (e.g., `specs/issue-7-adw-abc123-sdlc_planner-update-readme.md`)
+- Include a path to the plan you created in the `specs/*.md` file.

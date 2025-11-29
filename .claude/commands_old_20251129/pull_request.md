@@ -14,7 +14,7 @@ adw_id: $4
 - Generate a pull request title in the format: `<issue_type>: #<issue_number> - <issue_title>`
 - The PR body should include:
   - A summary section with the issue context
-  - Link to the implementation `plan_file` if it exists
+  - Link to the implementation plan file
   - Reference to the issue (Closes #<issue_number>)
   - ADW tracking ID
   - A checklist of what was done
@@ -24,8 +24,6 @@ adw_id: $4
   - `feat: #123 - Add user authentication`
   - `bug: #456 - Fix login validation error`
   - `chore: #789 - Update dependencies`
-  - `test: #1011 - Test xyz`
-- Don't mention Claude Code in the PR body - let the author get credit for this.
 
 ## Run
 

@@ -4,13 +4,14 @@
 # ///
 
 """
-ADW Plan & Build - AI Developer Workflow for agentic planning and building
+ADW Plan, Build & Test - AI Developer Workflow for agentic planning, building and testing
 
-Usage: uv run adw_plan_build.py <issue-number> [adw-id]
+Usage: uv run adw_plan_build_test.py <issue-number> [adw-id]
 
-This script runs:
+This script runs the complete ADW pipeline:
 1. adw_plan.py - Planning phase
 2. adw_build.py - Implementation phase
+3. adw_test.py - Testing phase
 
 The scripts are chained together via persistent state (adw_state.json).
 """
@@ -27,7 +28,7 @@ from adw_modules.workflow_ops import ensure_adw_id
 def main():
     """Main entry point."""
     if len(sys.argv) < 2:
-        print("Usage: uv run adw_plan_build.py <issue-number> [adw-id]")
+        print("Usage: uv run adw_plan_build_test.py <issue-number> [adw-id]")
         sys.exit(1)
 
     issue_number = sys.argv[1]
@@ -64,6 +65,19 @@ def main():
     print(f"Running: {' '.join(build_cmd)}")
     build = subprocess.run(build_cmd)
     if build.returncode != 0:
+        sys.exit(1)
+
+    # Run test with the ADW ID
+    test_cmd = [
+        "uv",
+        "run",
+        os.path.join(script_dir, "adw_test.py"),
+        issue_number,
+        adw_id,
+    ]
+    print(f"Running: {' '.join(test_cmd)}")
+    test = subprocess.run(test_cmd)
+    if test.returncode != 0:
         sys.exit(1)
 
 

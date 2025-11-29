@@ -5,9 +5,9 @@ Based on the `Github Issue` below, follow the `Instructions` to select the appro
 ## Instructions
 
 - Based on the details in the `Github Issue`, select the appropriate command to execute.
-- IMPORTANT: Respond exclusively with '/' followed by the command to execute based on the `Command Mapping` below.
+- Respond exclusively with '/' followed by the command to execute.
 - Use the command mapping to help you decide which command to respond with.
-- Don't examine the codebase just focus on the `Github Issue` and the `Command Mapping` below to determine the appropriate command to execute.
+- Think hard about the command to execute.
 
 ## Command Mapping
 
