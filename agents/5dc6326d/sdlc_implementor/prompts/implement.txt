@@ -1,0 +1,1 @@
+/implement specs/issue-31-adw-5dc6326d-sdlc_planner-payment-template-converter.md

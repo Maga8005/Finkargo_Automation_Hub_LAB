@@ -123,8 +123,20 @@ interface TreasuryModule {
 const treasuryModules: TreasuryModule[] = [
   {
     id: 'plantillas-netsuite',
-    name: 'Plantillas para Cargar NetSuite',
+    name: 'Plantillas NetSuite',
     route: '/tesoreria/plantillas-netsuite',
+    icon: <Description fontSize="small" />,
+  },
+  {
+    id: 'plantillas-netsuite-co',
+    name: 'Aplicación Pagos CO',
+    route: '/tesoreria/plantillas-netsuite/colombia',
+    icon: <Description fontSize="small" />,
+  },
+  {
+    id: 'plantillas-netsuite-mx',
+    name: 'Aplicación Pagos MX',
+    route: '/tesoreria/plantillas-netsuite/mexico',
     icon: <Description fontSize="small" />,
   },
 ];
