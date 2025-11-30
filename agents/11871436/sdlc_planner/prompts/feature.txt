@@ -1,0 +1,5 @@
+/feature Add "Tesorería" Department in the menu: adw_plan_build_test
+
+/chore
+
+I'm looking to add a new functionality to the Finkargo Automation Hub. It is for the Treasury Department. Given this, I need to add a new menu item called Tesorería. And within it, I need to be able to have underneath it, as in with the Finance Department, I need a tree layout. And underneath for that Treasury Department, in Spanish, would be Tesorería. The first menu item, or the only menu item, would be the NetSuite templates for uploads. So in Spanish would be Plantillas para Cargar. NetSuite Plantillas para Cargar.

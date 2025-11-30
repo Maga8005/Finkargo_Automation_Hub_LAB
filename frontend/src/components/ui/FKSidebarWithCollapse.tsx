@@ -28,6 +28,7 @@ import {
   ExpandLess,
   ExpandMore,
   Description,
+  AccountBalance,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { departmentService } from '../../services/departmentService';
@@ -45,6 +46,7 @@ const iconMap: Record<string, React.ReactElement> = {
   Support: <Support />,
   Gavel: <Gavel />,
   Assessment: <Assessment />,
+  AccountBalance: <AccountBalance />,
 };
 
 // Mock departments data - Replace with API call when backend is ready
@@ -52,6 +54,7 @@ const mockDepartments: Department[] = [
   { id: 'operations', name: 'Operaciones', icon: 'Settings' },
   { id: 'sales', name: 'Ventas', icon: 'TrendingUp' },
   { id: 'finance', name: 'Finanzas', icon: 'AttachMoney' }, // This one will have fiscal reporting
+  { id: 'tesoreria', name: 'Tesorería', icon: 'AccountBalance' }, // Treasury department
   { id: 'hr', name: 'Recursos Humanos', icon: 'People' },
   { id: 'tech', name: 'Tecnología', icon: 'Code' },
   { id: 'support', name: 'Atención al Cliente', icon: 'Support' },
@@ -108,6 +111,24 @@ const operationsModules: OperationsModule[] = [
   },
 ];
 
+// Treasury sub-modules (direct navigation, no further nesting)
+interface TreasuryModule {
+  id: string;
+  name: string;
+  route: string;
+  icon: React.ReactElement;
+  badge?: string;
+}
+
+const treasuryModules: TreasuryModule[] = [
+  {
+    id: 'plantillas-netsuite',
+    name: 'Plantillas para Cargar NetSuite',
+    route: '/tesoreria/plantillas-netsuite',
+    icon: <Description fontSize="small" />,
+  },
+];
+
 const FKSidebarWithCollapse: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -117,6 +138,7 @@ const FKSidebarWithCollapse: React.FC = () => {
   // Collapse state for departments with submenus
   const [financeOpen, setFinanceOpen] = useState(false);
   const [operationsOpen, setOperationsOpen] = useState(false);
+  const [treasuryOpen, setTreasuryOpen] = useState(false);
 
   useEffect(() => {
     loadDepartments();
@@ -129,6 +151,11 @@ const FKSidebarWithCollapse: React.FC = () => {
     // Auto-expand operations if on an operations route
     if (location.pathname.includes('/operations/')) {
       setOperationsOpen(true);
+    }
+
+    // Auto-expand treasury if on a treasury route
+    if (location.pathname.includes('/tesoreria/')) {
+      setTreasuryOpen(true);
     }
   }, [location.pathname]);
 
@@ -173,6 +200,14 @@ const FKSidebarWithCollapse: React.FC = () => {
   };
 
   const handleOperationsModuleClick = (route: string) => {
+    navigate(route);
+  };
+
+  const handleTreasuryToggle = () => {
+    setTreasuryOpen(!treasuryOpen);
+  };
+
+  const handleTreasuryModuleClick = (route: string) => {
     navigate(route);
   };
 
@@ -392,6 +427,121 @@ const FKSidebarWithCollapse: React.FC = () => {
                                 <ListItem key={module.id} disablePadding sx={{ mb: 0.5 }}>
                                   <ListItemButton
                                     onClick={() => handleOperationsModuleClick(module.route)}
+                                    sx={{
+                                      pl: 7,
+                                      pr: 2,
+                                      borderRadius: 2,
+                                      ml: 1,
+                                      py: 1,
+                                      backgroundColor: isModuleActive ? 'primary.main' : 'transparent',
+                                      color: isModuleActive ? 'white' : 'text.secondary',
+                                      '&:hover': {
+                                        backgroundColor: isModuleActive ? 'primary.dark' : 'action.hover',
+                                      },
+                                    }}
+                                  >
+                                    <ListItemIcon
+                                      sx={{
+                                        color: isModuleActive ? 'white' : 'text.disabled',
+                                        minWidth: 32,
+                                      }}
+                                    >
+                                      {module.icon}
+                                    </ListItemIcon>
+                                    <ListItemText
+                                      primary={module.name}
+                                      primaryTypographyProps={{
+                                        fontWeight: isModuleActive ? 600 : 500,
+                                        fontSize: '0.8125rem',
+                                      }}
+                                    />
+                                    {module.badge && (
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          backgroundColor: 'coral.main',
+                                          color: 'white',
+                                          px: 1,
+                                          py: 0.25,
+                                          borderRadius: 1,
+                                          fontSize: '0.625rem',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {module.badge}
+                                      </Typography>
+                                    )}
+                                  </ListItemButton>
+                                </ListItem>
+                              );
+                            })}
+                          </List>
+                        </Collapse>
+                      </React.Fragment>
+                    );
+                  }
+
+                  // Special handling for Treasury department (has submenu)
+                  if (department.id === 'tesoreria') {
+                    const hasActiveSubmenu = treasuryModules.some(m => location.pathname === m.route);
+                    return (
+                      <React.Fragment key={department.id}>
+                        <ListItem disablePadding sx={{ mb: 0.5 }}>
+                          <ListItemButton
+                            onClick={handleTreasuryToggle}
+                            sx={{
+                              borderRadius: 2,
+                              py: 1.5,
+                              backgroundColor: 'transparent',
+                              color: hasActiveSubmenu ? 'primary.main' : 'text.primary',
+                              '&:hover': {
+                                backgroundColor: 'action.hover',
+                              },
+                            }}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                color: hasActiveSubmenu ? 'primary.main' : 'primary.main',
+                                minWidth: 40,
+                              }}
+                            >
+                              {iconMap[department.icon] || <Settings />}
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={department.name}
+                              primaryTypographyProps={{
+                                fontWeight: hasActiveSubmenu ? 600 : 500,
+                                fontSize: '0.95rem',
+                              }}
+                            />
+                            {treasuryOpen ? (
+                              <ExpandLess sx={{ color: 'text.secondary' }} />
+                            ) : (
+                              <ExpandMore sx={{ color: 'text.secondary' }} />
+                            )}
+                          </ListItemButton>
+                        </ListItem>
+
+                        {/* Treasury Modules Submenu */}
+                        <Collapse in={treasuryOpen} timeout="auto" unmountOnExit>
+                          <List component="div" disablePadding sx={{ position: 'relative' }}>
+                            {/* Visual separator/connector for hierarchy */}
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                left: 20,
+                                top: 0,
+                                bottom: 0,
+                                width: '2px',
+                                backgroundColor: 'divider',
+                              }}
+                            />
+                            {treasuryModules.map((module) => {
+                              const isModuleActive = location.pathname === module.route;
+                              return (
+                                <ListItem key={module.id} disablePadding sx={{ mb: 0.5 }}>
+                                  <ListItemButton
+                                    onClick={() => handleTreasuryModuleClick(module.route)}
                                     sx={{
                                       pl: 7,
                                       pr: 2,

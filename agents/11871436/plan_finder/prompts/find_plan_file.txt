@@ -1,0 +1,28 @@
+/find_plan_file I have completed creating the feature plan. Here is the summary:
+
+## Summary
+
+I've created a comprehensive feature plan for adding the "Tesorería" (Treasury) department menu to the Finkargo Automation Hub:
+
+**Work Completed:**
+- Researched the existing codebase structure, specifically:
+  - `FKSidebarWithCollapse.tsx` - the sidebar component with collapsible menus for Finance and Operations
+  - `App.tsx` - the main routing configuration
+  - `ReporteriaAutomaticaCO.tsx` - reference page component for styling patterns
+  - Existing E2E test files for the test format
+- Created the feature plan following the established patterns for collapsible department menus
+- Defined step-by-step implementation tasks
+- Specified acceptance criteria and validation commands
+- Identified new files to create:
+  - `frontend/src/pages/tesoreria/PlantillasNetSuite.tsx` - the page component
+  - `.claude/commands/e2e/test_tesoreria_menu.md` - E2E test file
+
+**Plan File Location:**
+`specs/issue-29-adw-11871436-sdlc_planner-add-tesoreria-menu.md`
+
+**Key Implementation Details:**
+- Treasury menu follows the exact pattern of Finance and Operations menus
+- Uses `AccountBalance` icon for Treasury theming
+- Sub-menu item: "Plantillas para Cargar NetSuite" at route `/tesoreria/plantillas-netsuite`
+- Collapsible behavior with auto-expand when on treasury routes
+- No backend changes required (frontend-only feature)
