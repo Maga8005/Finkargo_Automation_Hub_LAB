@@ -17,6 +17,8 @@ import LoginPage from './pages/LoginPage';
 import ReporteriaAutomaticaCO from './pages/finance/ReporteriaAutomaticaCO';
 import ReporteriaAutomaticaMX from './pages/finance/ReporteriaAutomaticaMX';
 import PlantillasNetSuite from './pages/tesoreria/PlantillasNetSuite';
+import PlantillasNetSuiteCO from './pages/tesoreria/PlantillasNetSuiteCO';
+import PlantillasNetSuiteMX from './pages/tesoreria/PlantillasNetSuiteMX';
 import { UserRole } from './types';
 
 function App() {
@@ -55,6 +57,22 @@ function App() {
 
               {/* Treasury Routes - Plantillas NetSuite */}
               <Route path="tesoreria/plantillas-netsuite" element={<PlantillasNetSuite />} />
+              <Route
+                path="tesoreria/plantillas-netsuite/colombia"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.TESORERIA, UserRole.ADMIN]}>
+                    <PlantillasNetSuiteCO />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="tesoreria/plantillas-netsuite/mexico"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.TESORERIA, UserRole.ADMIN]}>
+                    <PlantillasNetSuiteMX />
+                  </RoleProtectedRoute>
+                }
+              />
 
               {/* Operations Routes - Country-specific contracts */}
               <Route path="operations/contratos-colombia" element={<OperationsContractsColombia />} />

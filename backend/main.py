@@ -4,7 +4,7 @@ Finkargo Automation Hub - FastAPI Backend Entry Point
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.config.settings import get_settings
-from src.adapter.rest import legal_routes, operations_routes, auth_routes, finance_routes
+from src.adapter.rest import legal_routes, operations_routes, auth_routes, finance_routes, tesoreria_routes
 import json
 import logging
 
@@ -45,6 +45,7 @@ app.include_router(auth_routes.router, prefix="/api")
 app.include_router(legal_routes.router)
 app.include_router(operations_routes.router)
 app.include_router(finance_routes.router)
+app.include_router(tesoreria_routes.router)
 
 @app.get("/api/health")
 async def health_check():

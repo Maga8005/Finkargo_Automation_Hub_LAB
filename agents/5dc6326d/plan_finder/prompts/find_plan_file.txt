@@ -1,0 +1,42 @@
+/find_plan_file The plan has been successfully created. Let me provide a summary of the work completed:
+
+## Summary
+
+I created a comprehensive implementation plan for the **Tesorería - Payment Template Converter** feature:
+
+**Plan file created:** `specs/issue-31-adw-5dc6326d-sdlc_planner-payment-template-converter.md`
+
+### Key Points of the Plan:
+
+- **17 step-by-step tasks** covering backend services, API routes, frontend pages, components, and E2E testing
+- **Clean Architecture compliance**: 
+  - Backend: adapter/rest → core/servicios → embedded catalogs
+  - Frontend: pages → components → services → api
+
+### New Files to Create:
+
+**Backend (6 files):**
+- `tesoreria_routes.py` - API endpoints for validate/convert
+- `payment_template_service.py` - Core conversion logic
+- `tesoreria_dtos.py` - Pydantic DTOs
+- `catalogs/payment_catalogs.py` - Embedded CO/MX catalog data
+
+**Frontend (7 files):**
+- `PlantillasNetSuiteLanding.tsx` - Country selection landing page
+- `PlantillasNetSuiteCO.tsx` - Colombia converter page
+- `PlantillasNetSuiteMX.tsx` - México converter page
+- `FKHistorialUploader.tsx` - Drag-drop file upload component
+- `treasuryService.ts` - API service
+- `tesoreria.ts` - TypeScript types
+
+**E2E Test:**
+- `test_payment_template_converter.md`
+
+### Technical Highlights:
+
+- Country-specific transformation rules (Colombia vs México)
+- Dynamic row expansion (1 source row → multiple output rows per concept type)
+- AR account lookup with NT (Operaciones Cedidas) handling for Colombia
+- INTERESES/MORATORIOS adjustment calculations
+- RBAC protection with `tesoreria` role
+- File validation for required columns per country

@@ -1,0 +1,328 @@
+/feature Tesorería - Conversión de Historial de Pagos a Template de Aplicación de Pagos: # Feature: Tesorería - Conversión de Historial de Pagos a Template de Aplicación de Pagos
+
+## Context
+
+The Treasury (Tesorería) department needs to convert payment history files ("Historial de Pagos") exported from the core system into a specific format required for payment application in NetSuite. This transformation converts rows from the source file into multiple rows in the target format, with one row per payment concept type.
+
+## Reference Files
+
+Located in `Example Files for Reqs/`:
+- `Historial_de_pagos_2025-11-25_2025-11-29.xlsx` - Example source file with payment history data
+- `FIN_ Definicion Template para Aplicación de pagos.xlsx` - Template definition with:
+  - **Hoja 1**: Column mapping rules and transformation logic for Colombia (row 1) and Mexico (row 2)
+  - **Catalogo CO**: Colombia bank account IDs and AR account mappings by concept type
+  - **Catalogo MX**: Mexico bank account IDs and AR account mappings by concept type
+
+## Navigation & Routes
+
+### Tesorería Module Structure
+
+```
+Tesorería (Treasury)
+└── Plantillas para Cargar NetSuite
+    ├── Colombia (/treasury/plantillas-netsuite/colombia)
+    │   └── Aplicación de Pagos CO
+    │       - Upload Historial de Pagos
+    │       - Convert to NetSuite template
+    │       - Download converted file
+    │
+    └── México (/treasury/plantillas-netsuite/mexico)
+        └── Aplicación de Pagos MX
+            - Upload Historial de Pagos
+            - Convert to NetSuite template
+            - Download converted file
+```
+
+### Access Control
+- Required Role(s): `tesoreria`, `admin`, or appropriate treasury role
+- Add new role `tesoreria` if it doesn't exist in the system
+
+### New Routes to Create
+- `/treasury` - Tesorería main dashboard (if not exists)
+- `/treasury/plantillas-netsuite` - Landing page with Colombia/México options
+- `/treasury/plantillas-netsuite/colombia` - Colombia payment application converter
+- `/treasury/plantillas-netsuite/mexico` - México payment application converter
+
+### Navigation Menu
+Add "Tesorería" to the main navigation with submenu:
+- Tesorería
+  - Plantillas para Cargar NetSuite
+    - Colombia
+    - México
+
+---
+
+## Detailed Requirements
+
+### Source File Structure (Historial de Pagos)
+The source file contains 53 columns including:
+- **Client Info**: Cliente, Identificación del cliente
+- **Disbursement**: Código de desembolso, Código de recaudo, Fecha de desembolso, Valor del desembolso
+- **Payment Info**: Fecha de pago, Total pagado, Moneda, Medio de pago, Tasa de cambio FK/en línea
+- **Capital & Costs**: Capital, 4x1000, Fondo de garantías, IVA Fondo de garantías, Seguro + IVA, Servicio de originación, Servicio de giro + IVA, Costos adicionales
+- **Interest**: Intereses Corrientes, Intereses de Mora (multiple PAR columns)
+- **Adjustments**: Descuento aplicado, Condonación intereses corrientes, Condonación intereses de mora (multiple columns)
+- **Banking**: Banco remitente, Referencia bancaria, Cuenta Remitente
+- **Classification**: NT, Short Code, Categoría, Producto, Spread
+
+### Target File Structure (Template para Aplicación de Pagos)
+Each source row generates MULTIPLE target rows (one per concept type that has a value):
+
+| Column | Description | Source Mapping |
+|--------|-------------|----------------|
+| customer_external_id | NetSuite client ID | "Identificación del cliente" (Column B) |
+| invoice_core_id | Disbursement code | "Código de desembolso" (Column C) |
+| concept_type | Payment concept | Derived based on which columns have values (see rules below) |
+| payment_date | Payment date | "Fecha de pago" (Column J) |
+| payment_amount | Amount for this concept | Sum of values for the specific concept_type |
+| currency | Payment currency | "Moneda" (Column L) |
+| payment_ref | Payment reference | "Código de recaudo" (Column D) |
+| account | Bank account ID | Lookup from Catalogo based on country |
+| araccount | AR account ID | Lookup from Catalogo based on concept_type and country |
+| exchangerate | Exchange rate | "Tasa de cambio FK/en línea" (Column N) - only for SUPRA/PA payments |
+| comision_banco | Bank commission | From "Referencia bancaria" for Mexico, only on first line of payment |
+| Spread PA | PA Spread | Calculated for manual payments (see formula) |
+| Spread FK | FK Spread | Total pagado × Spread Finkargo rate |
+| Spread Supra | Supra Spread | Total pagado × Spread Finkargo rate |
+
+---
+
+## Concept Type Generation Rules
+
+### COLOMBIA Route (`/treasury/plantillas-netsuite/colombia`)
+
+For each source row, generate a NEW target row for each concept that has a non-zero value:
+
+1. **CAPITAL**: If "Capital" column (P) has value > 0
+2. **COSTOS FIJOS**: If any of these have value > 0:
+   - 4x1000 (Q)
+   - Fondo de garantías (R)
+   - IVA Fondo de garantías (S)
+   - Servicio de originación (U)
+   - Servicio de giro + IVA (X)
+   - Costos adicionales (Z)
+   - Sum all these for payment_amount
+3. **SEGUROS**: If "Seguro + IVA" (T) has value > 0
+4. **INTERESES**: If "Intereses Corrientes" (AA) has value > 0
+   - payment_amount = Intereses Corrientes (AA) - Descuento aplicado (AF) - Condonación intereses corrientes (AH)
+5. **MORATORIOS**: If any mora columns have value > 0
+   - payment_amount = (AB + AC + AD + AE) - (AI + AJ + AK + AL)
+
+**Colombia Catalog Lookups (from Catalogo CO sheet):**
+
+| concept_type | araccount ID | Notes |
+|--------------|--------------|-------|
+| CAPITAL | 302 | Standard operations |
+| CAPITAL | 304 | If NT column has value (Operaciones Cedidas) |
+| COSTOS FIJOS | 258 | Standard operations |
+| COSTOS FIJOS | 310 | If NT column has value (Operaciones Cedidas) |
+| SEGUROS | 1387 | Standard operations |
+| SEGUROS | 1474 | If NT column has value (Operaciones Cedidas) |
+| INTERESES | 258 | Standard operations |
+| INTERESES | 259 | If NT column has value (Operaciones Cedidas) |
+| MORATORIOS | 258 | Standard operations |
+| MORATORIOS | 259 | If NT column has value (Operaciones Cedidas) |
+
+---
+
+### MÉXICO Route (`/treasury/plantillas-netsuite/mexico`)
+
+For each source row, generate a NEW target row for each concept that has a non-zero value:
+
+1. **CAPITAL**: Column P
+2. **SEGUROS**: "Seguro + IVA" (T)
+3. **COMISION DESEMBOLSO**: "Comision del desembolso + IVA" (U)
+4. **COMISION DISPOSICION**: "Comision por disposicion de crédito + IVA" (V)
+5. **COMISION SWIFT**: "Comision swift" (W)
+6. **COMISION ADMINISTRACION**: "Comision administracion y manejo" (X)
+7. **COMISION APERTURA**: "Comision de apertura" (Y)
+8. **COSTOS ADICIONALES**: Column AA
+9. **INTERESES**: Column AB
+   - payment_amount = Intereses Corrientes (AB) - Descuento aplicado (AG) - Condonación intereses corrientes (AH)
+10. **MORATORIOS**: Columns AC + AD + AE + AF
+    - payment_amount = (AC + AD + AE + AF) - (AI + AJ + AK + AL)
+
+**México Catalog Lookups (from Catalogo MX sheet):**
+
+| concept_type | araccount ID |
+|--------------|--------------|
+| CAPITAL | 2114 |
+| SEGUROS | 2114 |
+| COMISION DESEMBOLSO | 2114 |
+| COMISION DISPOSICION | 2114 |
+| COMISION SWIFT | 2114 |
+| COMISION ADMINISTRACION | 2114 |
+| COMISION APERTURA | 2114 |
+| COSTOS ADICIONALES | 2114 |
+| INTERESES | 2115 |
+| MORATORIOS | 2117 |
+
+---
+
+## Account Lookup Logic
+
+1. **Bank Account (account)**: Lookup from respective Catalogo based on "Banco remitente" or "Cuenta Remitente"
+2. **AR Account (araccount)**: Lookup from respective Catalogo based on concept_type
+   - For Colombia: Check NT column to determine if it's Operaciones Cedidas (different AR accounts)
+
+---
+
+## Spread Calculations
+
+1. **Spread FK/Supra**: `Total pagado × Spread rate` (in local currency)
+2. **Spread PA** (Manual payments only): 
+   - `(Tasa de cambio FK/en línea - Tasa BanRep) × Total pagado USD`
+   - Only include on ONE line per payment group
+   - Note: Tasa BanRep would need to be fetched from NetSuite or configured
+
+---
+
+## Special Rules
+
+1. **payment_ref**: Same value repeats for all lines from the same source row (groups the payment)
+2. **comision_banco**: Only populate on first line of each payment group (Mexico only)
+3. **exchangerate**: Only populate for SUPRA or PA (Pago en línea) payments
+4. **Spread columns**: Only populate on one line per payment, in local currency
+
+---
+
+## User Interface Design
+
+### Landing Page: Plantillas para Cargar NetSuite
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Plantillas para Cargar NetSuite                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────────┐    ┌─────────────────────┐        │
+│  │      🇨🇴              │    │      🇲🇽              │        │
+│  │     COLOMBIA         │    │      MÉXICO          │        │
+│  │                      │    │                      │        │
+│  │  Aplicación de       │    │  Aplicación de       │        │
+│  │  Pagos CO            │    │  Pagos MX            │        │
+│  │                      │    │                      │        │
+│  │  [Ir a Colombia →]   │    │  [Ir a México →]     │        │
+│  └─────────────────────┘    └─────────────────────┘        │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Country-Specific Page (Colombia or México)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Aplicación de Pagos - Colombia                             │
+│  ← Volver                                                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. Subir Historial de Pagos                                │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                                                     │   │
+│  │     📄 Arrastra tu archivo aquí                     │   │
+│  │        o haz clic para seleccionar                  │   │
+│  │                                                     │   │
+│  │     Formato: .xlsx                                  │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  2. Vista Previa                                            │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  ✓ Archivo cargado: Historial_pagos_nov.xlsx        │   │
+│  │  ✓ Filas encontradas: 187                           │   │
+│  │  ✓ Columnas validadas: 53/53                        │   │
+│  │  ✓ Filas de salida estimadas: 423                   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  3. Convertir y Descargar                                   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  [Convertir a Template NetSuite]                    │   │
+│  │                                                     │   │
+│  │  💾 Descargar: Template_Aplicacion_Pagos_CO.xlsx    │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## User Flow
+
+1. User navigates to Tesorería → Plantillas para Cargar NetSuite
+2. User selects country (Colombia or México)
+3. User uploads "Historial de Pagos" Excel file
+4. System validates required columns are present for that country
+5. System displays preview with:
+   - Row count from source
+   - Estimated output rows
+   - Validation status
+6. User clicks "Convertir a Template NetSuite"
+7. System applies country-specific transformation rules
+8. User downloads the converted Excel file
+
+---
+
+## Technical Implementation
+
+### Backend Components
+
+1. **New Service**: `TreasuryService` or `PaymentTemplateService`
+   - `convert_historial_to_template(file, country: str) -> bytes`
+   - `validate_historial_file(file, country: str) -> ValidationResult`
+   - `get_catalog(country: str) -> Catalog`
+
+2. **New API Endpoints**: `/api/treasury/`
+   - `POST /plantillas/upload` - Upload and validate file
+   - `POST /plantillas/convert` - Convert and return file
+   - `GET /plantillas/catalogs/{country}` - Get catalog data
+
+3. **New Models/DTOs**:
+   - `HistorialPagosRow`
+   - `TemplateOutputRow`
+   - `ConversionResult`
+   - `CatalogEntry`
+
+### Frontend Components
+
+1. **New Pages**:
+   - `FKPlantillasNetSuiteLanding.tsx` - Country selection
+   - `FKPlantillasNetSuiteCO.tsx` - Colombia converter
+   - `FKPlantillasNetSuiteMX.tsx` - México converter
+
+2. **New Components**:
+   - `FKHistorialUploader.tsx` - File upload with drag & drop
+   - `FKConversionPreview.tsx` - Preview validation results
+   - `FKConversionResult.tsx` - Download converted file
+
+3. **New Service**:
+   - `treasuryService.ts` - API calls for treasury operations
+
+---
+
+## Technical Notes
+
+- Backend should use pandas/openpyxl for Excel processing
+- Catalogs should be stored in database or config for easy updates
+- Support both Colombia and Mexico transformations with shared logic where possible
+- Handle edge cases: zero values, missing columns, negative adjustments
+- Log transformation errors per row for debugging
+- Consider adding a "transformation log" download for audit purposes
+
+---
+
+## Acceptance Criteria
+
+1. Navigation to Tesorería → Plantillas para Cargar NetSuite works
+2. Landing page shows Colombia and México options
+3. Each country route loads correctly
+4. Upload accepts .xlsx files only
+5. Validates source file has required columns for selected country
+6. Generates correct number of output rows (one per non-zero concept)
+7. Correctly calculates payment_amount with adjustments for INTERESES and MORATORIOS
+8. Correctly looks up account and araccount from country-specific catalogs
+9. Colombia correctly differentiates between standard and Operaciones Cedidas (NT column)
+10. México correctly handles all commission types
+11. Correctly calculates spread values
+12. Output file downloads in correct template format
+13. Handles files with 100+ rows efficiently
+14. Displays meaningful error messages for invalid data
+15. Role protection works correctly for Tesorería routes
