@@ -73,11 +73,12 @@ async def get_departments():
             {"id": "operations", "name": "Operaciones", "icon": "Settings"},
             {"id": "sales", "name": "Ventas", "icon": "TrendingUp"},
             {"id": "finance", "name": "Finanzas", "icon": "AttachMoney"},
+            {"id": "tesoreria", "name": "Tesorería", "icon": "AccountBalance"},
             {"id": "hr", "name": "Recursos Humanos", "icon": "People"},
             {"id": "technology", "name": "Tecnología", "icon": "Code"},
             {"id": "customer-service", "name": "Atención al Cliente", "icon": "Support"},
             {"id": "legal", "name": "Legal", "icon": "Gavel"},
-            {"id": "collections", "name": "Collections", "icon": "AccountBalance"},
+            {"id": "collections", "name": "Collections", "icon": "Settings"},
         ]
     }
 
