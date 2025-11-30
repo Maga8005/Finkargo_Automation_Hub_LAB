@@ -16,6 +16,7 @@ import ClientDashboard from './pages/ClientDashboard';
 import LoginPage from './pages/LoginPage';
 import ReporteriaAutomaticaCO from './pages/finance/ReporteriaAutomaticaCO';
 import ReporteriaAutomaticaMX from './pages/finance/ReporteriaAutomaticaMX';
+import PlantillasNetSuite from './pages/tesoreria/PlantillasNetSuite';
 import { UserRole } from './types';
 
 function App() {
@@ -51,6 +52,9 @@ function App() {
               {/* Finance Routes - Reportería Automática */}
               <Route path="finance/reporteria-automatica-co" element={<ReporteriaAutomaticaCO />} />
               <Route path="finance/reporteria-automatica-mx" element={<ReporteriaAutomaticaMX />} />
+
+              {/* Treasury Routes - Plantillas NetSuite */}
+              <Route path="tesoreria/plantillas-netsuite" element={<PlantillasNetSuite />} />
 
               {/* Operations Routes - Country-specific contracts */}
               <Route path="operations/contratos-colombia" element={<OperationsContractsColombia />} />
