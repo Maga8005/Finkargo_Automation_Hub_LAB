@@ -8,15 +8,13 @@ automation feature including Excel upload, search, and ZIP generation.
 import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from typing import Optional
 import io
 
 from src.interface.finance_dtos import (
     ExcelValidationResponse,
     InvoiceSearchRequest,
     InvoiceSearchResponse,
-    ZipGenerationRequest,
-    ZipGenerationResponse
+    ZipGenerationRequest
 )
 from src.core.servicios.excel_validation_service import ExcelValidationService
 from src.core.servicios.invoice_search_service import (

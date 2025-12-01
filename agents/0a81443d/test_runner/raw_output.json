@@ -1,0 +1,637 @@
+[
+  {
+    "type": "system",
+    "subtype": "init",
+    "cwd": "/Users/danielrestrepo/Finkargo_Automation_Hub",
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "tools": [
+      "Task",
+      "Bash",
+      "Glob",
+      "Grep",
+      "ExitPlanMode",
+      "Read",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "WebFetch",
+      "TodoWrite",
+      "WebSearch",
+      "BashOutput",
+      "KillShell",
+      "Skill",
+      "SlashCommand",
+      "EnterPlanMode"
+    ],
+    "mcp_servers": [],
+    "model": "claude-sonnet-4-5-20250929",
+    "permissionMode": "bypassPermissions",
+    "slash_commands": [
+      "classify_issue",
+      "tools",
+      "test",
+      "feature",
+      "start",
+      "commit",
+      "prime",
+      "chore",
+      "pull_request",
+      "bug",
+      "resolve_failed_test",
+      "classify_adw",
+      "resolve_failed_e2e_test",
+      "install",
+      "test_e2e",
+      "find_plan_file",
+      "generate_branch_name",
+      "validate",
+      "implement",
+      "e2e:test_login",
+      "e2e:test_contract_review",
+      "e2e:test_contract_request",
+      "e2e:test_tesoreria_menu",
+      "e2e:test_excel_upload",
+      "e2e:test_payment_template_converter",
+      "compact",
+      "context",
+      "cost",
+      "init",
+      "pr-comments",
+      "release-notes",
+      "todos",
+      "review",
+      "security-review"
+    ],
+    "apiKeySource": "ANTHROPIC_API_KEY",
+    "claude_code_version": "2.0.55",
+    "output_style": "default",
+    "agents": [
+      "general-purpose",
+      "statusline-setup",
+      "Explore",
+      "Plan"
+    ],
+    "skills": [],
+    "plugins": [],
+    "uuid": "5f77111a-2da6-4195-be1f-5ce62723cd76"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01744LNH2XMasMhg4SHfnC3g",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "I'll execute the comprehensive validation test suite for the Finkargo Automation Hub, running each test in sequence and returning the results in JSON format."
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 8206,
+        "cache_read_input_tokens": 17114,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 8206,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "4d12e9d1-7f7c-4cbd-9039-22d01683eac6"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01744LNH2XMasMhg4SHfnC3g",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01SjEp7FVEnjSUBgbjaEBX69",
+          "name": "Bash",
+          "input": {
+            "command": "pwd",
+            "description": "Verify current working directory"
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 8206,
+        "cache_read_input_tokens": 17114,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 8206,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "b20f34fb-c258-45b6-86f1-ae7796f8cd80"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01SjEp7FVEnjSUBgbjaEBX69",
+          "type": "tool_result",
+          "content": "/Users/danielrestrepo/Finkargo_Automation_Hub",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "146f7b9b-352f-4dd5-841f-accb3949b391",
+    "tool_use_result": {
+      "stdout": "/Users/danielrestrepo/Finkargo_Automation_Hub",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01Ra9xJumf25i7U1yVecYwPY",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_013WSsFb1RmXYHNYAhBeUCjH",
+          "name": "Bash",
+          "input": {
+            "command": "cd backend && python -m py_compile src/main.py",
+            "description": "Test 1: Python Syntax Check",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 5,
+        "cache_creation_input_tokens": 130,
+        "cache_read_input_tokens": 25320,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 130,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 107,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "9f936f61-6a0c-46b9-989f-4ab89f26ef23"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "content": "Exit code 1\n[Errno 2] No such file or directory: 'src/main.py'",
+          "is_error": true,
+          "tool_use_id": "toolu_013WSsFb1RmXYHNYAhBeUCjH"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "819999c4-4c68-49d8-b73a-558004457dd2",
+    "tool_use_result": "Error: Exit code 1\n[Errno 2] No such file or directory: 'src/main.py'"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01KC9mbhtKKwGzWmMDcujJ7P",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Let me check the correct path for the main.py file:"
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 151,
+        "cache_read_input_tokens": 25450,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 151,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "815292a9-f093-4f96-a18a-059957069459"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01KC9mbhtKKwGzWmMDcujJ7P",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_013k8y4sLcQ2Ua5H9n6Myo4w",
+          "name": "Bash",
+          "input": {
+            "command": "cd backend && ls -la *.py",
+            "description": "Find main.py location"
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 151,
+        "cache_read_input_tokens": 25450,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 151,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "5e55ffc4-92e5-43fc-b4fa-aaea909f72fb"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_013k8y4sLcQ2Ua5H9n6Myo4w",
+          "type": "tool_result",
+          "content": "-rw-r--r--  1 danielrestrepo  staff  1853 Nov 22 10:45 analyze_template.py\n-rw-r--r--@ 1 danielrestrepo  staff  3091 Dec  1 15:51 main.py\n-rw-r--r--  1 danielrestrepo  staff  2645 Nov 22 10:45 test_document_generation.py",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "bb8b9b52-c468-43dd-bc21-b4e8b5b8d6b2",
+    "tool_use_result": {
+      "stdout": "-rw-r--r--  1 danielrestrepo  staff  1853 Nov 22 10:45 analyze_template.py\n-rw-r--r--@ 1 danielrestrepo  staff  3091 Dec  1 15:51 main.py\n-rw-r--r--  1 danielrestrepo  staff  2645 Nov 22 10:45 test_document_generation.py",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01KrJUCbX4aJMtDB7eLShdrr",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_019D4mcqc2BPsdEmuewkgMcu",
+          "name": "Bash",
+          "input": {
+            "command": "cd backend && python -m py_compile main.py",
+            "description": "Test 1: Python Syntax Check (corrected path)",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 5,
+        "cache_creation_input_tokens": 213,
+        "cache_read_input_tokens": 25601,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 213,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 109,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "4bb2da7c-3c4c-4249-9fe4-3d360b96b7bd"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_019D4mcqc2BPsdEmuewkgMcu",
+          "type": "tool_result",
+          "content": "",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "2874119d-686e-4948-870f-fa5f75ea6e4a",
+    "tool_use_result": {
+      "stdout": "",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01UuLTb5n33B5cyiyCpuiAsV",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01AtgxYM7hEAzsgABE2F9hA2",
+          "name": "Bash",
+          "input": {
+            "command": "cd backend && ./venv/bin/ruff check src/",
+            "description": "Test 2: Backend Code Quality Check",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 134,
+        "cache_read_input_tokens": 25814,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 134,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 24,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "da113e6a-4bc7-441d-8195-a4d63a082784"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01AtgxYM7hEAzsgABE2F9hA2",
+          "type": "tool_result",
+          "content": "All checks passed!",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "1e23020a-906a-4d77-b1a7-23bcc37e3e3a",
+    "tool_use_result": {
+      "stdout": "All checks passed!",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01LyHyRRycVAe5X6JVPr9Zvm",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01VCWzs7tVFRpaPUf4Yw9Kz3",
+          "name": "Bash",
+          "input": {
+            "command": "cd backend && python -m pytest -v --tb=short",
+            "description": "Test 3: All Backend Tests",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 4,
+        "cache_creation_input_tokens": 228,
+        "cache_read_input_tokens": 25948,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 228,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 105,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "f8458138-e9e3-4c4c-baec-0c4fabbc1d88"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01VCWzs7tVFRpaPUf4Yw9Kz3",
+          "type": "tool_result",
+          "content": "============================= test session starts ==============================\nplatform darwin -- Python 3.12.12, pytest-9.0.1, pluggy-1.6.0 -- /Users/danielrestrepo/.cache/uv/environments-v2/adw-test-239a165685d1d3f7/bin/python\ncachedir: .pytest_cache\nrootdir: /Users/danielrestrepo/Finkargo_Automation_Hub/backend\nplugins: anyio-4.12.0, asyncio-1.3.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 8 items\n\ntest_document_generation.py::test_document_generation PASSED             [ 12%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_all_fields PASSED [ 25%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_nit_extraction PASSED [ 37%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_legal_rep_id_extraction PASSED [ 50%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_legal_rep_name_extraction PASSED [ 62%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_invalid_pdf_raises_error PASSED [ 75%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_empty_pdf_raises_error PASSED [ 87%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_custodian_data_model_validation PASSED [100%]\n\n=============================== warnings summary ===============================\n<frozen importlib._bootstrap>:488\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute\n\n<frozen importlib._bootstrap>:488\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute\n\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute\n\nsrc/interface/legal_dtos.py:52\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:52: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('cupo_plataforma', pre=True)\n\nsrc/interface/legal_dtos.py:82\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:82: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ClientResponse(ClientBase):\n\nsrc/interface/legal_dtos.py:114\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:114: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('email_operador_custodio')\n\nsrc/interface/legal_dtos.py:128\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:128: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('client_nit')\n\nsrc/interface/legal_dtos.py:164\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:164: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractGenerationResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:180\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:180: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractGenerationDetail(BaseModel):\n\nsrc/interface/legal_dtos.py:217\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:217: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractReviewResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:239\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:239: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractTemplateResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:255\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:255: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class DataImportResponse(BaseModel):\n\ntest_document_generation.py::test_document_generation\n  /Users/danielrestrepo/.cache/uv/environments-v2/adw-test-239a165685d1d3f7/lib/python3.12/site-packages/_pytest/python.py:170: PytestReturnNotNoneWarning: Test functions should return None, but test_document_generation.py::test_document_generation returned <class 'bool'>.\n  Did you mean to use `assert` instead of `return`?\n  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.\n    warnings.warn(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n======================== 8 passed, 15 warnings in 0.34s ========================\nsys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "64ce3f78-381e-4710-86b6-54e037f770c0",
+    "tool_use_result": {
+      "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.12.12, pytest-9.0.1, pluggy-1.6.0 -- /Users/danielrestrepo/.cache/uv/environments-v2/adw-test-239a165685d1d3f7/bin/python\ncachedir: .pytest_cache\nrootdir: /Users/danielrestrepo/Finkargo_Automation_Hub/backend\nplugins: anyio-4.12.0, asyncio-1.3.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 8 items\n\ntest_document_generation.py::test_document_generation PASSED             [ 12%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_all_fields PASSED [ 25%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_nit_extraction PASSED [ 37%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_legal_rep_id_extraction PASSED [ 50%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_legal_rep_name_extraction PASSED [ 62%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_invalid_pdf_raises_error PASSED [ 75%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_empty_pdf_raises_error PASSED [ 87%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_custodian_data_model_validation PASSED [100%]\n\n=============================== warnings summary ===============================\n<frozen importlib._bootstrap>:488\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute\n\n<frozen importlib._bootstrap>:488\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute\n\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute\n\nsrc/interface/legal_dtos.py:52\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:52: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('cupo_plataforma', pre=True)\n\nsrc/interface/legal_dtos.py:82\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:82: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ClientResponse(ClientBase):\n\nsrc/interface/legal_dtos.py:114\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:114: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('email_operador_custodio')\n\nsrc/interface/legal_dtos.py:128\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:128: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('client_nit')\n\nsrc/interface/legal_dtos.py:164\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:164: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractGenerationResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:180\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:180: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractGenerationDetail(BaseModel):\n\nsrc/interface/legal_dtos.py:217\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:217: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractReviewResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:239\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:239: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractTemplateResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:255\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:255: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class DataImportResponse(BaseModel):\n\ntest_document_generation.py::test_document_generation\n  /Users/danielrestrepo/.cache/uv/environments-v2/adw-test-239a165685d1d3f7/lib/python3.12/site-packages/_pytest/python.py:170: PytestReturnNotNoneWarning: Test functions should return None, but test_document_generation.py::test_document_generation returned <class 'bool'>.\n  Did you mean to use `assert` instead of `return`?\n  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.\n    warnings.warn(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n======================== 8 passed, 15 warnings in 0.34s ========================\nsys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01K53Ln99EdodLiGL2BKQp3t",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01WLNKvq8nV8ET5FXZVefpUe",
+          "name": "Bash",
+          "input": {
+            "command": "cd frontend && npm run lint",
+            "description": "Test 4: Frontend Linting",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 4,
+        "cache_creation_input_tokens": 2304,
+        "cache_read_input_tokens": 26176,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 2304,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 25,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "4b703eeb-45ef-4794-895e-cd423495f05e"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "content": "Exit code 1\n\n> frontend@0.0.0 lint\n> eslint .\n\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKClientDataImport.tsx\n  79:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKContractGenerator.tsx\n  81:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKContractRequest.tsx\n  77:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKInventarioRequest.tsx\n  114:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKOtrosiRequest.tsx\n  76:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKReviewQueue.tsx\n   97:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  134:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  240:56  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/pages/declaraciones/MatchingResultsDashboardPage.tsx\n  100:6  warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps\n  154:5  error    Unnecessary try/catch wrapper                                                                                no-useless-catch\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/services/supabase.ts\n  77:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/utils/errorUtils.ts\n   12:11  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n   70:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  127:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  134:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  141:41  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  148:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n\u2716 17 problems (16 errors, 1 warning)",
+          "is_error": true,
+          "tool_use_id": "toolu_01WLNKvq8nV8ET5FXZVefpUe"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "906e674a-f683-47fb-906c-ad3c933e15f0",
+    "tool_use_result": "Error: Exit code 1\n\n> frontend@0.0.0 lint\n> eslint .\n\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKClientDataImport.tsx\n  79:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKContractGenerator.tsx\n  81:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKContractRequest.tsx\n  77:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKInventarioRequest.tsx\n  114:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKOtrosiRequest.tsx\n  76:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKReviewQueue.tsx\n   97:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  134:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  240:56  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/pages/declaraciones/MatchingResultsDashboardPage.tsx\n  100:6  warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps\n  154:5  error    Unnecessary try/catch wrapper                                                                                no-useless-catch\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/services/supabase.ts\n  77:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/utils/errorUtils.ts\n   12:11  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n   70:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  127:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  134:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  141:41  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n  148:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any\n\n\u2716 17 problems (16 errors, 1 warning)"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-sonnet-4-5-20250929",
+      "id": "msg_01Pi4BNQGGiagWs8VrfrpKDZ",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "```json\n[\n  {\n    \"test_name\": \"frontend_linting\",\n    \"passed\": false,\n    \"execution_command\": \"cd frontend && npm run lint\",\n    \"test_purpose\": \"Validates frontend code quality with ESLint, catching style issues and potential bugs\",\n    \"error\": \"ESLint found 17 problems (16 errors, 1 warning):\\n- 15 instances of @typescript-eslint/no-explicit-any (unexpected any type)\\n- 1 react-hooks/exhaustive-deps warning (missing dependency in useEffect)\\n- 1 no-useless-catch error (unnecessary try/catch wrapper)\\n\\nAffected files:\\n- FKClientDataImport.tsx (1 error)\\n- FKContractGenerator.tsx (1 error)\\n- FKContractRequest.tsx (1 error)\\n- FKInventarioRequest.tsx (1 error)\\n- FKOtrosiRequest.tsx (1 error)\\n- FKReviewQueue.tsx (3 errors)\\n- MatchingResultsDashboardPage.tsx (1 warning, 1 error)\\n- supabase.ts (1 error)\\n- errorUtils.ts (6 errors)\"\n  }\n]\n```"
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 5,
+        "cache_creation_input_tokens": 958,
+        "cache_read_input_tokens": 28480,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 958,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 305,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "uuid": "9f59a003-17b6-4661-9bb0-44b3327b4a13"
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 43780,
+    "duration_api_ms": 74231,
+    "num_turns": 8,
+    "result": "```json\n[\n  {\n    \"test_name\": \"frontend_linting\",\n    \"passed\": false,\n    \"execution_command\": \"cd frontend && npm run lint\",\n    \"test_purpose\": \"Validates frontend code quality with ESLint, catching style issues and potential bugs\",\n    \"error\": \"ESLint found 17 problems (16 errors, 1 warning):\\n- 15 instances of @typescript-eslint/no-explicit-any (unexpected any type)\\n- 1 react-hooks/exhaustive-deps warning (missing dependency in useEffect)\\n- 1 no-useless-catch error (unnecessary try/catch wrapper)\\n\\nAffected files:\\n- FKClientDataImport.tsx (1 error)\\n- FKContractGenerator.tsx (1 error)\\n- FKContractRequest.tsx (1 error)\\n- FKInventarioRequest.tsx (1 error)\\n- FKOtrosiRequest.tsx (1 error)\\n- FKReviewQueue.tsx (3 errors)\\n- MatchingResultsDashboardPage.tsx (1 warning, 1 error)\\n- supabase.ts (1 error)\\n- errorUtils.ts (6 errors)\"\n  }\n]\n```",
+    "session_id": "426dd7ec-8b27-43b8-b651-1e7a77d9012f",
+    "total_cost_usd": 0.1407906,
+    "usage": {
+      "input_tokens": 37,
+      "cache_creation_input_tokens": 12324,
+      "cache_read_input_tokens": 199903,
+      "output_tokens": 1032,
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 12324
+      }
+    },
+    "modelUsage": {
+      "claude-sonnet-4-5-20250929": {
+        "inputTokens": 40,
+        "outputTokens": 1370,
+        "cacheReadInputTokens": 207942,
+        "cacheCreationInputTokens": 12324,
+        "webSearchRequests": 0,
+        "costUSD": 0.12926759999999998,
+        "contextWindow": 200000
+      },
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 8308,
+        "outputTokens": 486,
+        "cacheReadInputTokens": 7850,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.011523000000000002,
+        "contextWindow": 200000
+      }
+    },
+    "permission_denials": [],
+    "uuid": "cff28625-8817-427a-85a5-98f6dbd47894"
+  }
+]

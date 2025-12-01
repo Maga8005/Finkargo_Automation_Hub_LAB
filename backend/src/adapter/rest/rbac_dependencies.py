@@ -3,7 +3,7 @@ Role-Based Access Control (RBAC) Dependencies
 Provides role checking for protected endpoints with admin bypass
 """
 from fastapi import HTTPException, Depends, status
-from typing import List, Optional
+from typing import List
 from .dependencies import get_current_user
 
 

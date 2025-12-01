@@ -15,7 +15,7 @@ from ...interface.auth_dtos import (
     UserResponseDTO,
     ErrorResponseDTO
 )
-from .dependencies import get_current_user, get_current_active_user
+from .dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 

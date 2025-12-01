@@ -4,7 +4,6 @@ RUT Parser Service - Extracts custodian information from Colombian RUT documents
 import fitz  # PyMuPDF
 import logging
 import re
-from typing import Dict, Any, Optional
 
 # Import CustodianData from legal_dtos to avoid duplicate class definitions
 from src.interface.legal_dtos import CustodianData

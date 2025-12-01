@@ -6,11 +6,10 @@ for invoice records loaded from Excel files.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import List, Optional
 from datetime import datetime, timedelta
 import threading
 import json
-import os
 from pathlib import Path
 
 from src.interface.finance_dtos import (

@@ -1,0 +1,7 @@
+/resolve_failed_test {
+  "test_name": "all_backend_tests",
+  "passed": false,
+  "execution_command": "cd backend && python -m pytest -v --tb=short",
+  "test_purpose": "Validates all backend functionality including contract generation, document services, API endpoints, and business logic",
+  "error": "/Users/danielrestrepo/.cache/uv/environments-v2/adw-test-239a165685d1d3f7/bin/python: No module named pytest"
+}

@@ -87,7 +87,7 @@ class ExcelValidationService:
         # Validate file size (max 10MB)
         max_size = 10 * 1024 * 1024  # 10MB
         if len(content) > max_size:
-            raise ValueError(f"El archivo excede el tamaño máximo de 10MB")
+            raise ValueError("El archivo excede el tamaño máximo de 10MB")
 
         # Determine file type and read with pandas
         try:
@@ -235,7 +235,7 @@ class ExcelValidationService:
                         # Try pandas as last resort
                         try:
                             fecha_emision = pd.to_datetime(fecha_val).date()
-                        except:
+                        except Exception:
                             row_errors.append(ExcelValidationError(
                                 row=row_num,
                                 column='Fecha emision',

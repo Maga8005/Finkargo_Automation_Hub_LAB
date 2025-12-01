@@ -46,7 +46,7 @@ TEST_COMMAND_TIMEOUT: 5 minutes
 
 2. **Backend Code Quality Check**
    - Preparation Command: None
-   - Command: `cd backend && ruff check src/`
+   - Command: `cd backend && ./venv/bin/ruff check src/`
    - test_name: "backend_linting"
    - test_purpose: "Validates Python code quality, identifies unused imports, style violations, and potential bugs"
 
