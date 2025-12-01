@@ -1,7 +1,7 @@
 """
 Contract Repository - Database operations for contract generations
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 from supabase import Client
 from datetime import datetime, date
 from src.interface.legal_dtos import ContractStatus, ContractHistoryFilter

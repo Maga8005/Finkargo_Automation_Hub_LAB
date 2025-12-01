@@ -26,6 +26,9 @@ build/
 *~
 .claude/settings.local.json
 
+# MCP configuration (local customizations)
+.mcp.json
+
 # OS
 .DS_Store
 Thumbs.db

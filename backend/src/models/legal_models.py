@@ -54,7 +54,7 @@ class ContractTemplate(Base):
 
     __table_args__ = (
         Index('idx_one_active_template', 'contract_type', unique=True,
-              postgresql_where=(active == True)),
+              postgresql_where=active),
     )
 
 

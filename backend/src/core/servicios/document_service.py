@@ -3,17 +3,14 @@ Document Generation Service for Legal Contracts
 Handles Word template population and PDF conversion
 """
 from docx import Document
-from docx.shared import Pt, RGBColor
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import os
 import tempfile
 from pathlib import Path
 import logging
 from supabase import Client
 import fitz  # PyMuPDF
-import io
-from PyPDF2 import PdfReader, PdfWriter
 
 logger = logging.getLogger(__name__)
 

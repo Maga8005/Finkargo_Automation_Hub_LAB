@@ -111,7 +111,7 @@ class ExcelMergeService:
                         # Try to parse ISO format
                         try:
                             fecha_emision = datetime.fromisoformat(fecha_str).date()
-                        except:
+                        except (ValueError, AttributeError):
                             # Try datetime object
                             fecha_emision = datetime.strptime(fecha_str, "%Y-%m-%d").date()
                     else:

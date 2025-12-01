@@ -3,7 +3,6 @@ Contract Service - Business logic for contract generation
 """
 from typing import Optional, Dict, Any
 from datetime import datetime
-from decimal import Decimal
 from src.repositorio.client_repository import ClientRepository
 from src.repositorio.contract_repository import ContractRepository
 from src.repositorio.template_repository import TemplateRepository
@@ -11,8 +10,7 @@ from src.core.servicios.document_service import DocumentService
 from src.interface.legal_dtos import (
     ContractGenerationRequest,
     ContractStatus,
-    ContractReviewAction,
-    ClientDataSnapshot
+    ContractReviewAction
 )
 
 
@@ -230,7 +228,7 @@ class ContractService:
             approved_document_url=approved_document_url
         )
 
-        logger.info(f"Contract review completed successfully")
+        logger.info("Contract review completed successfully")
         return updated_contract
 
     async def get_contract_details(self, contract_id: str) -> Optional[Dict[str, Any]]:

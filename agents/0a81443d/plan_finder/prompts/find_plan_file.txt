@@ -1,0 +1,49 @@
+/find_plan_file 37 0a81443d Perfect! I've created a comprehensive bug fix plan. Let me now provide a summary of the work completed:
+
+## Summary
+
+I've successfully created a detailed bug fix plan for Issue #37: **Tesorería - Output File Missing Columns and Incorrect Column Order**
+
+### Plan File Created
+- **Path**: `specs/issue-37-adw-0a81443d-sdlc_planner-fix-output-columns-order.md`
+
+### Key Findings
+
+**Root Cause**: 
+1. The `OUTPUT_TEMPLATE_COLUMNS` constant in `payment_catalogs.py` only defines 10 columns instead of 14
+2. The `_process_row()` method doesn't calculate or populate the 5 missing columns
+3. Column order doesn't match the template specification
+
+**Missing Columns** (5 total):
+- `account` - Bank account internal ID lookup
+- `comision_banco` - Bank commission (México only, first line per payment group)
+- `Spread PA` - PA Spread calculation (manual payments)
+- `Spread FK` - FK Spread calculation (online payments)
+- `Spread Supra` - Supra Spread calculation (Supra payments)
+
+### Plan Highlights
+
+The plan includes **11 detailed step-by-step tasks**:
+1. Update `OUTPUT_TEMPLATE_COLUMNS` with correct 14-column order
+2. Update `OutputTemplateRow` DTO to include missing fields
+3. Extract additional source column mappings for calculations
+4. Enhance `_process_row()` to populate the 5 missing columns
+5. Implement `comision_banco` extraction logic for México
+6. Implement spread calculation logic based on payment method
+7. Add payment grouping logic for first-row-only values
+8. Add helper method for parsing bank commission
+9. Update column reordering in DataFrame construction
+10. Add logging for new column generation
+11. Run comprehensive validation commands
+
+### Files Affected
+- `backend/src/core/servicios/catalogs/payment_catalogs.py` (column definitions)
+- `backend/src/core/servicios/payment_template_service.py` (business logic)
+- `backend/src/interface/tesoreria_dtos.py` (DTOs)
+
+### Notes Section
+- Identified future enhancements that are out of scope (bank catalog lookup, BanRep rate API, spread rate configuration)
+- Documented technical debt opportunities
+- Listed business rules that need clarification
+
+The plan is thorough, surgical, and focused on fixing the exact bug without scope creep. It includes comprehensive validation steps to ensure zero regressions.

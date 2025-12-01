@@ -2,7 +2,7 @@
 CSV Template Mapper Service
 Handles multiple CSV template formats with intelligent column mapping
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 import pandas as pd
 import logging
 

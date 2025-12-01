@@ -4,7 +4,6 @@ Client Repository - Database operations for clients
 from typing import List, Optional
 from supabase import Client
 from src.interface.legal_dtos import ClientCreate, ClientUpdate, ClientSearchRequest
-from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)

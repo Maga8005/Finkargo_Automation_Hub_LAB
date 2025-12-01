@@ -1,0 +1,7 @@
+/resolve_failed_test {
+  "test_name": "backend_linting",
+  "passed": false,
+  "execution_command": "cd backend && ruff check src/",
+  "test_purpose": "Validates Python code quality, identifies unused imports, style violations, and potential bugs",
+  "error": "(eval):1: command not found: ruff"
+}

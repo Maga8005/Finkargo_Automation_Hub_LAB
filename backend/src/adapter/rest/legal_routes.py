@@ -8,9 +8,6 @@ import pandas as pd
 import io
 from datetime import datetime
 import logging
-
-logger = logging.getLogger(__name__)
-
 from src.config.supabase_config import get_supabase_client
 from src.repositorio.client_repository import ClientRepository
 from src.repositorio.contract_repository import ContractRepository
@@ -24,8 +21,6 @@ from src.interface.legal_dtos import (
     ClientResponse,
     ClientSearchRequest,
     ClientUpdate,
-    ContractGenerationRequest,
-    ContractGenerationResponse,
     ContractGenerationDetail,
     ContractReviewRequest,
     ContractReviewResponse,
@@ -33,6 +28,8 @@ from src.interface.legal_dtos import (
     ContractStats,
     BulkImportResult,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/legal", tags=["Legal Contracts"])
 
