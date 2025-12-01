@@ -169,26 +169,35 @@ class OutputTemplateRow(BaseModel):
     Represents a single row in the NetSuite output template.
 
     This is the target format for payment application in NetSuite.
+    Contains 14 columns in the exact order required by NetSuite.
 
     Attributes:
-        payment_date: Date of payment (dd/mm/yyyy format)
         customer_external_id: Client NIT/RFC
-        payment_ref: Payment reference (Código de recaudo)
         invoice_core_id: Invoice ID (Código de desembolso)
         concept_type: Type of payment concept
+        payment_date: Date of payment (dd/mm/yyyy format)
         payment_amount: Amount for this concept
         currency: Currency code (COP, MXN, USD)
-        exchangerate: Exchange rate (for certain payment types)
+        payment_ref: Payment reference (Código de recaudo)
+        account: Bank account internal ID (from catalog lookup)
         araccount: AR account ID from catalog lookup
-        memo: Optional memo/notes
+        exchangerate: Exchange rate (for certain payment types)
+        comision_banco: Bank commission (México only, first line per payment)
+        spread_pa: PA Spread calculation (manual payments only)
+        spread_fk: FK Spread calculation (online payments)
+        spread_supra: Supra Spread calculation (Supra payments)
     """
-    payment_date: str = Field(..., description="Fecha de pago")
     customer_external_id: str = Field(..., description="ID externo del cliente (NIT/RFC)")
-    payment_ref: str = Field(..., description="Referencia de pago")
     invoice_core_id: str = Field(..., description="ID del desembolso")
     concept_type: str = Field(..., description="Tipo de concepto")
+    payment_date: str = Field(..., description="Fecha de pago")
     payment_amount: float = Field(..., description="Monto del pago")
     currency: str = Field(..., description="Moneda")
-    exchangerate: Optional[float] = Field(None, description="Tasa de cambio")
+    payment_ref: str = Field(..., description="Referencia de pago")
+    account: Optional[str] = Field(None, description="ID interno de cuenta bancaria")
     araccount: int = Field(..., description="ID de cuenta AR")
-    memo: Optional[str] = Field(None, description="Notas/Memo")
+    exchangerate: Optional[float] = Field(None, description="Tasa de cambio")
+    comision_banco: Optional[float] = Field(None, description="Comisión bancaria (México, primera línea por pago)")
+    spread_pa: Optional[float] = Field(None, description="Spread PA (pagos manuales)")
+    spread_fk: Optional[float] = Field(None, description="Spread FK (pagos en línea)")
+    spread_supra: Optional[float] = Field(None, description="Spread Supra (pagos Supra)")

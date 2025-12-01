@@ -84,6 +84,11 @@ COLOMBIA_REQUIRED_COLUMNS: Dict[str, str] = {
 COLOMBIA_OPTIONAL_COLUMNS: Dict[str, str] = {
     "exchangerate": "Tasa de cambio FK/en línea",
     "nt_flag": "NT",  # Operaciones Cedidas flag
+    "medio_pago": "Medio de pago",  # Payment method: Manual, Pago en línea, etc.
+    "total_pagado_usd": "Total pagado USD",  # Total paid in USD for spread calculations
+    "referencia_bancaria": "Referencia bancaria",  # Bank reference (for comision_banco)
+    "short_code": "Short Code",  # Payment provider identifier (SUPRA vs PA)
+    "cuenta_remitente": "Cuenta Remitente",  # Sender account (for account lookup)
 }
 
 # Concept columns for Colombia (maps concept type -> source column name)
@@ -123,6 +128,16 @@ MEXICO_REQUIRED_COLUMNS: Dict[str, str] = {
     "banco_remitente": "Banco remitente",
 }
 
+# Optional columns for México
+MEXICO_OPTIONAL_COLUMNS: Dict[str, str] = {
+    "exchangerate": "Tasa de cambio FK/en línea",
+    "medio_pago": "Medio de pago",  # Payment method: Manual, Pago en línea, etc.
+    "total_pagado_usd": "Total pagado USD",  # Total paid in USD for spread calculations
+    "referencia_bancaria": "Referencia bancaria",  # Bank reference (for comision_banco)
+    "short_code": "Short Code",  # Payment provider identifier (SUPRA vs PA)
+    "cuenta_remitente": "Cuenta Remitente",  # Sender account (for account lookup)
+}
+
 # Concept columns for México
 MEXICO_CONCEPT_COLUMNS: Dict[str, str] = {
     "CAPITAL": "Capital",
@@ -153,18 +168,22 @@ MEXICO_CONCEPT_COLUMNS: Dict[str, str] = {
 # OUTPUT TEMPLATE COLUMNS
 # =============================================================================
 
-# Column names for the NetSuite output template
+# Column names for the NetSuite output template (14 columns in exact order)
 OUTPUT_TEMPLATE_COLUMNS = [
-    "payment_date",
     "customer_external_id",
-    "payment_ref",
     "invoice_core_id",
     "concept_type",
+    "payment_date",
     "payment_amount",
     "currency",
-    "exchangerate",
+    "payment_ref",
+    "account",
     "araccount",
-    "memo",
+    "exchangerate",
+    "comision_banco",
+    "Spread PA",
+    "Spread FK",
+    "Spread Supra",
 ]
 
 
@@ -233,5 +252,25 @@ def get_concept_columns(country: str) -> Dict[str, str]:
         return COLOMBIA_CONCEPT_COLUMNS
     elif country_lower == "mexico":
         return MEXICO_CONCEPT_COLUMNS
+
+    return {}
+
+
+def get_optional_columns(country: str) -> Dict[str, str]:
+    """
+    Get optional column mappings for a country.
+
+    Args:
+        country: Country code ('colombia' or 'mexico')
+
+    Returns:
+        Dictionary mapping internal names to expected column names
+    """
+    country_lower = country.lower()
+
+    if country_lower == "colombia":
+        return COLOMBIA_OPTIONAL_COLUMNS
+    elif country_lower == "mexico":
+        return MEXICO_OPTIONAL_COLUMNS
 
     return {}
