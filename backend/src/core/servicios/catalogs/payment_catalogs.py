@@ -46,6 +46,30 @@ COLOMBIA_NT_AR_ACCOUNTS: Dict[str, int] = {
 
 
 # =============================================================================
+# COLOMBIA BANK ACCOUNT MAPPINGS (Cuenta Remitente -> NetSuite Internal ID)
+# =============================================================================
+
+# Maps bank account numbers (Cuenta Remitente) to NetSuite internal account IDs
+# Used to populate the 'account' field in the output template
+COLOMBIA_BANK_ACCOUNT_MAPPING: Dict[str, int] = {
+    "60100001091": 230,
+    "60100005374": 2346,
+    "42861435": 231,
+    "60100004638": 1439,
+    "2600000313": 2439,
+    "1250001972": 232,
+    "36449096": 235,
+    "3644-6725": 236,
+    "709396827": 2441,
+    "3304261649": 1493,
+    "5089889016": 239,
+    "3304296965": 1492,
+    "9562345678749720": 2418,
+    "8482979559": 2498,
+}
+
+
+# =============================================================================
 # MÉXICO AR ACCOUNT MAPPINGS
 # =============================================================================
 
@@ -82,7 +106,7 @@ COLOMBIA_REQUIRED_COLUMNS: Dict[str, str] = {
 
 # Optional columns for Colombia
 COLOMBIA_OPTIONAL_COLUMNS: Dict[str, str] = {
-    "exchangerate": "Tasa de cambio FK/en línea",
+    "exchangerate": "Tasa de cambio de FK/en línea",
     "nt_flag": "NT",  # Operaciones Cedidas flag
     "medio_pago": "Medio de pago",  # Payment method: Manual, Pago en línea, etc.
     "total_pagado_usd": "Total pagado USD",  # Total paid in USD for spread calculations
@@ -130,7 +154,7 @@ MEXICO_REQUIRED_COLUMNS: Dict[str, str] = {
 
 # Optional columns for México
 MEXICO_OPTIONAL_COLUMNS: Dict[str, str] = {
-    "exchangerate": "Tasa de cambio FK/en línea",
+    "exchangerate": "Tasa de cambio de FK/en línea",
     "medio_pago": "Medio de pago",  # Payment method: Manual, Pago en línea, etc.
     "total_pagado_usd": "Total pagado USD",  # Total paid in USD for spread calculations
     "referencia_bancaria": "Referencia bancaria",  # Bank reference (for comision_banco)
@@ -274,3 +298,28 @@ def get_optional_columns(country: str) -> Dict[str, str]:
         return MEXICO_OPTIONAL_COLUMNS
 
     return {}
+
+
+def get_bank_account_id(cuenta_remitente: Optional[str], country: str) -> Optional[int]:
+    """
+    Get the NetSuite internal account ID for a bank account number.
+
+    Args:
+        cuenta_remitente: Bank account number from 'Cuenta Remitente' column
+        country: Country code ('colombia' or 'mexico')
+
+    Returns:
+        NetSuite internal account ID or None if not found
+    """
+    if not cuenta_remitente:
+        return None
+
+    country_lower = country.lower()
+
+    if country_lower == "colombia":
+        # Normalize the account number by stripping whitespace
+        normalized = str(cuenta_remitente).strip()
+        return COLOMBIA_BANK_ACCOUNT_MAPPING.get(normalized)
+
+    # México mapping not yet implemented
+    return None
