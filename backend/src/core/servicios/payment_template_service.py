@@ -22,6 +22,7 @@ from src.interface.tesoreria_dtos import (
 )
 from src.core.servicios.catalogs.payment_catalogs import (
     get_ar_account,
+    get_bank_account_id,
     get_required_columns,
     get_concept_columns,
     get_optional_columns,
@@ -359,6 +360,7 @@ class PaymentTemplateService:
         total_pagado_usd_raw = get_value("total_pagado_usd", optional_columns)
         referencia_bancaria = get_value("referencia_bancaria", optional_columns)
         short_code = get_value("short_code", optional_columns)
+        cuenta_remitente = get_value("cuenta_remitente", optional_columns)
 
         # Parse total_pagado_usd
         total_pagado_usd = None
@@ -419,6 +421,9 @@ class PaymentTemplateService:
             row, country, concept_columns, df_columns_normalized, is_nt
         )
 
+        # Get bank account ID from cuenta_remitente
+        account_id = get_bank_account_id(cuenta_remitente, country)
+
         # Generate output rows for non-zero concepts
         for idx, (concept_type, amount) in enumerate(processed_concepts.items()):
             if abs(amount) > 0.001:  # Skip zero or near-zero amounts
@@ -440,7 +445,7 @@ class PaymentTemplateService:
                     "payment_amount": round(amount, 2),
                     "currency": currency,
                     "payment_ref": payment_ref,
-                    "account": None,  # Placeholder for bank account lookup
+                    "account": account_id,
                     "araccount": ar_account,
                     "exchangerate": exchangerate,
                     "comision_banco": row_comision_banco,
