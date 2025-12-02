@@ -107,7 +107,8 @@ COLOMBIA_REQUIRED_COLUMNS: Dict[str, str] = {
 # Optional columns for Colombia
 COLOMBIA_OPTIONAL_COLUMNS: Dict[str, str] = {
     "exchangerate": "Tasa de cambio de FK/en línea",
-    "nt_flag": "NT",  # Operaciones Cedidas flag
+    "nt_flag": "NT",  # Operaciones Cedidas flag (also used for spread routing)
+    "spread": "Spread",  # Spread value from input (column AX)
     "medio_pago": "Medio de pago",  # Payment method: Manual, Pago en línea, etc.
     "total_pagado_usd": "Total pagado USD",  # Total paid in USD for spread calculations
     "referencia_bancaria": "Referencia bancaria",  # Bank reference (for comision_banco)
