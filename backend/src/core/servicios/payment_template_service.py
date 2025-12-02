@@ -356,19 +356,20 @@ class PaymentTemplateService:
                 pass
 
         # Extract optional fields for spread and comision calculations
-        medio_pago = get_value("medio_pago", optional_columns)
-        total_pagado_usd_raw = get_value("total_pagado_usd", optional_columns)
         referencia_bancaria = get_value("referencia_bancaria", optional_columns)
-        short_code = get_value("short_code", optional_columns)
         cuenta_remitente = get_value("cuenta_remitente", optional_columns)
 
-        # Parse total_pagado_usd
-        total_pagado_usd = None
-        if total_pagado_usd_raw:
+        # Extract spread value from input file (column AX "Spread")
+        spread_value_raw = get_value("spread", optional_columns)
+        spread_value = None
+        if spread_value_raw:
             try:
-                total_pagado_usd = float(total_pagado_usd_raw)
+                spread_value = float(spread_value_raw)
             except (ValueError, TypeError):
                 pass
+
+        # Extract NT flag value for spread routing (column "NT")
+        nt_value_for_spread = get_value("nt_flag", optional_columns)
 
         # Calculate comision_banco (México only, first row of payment group)
         comision_banco = None
@@ -377,44 +378,22 @@ class PaymentTemplateService:
             if comision_banco is not None:
                 logger.debug(f"Extracted comision_banco: {comision_banco} from '{referencia_bancaria}'")
 
-        # Calculate spread values (only first row of payment group)
+        # Determine spread column based on NT column containing "NT"
+        # If NT contains "NT" -> Spread PA, otherwise -> Spread FK
         spread_pa = None
         spread_fk = None
-        spread_supra = None
+        spread_supra = None  # Keep for compatibility but will be None
 
-        if is_first_row_in_group and total_pagado_usd is not None:
-            # Determine payment method
-            if medio_pago:
-                medio_pago_lower = medio_pago.lower()
+        if spread_value is not None:
+            # Check if NT column contains "NT" text (case-insensitive)
+            is_nt_spread = nt_value_for_spread and "NT" in str(nt_value_for_spread).upper()
 
-                # Manual payments: Spread PA
-                if "manual" in medio_pago_lower:
-                    # Spread PA = (exchange rate - BanRep rate) × Total paid USD
-                    # Using placeholder 0 for tasa_banrep until NetSuite integration
-                    tasa_banrep = 0.0
-                    if exchangerate:
-                        spread_pa = (exchangerate - tasa_banrep) * total_pagado_usd
-                        logger.debug(f"Calculated Spread PA: {spread_pa} (manual payment)")
-
-                # Online payments: Spread FK or Spread Supra
-                elif "línea" in medio_pago_lower or "linea" in medio_pago_lower or "online" in medio_pago_lower:
-                    # Determine provider (SUPRA vs PA)
-                    is_supra = False
-                    if short_code:
-                        short_code_lower = short_code.lower()
-                        is_supra = "supra" in short_code_lower
-                    elif medio_pago:
-                        is_supra = "supra" in medio_pago_lower
-
-                    # Using placeholder 0 for spread rate until configuration/NetSuite integration
-                    spread_rate = 0.0
-
-                    if is_supra:
-                        spread_supra = total_pagado_usd * spread_rate
-                        logger.debug(f"Calculated Spread Supra: {spread_supra} (Supra payment)")
-                    else:
-                        spread_fk = total_pagado_usd * spread_rate
-                        logger.debug(f"Calculated Spread FK: {spread_fk} (PA payment)")
+            if is_nt_spread:
+                spread_pa = spread_value
+                logger.debug(f"Spread value {spread_value} -> Spread PA (NT column contains NT)")
+            else:
+                spread_fk = spread_value
+                logger.debug(f"Spread value {spread_value} -> Spread FK (NT column does not contain NT)")
 
         # Process each concept column
         processed_concepts = self._process_concepts(
@@ -433,8 +412,9 @@ class PaymentTemplateService:
 
                 # Only the first output row from this payment group gets spread/comision values
                 row_comision_banco = comision_banco if idx == 0 else None
-                row_spread_pa = spread_pa if idx == 0 else None
-                row_spread_fk = spread_fk if idx == 0 else None
+                # Multiply spread by payment amount for the first row
+                row_spread_pa = round(spread_pa * amount, 2) if idx == 0 and spread_pa is not None else None
+                row_spread_fk = round(spread_fk * amount, 2) if idx == 0 and spread_fk is not None else None
                 row_spread_supra = spread_supra if idx == 0 else None
 
                 output_rows.append({
