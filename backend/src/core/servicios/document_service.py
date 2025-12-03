@@ -54,6 +54,10 @@ class DocumentService:
             return self.generate_otrosi_document(contract_data)
         elif contract_type == 'inventario_bodega':
             return self.generate_inventario_bodega_document(contract_data)
+        elif contract_type == 'pl_co_credito_no_aval':
+            return self.generate_paga_local_credito_no_aval_document(contract_data)
+        elif contract_type == 'pl_co_mandato_no_aval':
+            return self.generate_paga_local_mandato_no_aval_document(contract_data)
         else:
             return self.generate_activos_document(contract_data, template_name)
 
@@ -172,6 +176,130 @@ class DocumentService:
             pass  # Ignore cleanup errors on Windows
 
         logger.info("Otrosí document generated successfully")
+
+        return content
+
+    def generate_paga_local_credito_no_aval_document(
+        self,
+        contract_data: Dict[str, Any],
+        template_name: str = "FK COL paga local - Fin. COP - K° Crédito (No Aval).docx"
+    ) -> bytes:
+        """
+        Generate Paga Local Colombia K° Crédito (No Aval) contract document from template and data
+
+        Args:
+            contract_data: Dictionary containing all contract data including client info
+            template_name: Name of the Word template file
+
+        Returns:
+            bytes: Generated DOCX file content
+        """
+        template_path = self.template_dir / template_name
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"Paga Local Crédito (No Aval) template not found: {template_path}")
+
+        logger.info(f"Loading Paga Local Crédito (No Aval) template from: {template_path}")
+
+        # Load template
+        doc = Document(str(template_path))
+
+        # Prepare replacement data - use standard replacements with Paga Local specific mappings
+        replacements = self._prepare_paga_local_replacements(contract_data)
+
+        logger.info(f"Replacing {len(replacements)} placeholders in Paga Local Crédito (No Aval) template")
+
+        # Replace placeholders in paragraphs
+        for para in doc.paragraphs:
+            self._replace_in_paragraph(para, replacements)
+
+        # Replace placeholders in tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        self._replace_in_paragraph(para, replacements)
+
+        # Save to temporary file and read bytes
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp:
+            tmp_path = tmp.name
+
+        # Save document
+        doc.save(tmp_path)
+
+        # Read bytes
+        with open(tmp_path, 'rb') as f:
+            content = f.read()
+
+        # Clean up
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass  # Ignore cleanup errors on Windows
+
+        logger.info("Paga Local Crédito (No Aval) document generated successfully")
+
+        return content
+
+    def generate_paga_local_mandato_no_aval_document(
+        self,
+        contract_data: Dict[str, Any],
+        template_name: str = "FK COL paga local - Fin. COP - K° Mandato.docx"
+    ) -> bytes:
+        """
+        Generate Paga Local Colombia K° Mandato (No Aval) contract document from template and data
+
+        Args:
+            contract_data: Dictionary containing all contract data including client info
+            template_name: Name of the Word template file
+
+        Returns:
+            bytes: Generated DOCX file content
+        """
+        template_path = self.template_dir / template_name
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"Paga Local Mandato (No Aval) template not found: {template_path}")
+
+        logger.info(f"Loading Paga Local Mandato (No Aval) template from: {template_path}")
+
+        # Load template
+        doc = Document(str(template_path))
+
+        # Prepare replacement data - use standard replacements with Paga Local specific mappings
+        replacements = self._prepare_paga_local_replacements(contract_data)
+
+        logger.info(f"Replacing {len(replacements)} placeholders in Paga Local Mandato (No Aval) template")
+
+        # Replace placeholders in paragraphs
+        for para in doc.paragraphs:
+            self._replace_in_paragraph(para, replacements)
+
+        # Replace placeholders in tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        self._replace_in_paragraph(para, replacements)
+
+        # Save to temporary file and read bytes
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp:
+            tmp_path = tmp.name
+
+        # Save document
+        doc.save(tmp_path)
+
+        # Read bytes
+        with open(tmp_path, 'rb') as f:
+            content = f.read()
+
+        # Clean up
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass  # Ignore cleanup errors on Windows
+
+        logger.info("Paga Local Mandato (No Aval) document generated successfully")
 
         return content
 
@@ -528,6 +656,69 @@ class DocumentService:
         logger.debug(f"Prepared {len(replacements)} replacements for Inventario Bodega template (including {len(custodian_replacements)} custodian field placeholders)")
 
         return replacements
+
+    def _prepare_paga_local_replacements(self, contract_data: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Prepare replacement dictionary for Paga Local templates from contract data
+        Handles placeholders specific to Paga Local Colombia contracts
+
+        Args:
+            contract_data: Raw contract data from database
+
+        Returns:
+            Dictionary mapping placeholders to replacement values
+        """
+        # Helper function to safely get string values
+        def safe_get(d: dict, key: str, default: str = '') -> str:
+            """Get value from dict and ensure it's a string"""
+            value = d.get(key, default)
+            return str(value) if value is not None else default
+
+        # Start with base replacements from standard method
+        base_replacements = self._prepare_replacements(contract_data)
+
+        # Extract data_snapshot
+        snapshot = contract_data.get('data_snapshot', {})
+
+        # Get current date info
+        now = datetime.now()
+        generation_date = contract_data.get('generated_at', now)
+        if isinstance(generation_date, str):
+            generation_date = datetime.fromisoformat(generation_date.replace('Z', '+00:00'))
+
+        # Format currency for Paga Local specific fields
+        cupo_plataforma = float(snapshot.get('cupo_plataforma', 0))
+        cupo_formatted = f"${cupo_plataforma:,.0f}".replace(',', '.')
+        cupo_letras = self._number_to_words_spanish(cupo_plataforma)
+
+        # Add Paga Local specific placeholders
+        paga_local_replacements = {
+            # K° Crédito specific placeholders (alternative representations)
+            '[representante legal del Cliente]': safe_get(snapshot, 'representante_legal'),
+            '[número de documento del representante legal]': safe_get(snapshot, 'cedula_representante'),
+
+            # K° Mandato specific placeholders
+            '[nombre del representante legal]': safe_get(snapshot, 'representante_legal'),
+            '[monto a transferir en números]': cupo_formatted,
+            '[monto a transferir en letras]': cupo_letras,
+            '[consecutivo correspondiente]': safe_get(contract_data, 'contract_id'),
+
+            # Alternative date representations for K° Mandato
+            '[-día-]': str(generation_date.day),
+            '[-mes-]': self._get_month_name_spanish(generation_date.month),
+            '[-•-]': str(generation_date.year)[-1],  # Last digit of year
+            '[-*-]': str(generation_date.year),  # Full year
+
+            # Placeholder for attachments
+            '[SE ADJUNTA POR SEPARADO]': 'SE ADJUNTA POR SEPARADO',
+        }
+
+        # Merge with base replacements (Paga Local specific takes precedence)
+        base_replacements.update(paga_local_replacements)
+
+        logger.debug(f"Prepared {len(base_replacements)} replacements for Paga Local template")
+
+        return base_replacements
 
     def _replace_in_paragraph(self, paragraph, replacements: Dict[str, str]):
         """
