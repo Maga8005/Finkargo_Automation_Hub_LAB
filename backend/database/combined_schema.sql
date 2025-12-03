@@ -59,7 +59,7 @@ COMMENT ON TABLE clients IS 'Client data imported from platform exports';
 CREATE TABLE IF NOT EXISTS user_profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     full_name TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('admin', 'commercial', 'analyst', 'mesa_control', 'manager', 'user', 'legal', 'operations', 'cliente')),
+    role TEXT NOT NULL CHECK (role IN ('admin', 'commercial', 'analyst', 'mesa_control', 'manager', 'user', 'legal', 'operations', 'tesoreria', 'cliente')),
     is_active BOOLEAN DEFAULT true NOT NULL,
     last_login TIMESTAMP WITH TIME ZONE,
 
@@ -80,7 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_user_profiles_user_type ON user_profiles(user_typ
 CREATE INDEX IF NOT EXISTS idx_user_profiles_client_id ON user_profiles(client_id);
 
 COMMENT ON TABLE user_profiles IS 'User profiles linked to Supabase auth.users for application-specific user data';
-COMMENT ON COLUMN user_profiles.role IS 'User role: admin, commercial, analyst, mesa_control, manager, user, legal, operations, or cliente';
+COMMENT ON COLUMN user_profiles.role IS 'User role: admin, commercial, analyst, mesa_control, manager, user, legal, operations, tesoreria, or cliente';
 COMMENT ON COLUMN user_profiles.user_type IS 'Type of user: funcionario (internal employee) or cliente (external client)';
 
 -- ============================================================================
