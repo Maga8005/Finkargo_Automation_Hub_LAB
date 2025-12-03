@@ -146,7 +146,7 @@ def git_branch(
         slash_command="/generate_branch_name",
         args=[issue_type, adw_id, issue.model_dump_json(by_alias=True)],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     response = execute_template(request)
@@ -252,7 +252,7 @@ def run_tests(adw_id: str, logger: logging.Logger) -> AgentPromptResponse:
         slash_command="/test",
         args=[],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     logger.debug(
@@ -366,7 +366,7 @@ def resolve_failed_tests(
             slash_command="/resolve_failed_test",
             args=[test_payload],
             adw_id=adw_id,
-            model="sonnet",
+            model="opus",
         )
 
         # Post to issue
@@ -575,7 +575,7 @@ def execute_single_e2e_test(
         slash_command="/test_e2e",
         args=[adw_id, agent_name, test_file],  # Pass ADW ID and agent name for screenshot directory
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     # Execute test
@@ -718,7 +718,7 @@ def resolve_failed_e2e_tests(
             slash_command="/resolve_failed_e2e_test",
             args=[test_payload],
             adw_id=adw_id,
-            model="sonnet",
+            model="opus",
         )
 
         # Post to issue
