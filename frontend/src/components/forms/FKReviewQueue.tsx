@@ -94,8 +94,9 @@ const FKReviewQueue: React.FC = () => {
 
       handleCloseReview();
       loadPendingReviews(); // Reload the list
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al procesar la revisión');
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError.response?.data?.detail || 'Error al procesar la revisión');
       console.error('Review error:', err);
     } finally {
       setSubmitting(false);
@@ -131,8 +132,9 @@ const FKReviewQueue: React.FC = () => {
       window.URL.revokeObjectURL(url);
 
       setSuccess(`Documento descargado: ${filename}`);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || `Error al descargar ${format.toUpperCase()}`);
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError.response?.data?.detail || `Error al descargar ${format.toUpperCase()}`);
       console.error('Download error:', err);
     } finally {
       setDownloading(null);
@@ -237,7 +239,7 @@ const FKReviewQueue: React.FC = () => {
       {!loading && contracts.length > 0 && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {contracts.map((contract) => {
-            const snapshot = contract.data_snapshot as any;
+            const snapshot = contract.data_snapshot;
             return (
               <Card key={contract.id}>
                 <CardContent>

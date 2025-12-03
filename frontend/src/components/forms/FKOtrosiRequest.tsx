@@ -73,7 +73,7 @@ const FKOtrosiRequest: React.FC = () => {
       setSearchQuery('');
       setSelectedClient(null);
       setSearchResults([]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Use formatApiError to handle Pydantic validation errors and other error formats
       const errorMessage = formatApiError(err);
       setError(errorMessage);

@@ -78,8 +78,9 @@ const FKContractGenerator: React.FC = () => {
       setSearchQuery('');
       setSelectedClient(null);
       setSearchResults([]);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al generar el contrato');
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError.response?.data?.detail || 'Error al generar el contrato');
       console.error('Generation error:', err);
     } finally {
       setGenerating(false);

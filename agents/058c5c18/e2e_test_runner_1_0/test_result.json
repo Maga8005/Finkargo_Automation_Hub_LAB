@@ -1,0 +1,26 @@
+{
+  "test_name": "Payment Template Converter (Tesorería)",
+  "status": "failed",
+  "screenshots": [
+    "/Users/danielrestrepo/Finkargo_Automation_Hub/agents/058c5c18/e2e_test_runner_1_0/img/payment_template_converter/01_landing_page.png",
+    "/Users/danielrestrepo/Finkargo_Automation_Hub/agents/058c5c18/e2e_test_runner_1_0/img/payment_template_converter/error_state.png"
+  ],
+  "error": "User not authorized to access Tesorería page - redirected",
+  "steps": [
+    {
+      "step": 1,
+      "status": "passed",
+      "message": "Login successful"
+    },
+    {
+      "step": 2,
+      "status": "passed",
+      "message": "Navigated to tesoreria page"
+    },
+    {
+      "step": 3,
+      "status": "passed",
+      "message": "Screenshot captured"
+    }
+  ]
+}

@@ -4,7 +4,7 @@
  * Comprehensive dashboard for viewing and managing declaration-payment matching results.
  * Includes statistics, match details table, unmatched records, and quality assessment.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -88,18 +88,7 @@ const MatchingResultsDashboardPage: React.FC = () => {
     loading,
   });
 
-  // Load data
-  useEffect(() => {
-    if (!sessionId) {
-      setError('Session ID is required');
-      setLoading(false);
-      return;
-    }
-
-    loadData();
-  }, [sessionId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!sessionId) return;
 
     setLoading(true);
@@ -129,7 +118,18 @@ const MatchingResultsDashboardPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionId, page, pageSize]);
+
+  // Load data
+  useEffect(() => {
+    if (!sessionId) {
+      setError('Session ID is required');
+      setLoading(false);
+      return;
+    }
+
+    loadData();
+  }, [sessionId, loadData]);
 
   // Handle tab change
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -151,12 +151,8 @@ const MatchingResultsDashboardPage: React.FC = () => {
   const handleManualOverrideSubmit = async (data: ManualOverrideRequest) => {
     if (!sessionId) return;
 
-    try {
-      await createManualOverride(sessionId, data);
-      await loadData(); // Reload data
-    } catch (err) {
-      throw err; // Let form handle error
-    }
+    await createManualOverride(sessionId, data);
+    await loadData(); // Reload data
   };
 
   // Handle bulk approve

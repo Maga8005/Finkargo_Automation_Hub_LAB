@@ -1,0 +1,7 @@
+/resolve_failed_e2e_test {
+  "test_name": "Payment Template Converter (Tesorería)",
+  "status": "failed",
+  "test_path": ".claude/commands/e2e/test_payment_template_converter.md",
+  "screenshots": [],
+  "error": "(Step 1 ❌) Failed to execute browser automation - Playwright MCP server is not connected. The test command requires Playwright browser automation via MCP, but no MCP servers are available in the current session (mcp_servers: []). The .mcp.json.sample file shows Playwright MCP configuration exists but is not active. To run this E2E test, the Playwright MCP server must be connected. Routes verified to exist: /tesoreria/plantillas-netsuite (landing), /tesoreria/plantillas-netsuite/colombia (Colombia converter with tesoreria/admin role protection), /tesoreria/plantillas-netsuite/mexico (México converter with tesoreria/admin role protection). Test data file available: /Users/danielrestrepo/Finkargo_Automation_Hub/Example FIles for Reqs/Historial_de_pagos_2025-11-25_2025-11-29.xlsx"
+}
