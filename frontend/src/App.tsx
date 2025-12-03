@@ -12,6 +12,7 @@ import DepartmentPage from './pages/DepartmentPage';
 import LegalDashboard from './pages/legal/LegalDashboard';
 import OperationsContractsColombia from './pages/operations/OperationsContractsColombia';
 import OperationsContractsMexico from './pages/operations/OperationsContractsMexico';
+import OperationsPagaLocalColombia from './pages/operations/OperationsPagaLocalColombia';
 import ClientDashboard from './pages/ClientDashboard';
 import LoginPage from './pages/LoginPage';
 import ReporteriaAutomaticaCO from './pages/finance/ReporteriaAutomaticaCO';
@@ -77,6 +78,7 @@ function App() {
               {/* Operations Routes - Country-specific contracts */}
               <Route path="operations/contratos-colombia" element={<OperationsContractsColombia />} />
               <Route path="operations/contratos-mexico" element={<OperationsContractsMexico />} />
+              <Route path="operations/paga-local-colombia" element={<OperationsPagaLocalColombia />} />
 
               {/* Department Routes - Accessible by funcionarios */}
               <Route

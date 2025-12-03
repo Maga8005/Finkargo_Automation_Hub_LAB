@@ -174,4 +174,31 @@ export const operationsService = {
     );
     return response.data;
   },
+
+  /**
+   * Get all approved Paga Local Colombia contracts
+   * Filters by all Paga Local CO contract types
+   */
+  async getApprovedPagaLocalCOContracts(
+    filters?: OperationsFilterParams,
+    sortBy?: string,
+    sortOrder?: string
+  ): Promise<ContractGeneration[]> {
+    const pagaLocalCOTypes = [
+      'pl_co_credito_aval_pj',
+      'pl_co_mandato_pj',
+      'pl_co_credito_aval_pn',
+      'pl_co_mandato_pn',
+      'pl_co_credito_no_aval',
+      'pl_co_mandato_no_aval',
+      'pl_co_mandato_im',
+      'pl_co_solicitud_desembolso',
+      'pl_co_dian_mandato_im',
+    ];
+    return this.getApprovedContracts(
+      { ...filters, contract_types: pagaLocalCOTypes },
+      sortBy,
+      sortOrder
+    );
+  },
 };

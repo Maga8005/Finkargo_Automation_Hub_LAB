@@ -163,6 +163,7 @@ async def request_contract_generation(
 @router.get("/contracts/approved", response_model=List[ContractGenerationDetail])
 async def get_approved_contracts(
     contract_type: Optional[str] = None,
+    contract_types: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = None,
     client_name: Optional[str] = None,
@@ -178,7 +179,8 @@ async def get_approved_contracts(
     Get all approved contracts for Operations team (Operations role or Admin required)
 
     Query Parameters:
-        contract_type: Optional filter by contract type ('activos', 'otrosi', or 'inventario_bodega')
+        contract_type: Optional filter by single contract type
+        contract_types: Optional filter by multiple contract types (comma-separated)
         sort_by: Optional field to sort by (contract_id, contract_type, client_nit, reviewed_at,
                  data_snapshot->nombre_importador, data_snapshot->cupo_plataforma)
         sort_order: Optional sort order ('asc' or 'desc', defaults to 'desc')
@@ -219,8 +221,16 @@ async def get_approved_contracts(
                     detail="cupo_min must be less than or equal to cupo_max"
                 )
 
+        # Parse contract_types if provided (comma-separated string)
+        contract_types_list: Optional[List[str]] = None
+        if contract_types:
+            contract_types_list = [ct.strip() for ct in contract_types.split(',') if ct.strip()]
+        elif contract_type:
+            # Single contract_type for backward compatibility
+            contract_types_list = [contract_type]
+
         contracts = await contract_repo.get_approved_contracts(
-            contract_type=contract_type,
+            contract_types=contract_types_list,
             sort_by=sort_by,
             sort_order=validated_sort_order,
             client_name=client_name,

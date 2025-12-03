@@ -14,6 +14,23 @@ class ContractType(str, Enum):
     OTROSI = "otrosi"
     INVENTARIO_BODEGA = "inventario_bodega"
 
+    # Paga Local Colombia - Contratos Cuenta Cliente - Aval Persona Jurídica
+    PL_CO_CREDITO_AVAL_PJ = "pl_co_credito_aval_pj"
+    PL_CO_MANDATO_PJ = "pl_co_mandato_pj"
+
+    # Paga Local Colombia - Contratos Cuenta Cliente - Aval Persona Natural
+    PL_CO_CREDITO_AVAL_PN = "pl_co_credito_aval_pn"
+    PL_CO_MANDATO_PN = "pl_co_mandato_pn"
+
+    # Paga Local Colombia - Contratos Cuenta Cliente - Sin Aval
+    PL_CO_CREDITO_NO_AVAL = "pl_co_credito_no_aval"
+    PL_CO_MANDATO_NO_AVAL = "pl_co_mandato_no_aval"
+
+    # Paga Local Colombia - Documentos Operación
+    PL_CO_MANDATO_IM = "pl_co_mandato_im"
+    PL_CO_SOLICITUD_DESEMBOLSO = "pl_co_solicitud_desembolso"
+    PL_CO_DIAN_MANDATO_IM = "pl_co_dian_mandato_im"
+
 
 class ContractStatus(str, Enum):
     """Contract status enum"""

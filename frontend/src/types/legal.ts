@@ -106,7 +106,23 @@ export interface DataImport {
 
 export interface ContractGenerationRequest {
   client_nit: string;
-  contract_type?: 'activos' | 'otrosi' | 'inventario_bodega';
+  contract_type?:
+    | 'activos'
+    | 'otrosi'
+    | 'inventario_bodega'
+    // Paga Local Colombia - Cuenta Cliente - Aval PJ
+    | 'pl_co_credito_aval_pj'
+    | 'pl_co_mandato_pj'
+    // Paga Local Colombia - Cuenta Cliente - Aval PN
+    | 'pl_co_credito_aval_pn'
+    | 'pl_co_mandato_pn'
+    // Paga Local Colombia - Cuenta Cliente - Sin Aval
+    | 'pl_co_credito_no_aval'
+    | 'pl_co_mandato_no_aval'
+    // Paga Local Colombia - Documentos Operación
+    | 'pl_co_mandato_im'
+    | 'pl_co_solicitud_desembolso'
+    | 'pl_co_dian_mandato_im';
 }
 
 export interface ContractReviewRequest {
