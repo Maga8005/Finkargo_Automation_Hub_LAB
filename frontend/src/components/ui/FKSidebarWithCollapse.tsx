@@ -109,6 +109,12 @@ const operationsModules: OperationsModule[] = [
     icon: <Description fontSize="small" />,
     badge: 'Próximo',
   },
+  {
+    id: 'paga-local-colombia',
+    name: 'Paga Local Colombia',
+    route: '/operations/paga-local-colombia',
+    icon: <Description fontSize="small" />,
+  },
 ];
 
 // Treasury sub-modules (direct navigation, no further nesting)

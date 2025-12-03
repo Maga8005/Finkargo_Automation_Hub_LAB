@@ -172,6 +172,7 @@ class ContractRepository:
     async def get_approved_contracts(
         self,
         contract_type: Optional[str] = None,
+        contract_types: Optional[List[str]] = None,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
         client_name: Optional[str] = None,
@@ -185,7 +186,8 @@ class ContractRepository:
         Get all approved contracts with document URLs for Operations team, with optional filters
 
         Args:
-            contract_type: Optional filter by contract type ('activos', 'otrosi', or 'inventario_bodega')
+            contract_type: Optional filter by single contract type (deprecated, use contract_types)
+            contract_types: Optional filter by multiple contract types
             sort_by: Optional field to sort by (contract_id, contract_type, client_nit, reviewed_at, or JSONB fields)
             sort_order: Optional sort order ('asc' or 'desc', defaults to 'desc')
             client_name: Optional filter by client name (nombre_importador) - partial match, case-insensitive
@@ -202,8 +204,11 @@ class ContractRepository:
             .select('*')\
             .eq('status', 'approved')
 
-        # Filter by contract type if specified
-        if contract_type:
+        # Filter by contract types if specified (supports multiple types using IN clause)
+        if contract_types and len(contract_types) > 0:
+            query = query.in_('contract_type', contract_types)
+        elif contract_type:
+            # Backward compatibility: single contract_type
             query = query.eq('contract_type', contract_type)
 
         # Filter by client name (JSONB field, partial match, case-insensitive)
