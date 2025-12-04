@@ -1,0 +1,1 @@
+/implement specs/issue-47-adw-20d8430f-sdlc_planner-add-pdf-export-approved-contracts.md
