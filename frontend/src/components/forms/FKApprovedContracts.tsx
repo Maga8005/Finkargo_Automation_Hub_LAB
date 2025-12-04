@@ -35,8 +35,10 @@ import {
   CheckCircle as CheckCircleIcon,
   FilterList as FilterListIcon,
   Clear as ClearIcon,
+  FileDownload as FileDownloadIcon,
 } from '@mui/icons-material';
 import { operationsService } from '../../services/operationsService';
+import { exportContractsToExcel } from '../../utils/excelExport';
 import type { ContractGeneration, OperationsSortOrder, OperationsFilterParams } from '../../types/legal';
 
 // Mapping of frontend sort field names to backend database fields
@@ -129,6 +131,11 @@ const FKApprovedContracts: React.FC = () => {
   const handleClearFilters = () => {
     setFilters({});
     setShowFilters(false);
+  };
+
+  const handleExportExcel = () => {
+    if (contracts.length === 0) return;
+    exportContractsToExcel(contracts, 'contratos_aprobados', true);
   };
 
   const handleDownloadPDF = async (contract: ContractGeneration) => {
@@ -243,6 +250,21 @@ const FKApprovedContracts: React.FC = () => {
               Filtros
             </Button>
           </Badge>
+          <Tooltip title={contracts.length === 0 ? 'No hay contratos para exportar' : 'Exportar contratos visibles a Excel'}>
+            <span>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleExportExcel}
+                disabled={contracts.length === 0}
+                startIcon={<FileDownloadIcon />}
+                sx={{ textTransform: 'none' }}
+                color="success"
+              >
+                Exportar Excel
+              </Button>
+            </span>
+          </Tooltip>
           <Button
             variant="outlined"
             size="small"

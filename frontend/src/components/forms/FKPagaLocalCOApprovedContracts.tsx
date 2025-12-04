@@ -36,8 +36,10 @@ import {
   CheckCircle as CheckCircleIcon,
   FilterList as FilterListIcon,
   Clear as ClearIcon,
+  FileDownload as FileDownloadIcon,
 } from '@mui/icons-material';
 import { operationsService } from '../../services/operationsService';
+import { exportPagaLocalContractsToExcel } from '../../utils/excelExport';
 import type { ContractGeneration, OperationsSortOrder, OperationsFilterParams } from '../../types/legal';
 
 // Paga Local Colombia contract types
@@ -169,6 +171,11 @@ const FKPagaLocalCOApprovedContracts: React.FC = () => {
     setShowFilters(false);
   };
 
+  const handleExportExcel = () => {
+    if (contracts.length === 0) return;
+    exportPagaLocalContractsToExcel(contracts);
+  };
+
   const handleDownloadPDF = async (contract: ContractGeneration) => {
     if (!contract.approved_document_url) {
       alert('No hay PDF disponible para este contrato');
@@ -262,6 +269,21 @@ const FKPagaLocalCOApprovedContracts: React.FC = () => {
               Filtros
             </Button>
           </Badge>
+          <Tooltip title={contracts.length === 0 ? 'No hay contratos para exportar' : 'Exportar contratos visibles a Excel'}>
+            <span>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleExportExcel}
+                disabled={contracts.length === 0}
+                startIcon={<FileDownloadIcon />}
+                sx={{ textTransform: 'none' }}
+                color="success"
+              >
+                Exportar Excel
+              </Button>
+            </span>
+          </Tooltip>
           <Button
             variant="outlined"
             size="small"
