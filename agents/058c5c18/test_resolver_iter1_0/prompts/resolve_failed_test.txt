@@ -1,0 +1,7 @@
+/resolve_failed_test {
+  "test_name": "frontend_linting",
+  "passed": false,
+  "execution_command": "cd frontend && npm run lint",
+  "test_purpose": "Validates frontend code quality with ESLint, catching style issues and potential bugs",
+  "error": "16 errors, 1 warning: @typescript-eslint/no-explicit-any in FKClientDataImport.tsx:79, FKContractGenerator.tsx:81, FKContractRequest.tsx:77, FKInventarioRequest.tsx:114, FKOtrosiRequest.tsx:76, FKReviewQueue.tsx:97,134,240, supabase.ts:77, errorUtils.ts:12,70,127,134,141,148; no-useless-catch in MatchingResultsDashboardPage.tsx:154; react-hooks/exhaustive-deps warning in MatchingResultsDashboardPage.tsx:100"
+}

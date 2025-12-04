@@ -1,0 +1,7 @@
+/resolve_failed_test {
+  "test_name": "frontend_build",
+  "passed": false,
+  "execution_command": "cd frontend && npm run build",
+  "test_purpose": "Validates the complete frontend build process including Vite bundling, asset optimization, and production compilation",
+  "error": "src/components/forms/FKReviewQueue.tsx(242,30): error TS2352: Conversion of type 'ClientDataSnapshot' to type 'Record<string, unknown>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\nsrc/components/forms/FKReviewQueue.tsx(281,25): error TS2769: No overload matches this call. Type 'unknown' is not assignable to type 'ReactNode'.\nsrc/components/forms/FKReviewQueue.tsx(297,41): error TS2345: Argument of type '{}' is not assignable to parameter of type 'number'.\nsrc/components/forms/FKReviewQueue.tsx(305,51): error TS2769: No overload matches this call. Type 'unknown' is not assignable to type 'ReactNode'.\nsrc/components/forms/FKReviewQueue.tsx(312,51): error TS2769: No overload matches this call. Type 'unknown' is not assignable to type 'ReactNode'."
+}

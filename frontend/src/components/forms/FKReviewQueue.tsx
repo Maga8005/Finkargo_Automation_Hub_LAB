@@ -94,8 +94,9 @@ const FKReviewQueue: React.FC = () => {
 
       handleCloseReview();
       loadPendingReviews(); // Reload the list
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al procesar la revisión');
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError.response?.data?.detail || 'Error al procesar la revisión');
       console.error('Review error:', err);
     } finally {
       setSubmitting(false);
@@ -131,8 +132,9 @@ const FKReviewQueue: React.FC = () => {
       window.URL.revokeObjectURL(url);
 
       setSuccess(`Documento descargado: ${filename}`);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || `Error al descargar ${format.toUpperCase()}`);
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError.response?.data?.detail || `Error al descargar ${format.toUpperCase()}`);
       console.error('Download error:', err);
     } finally {
       setDownloading(null);
@@ -158,22 +160,44 @@ const FKReviewQueue: React.FC = () => {
   };
 
   const getContractTypeBadge = (contractType: string) => {
+    // Paga Local Colombia - Crédito contracts
+    if (contractType === 'pl_co_credito_no_aval') {
+      return { label: 'PL Crédito No Aval', color: 'warning' as const };
+    }
+    if (contractType === 'pl_co_credito_aval_pj') {
+      return { label: 'PL Crédito Aval PJ', color: 'primary' as const };
+    }
+    if (contractType === 'pl_co_credito_aval_pn') {
+      return { label: 'PL Crédito Aval PN', color: 'secondary' as const };
+    }
+    // Paga Local Colombia - Mandato contracts
+    if (contractType === 'pl_co_mandato_no_aval') {
+      return { label: 'PL Mandato No Aval', color: 'warning' as const };
+    }
+    if (contractType === 'pl_co_mandato_pj') {
+      return { label: 'PL Mandato PJ', color: 'primary' as const };
+    }
+    if (contractType === 'pl_co_mandato_pn') {
+      return { label: 'PL Mandato PN', color: 'secondary' as const };
+    }
+    // Paga Local Colombia - Operation documents
+    if (contractType === 'pl_co_mandato_im') {
+      return { label: 'PL Mandato (IM)', color: 'info' as const };
+    }
+    if (contractType === 'pl_co_solicitud_desembolso') {
+      return { label: 'PL Solicitud Desembolso', color: 'success' as const };
+    }
+    if (contractType === 'pl_co_dian_mandato_im') {
+      return { label: 'PL DIAN Mandato', color: 'error' as const };
+    }
+    // Other contract types
     if (contractType === 'otrosi') {
-      return {
-        label: 'Otrosí No. 1',
-        color: 'warning' as const,
-      };
+      return { label: 'Otrosí No. 1', color: 'warning' as const };
     }
     if (contractType === 'inventario_bodega') {
-      return {
-        label: 'Inventario Bodega 3ro',
-        color: 'success' as const,
-      };
+      return { label: 'Inventario Bodega 3ro', color: 'success' as const };
     }
-    return {
-      label: 'Activos',
-      color: 'info' as const,
-    };
+    return { label: 'Activos', color: 'info' as const };
   };
 
   return (
@@ -237,7 +261,7 @@ const FKReviewQueue: React.FC = () => {
       {!loading && contracts.length > 0 && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {contracts.map((contract) => {
-            const snapshot = contract.data_snapshot as any;
+            const snapshot = contract.data_snapshot;
             return (
               <Card key={contract.id}>
                 <CardContent>

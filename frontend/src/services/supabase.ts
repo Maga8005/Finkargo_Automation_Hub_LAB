@@ -74,7 +74,7 @@ export const signIn = async (
 export const signUp = async (
   email: string,
   password: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Promise<{ user: User | null; session: Session | null; error: AuthError | null }> => {
   const { data, error } = await supabase.auth.signUp({
     email,

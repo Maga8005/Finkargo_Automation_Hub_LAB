@@ -1,0 +1,867 @@
+[
+  {
+    "type": "system",
+    "subtype": "init",
+    "cwd": "/Users/danielrestrepo/Finkargo_Automation_Hub",
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "tools": [
+      "Task",
+      "Bash",
+      "Glob",
+      "Grep",
+      "ExitPlanMode",
+      "Read",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "WebFetch",
+      "TodoWrite",
+      "WebSearch",
+      "BashOutput",
+      "KillShell",
+      "Skill",
+      "SlashCommand",
+      "EnterPlanMode"
+    ],
+    "mcp_servers": [],
+    "model": "claude-opus-4-5-20251101",
+    "permissionMode": "bypassPermissions",
+    "slash_commands": [
+      "implement",
+      "validate",
+      "start_local",
+      "generate_branch_name",
+      "find_plan_file",
+      "test_e2e",
+      "install",
+      "resolve_failed_e2e_test",
+      "classify_adw",
+      "resolve_failed_test",
+      "bug",
+      "pull_request",
+      "chore",
+      "prime",
+      "commit",
+      "start",
+      "feature",
+      "test",
+      "tools",
+      "classify_issue",
+      "e2e:test_payment_template_converter",
+      "e2e:test_excel_upload",
+      "e2e:test_tesoreria_menu",
+      "e2e:test_contract_request",
+      "e2e:test_paga_local_sin_aval_contracts",
+      "e2e:test_contract_review",
+      "e2e:test_login",
+      "compact",
+      "context",
+      "cost",
+      "init",
+      "pr-comments",
+      "release-notes",
+      "todos",
+      "review",
+      "security-review",
+      "plan"
+    ],
+    "apiKeySource": "ANTHROPIC_API_KEY",
+    "claude_code_version": "2.0.57",
+    "output_style": "default",
+    "agents": [
+      "general-purpose",
+      "statusline-setup",
+      "Explore",
+      "Plan"
+    ],
+    "skills": [],
+    "plugins": [],
+    "uuid": "cf0ac9a2-c5c3-4e6c-ac55-c096891fc349"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_015553ZGPNpnqme69TdrtYNh",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_014HgbwJ28w6YAqZCygaKXGm",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKReviewQueue.tsx"
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 3,
+        "cache_creation_input_tokens": 11471,
+        "cache_read_input_tokens": 13542,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 11471,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 85,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "132fb19d-7629-4d11-b130-f9f07f76df9d"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_014HgbwJ28w6YAqZCygaKXGm",
+          "type": "tool_result",
+          "content": "     1\u2192/**\n     2\u2192 * FKReviewQueue - Contract review queue for Legal team\n     3\u2192 */\n     4\u2192import React, { useState, useEffect } from 'react';\n     5\u2192import {\n     6\u2192  Box,\n     7\u2192  Button,\n     8\u2192  Card,\n     9\u2192  CardContent,\n    10\u2192  Typography,\n    11\u2192  Grid,\n    12\u2192  Chip,\n    13\u2192  Dialog,\n    14\u2192  DialogTitle,\n    15\u2192  DialogContent,\n    16\u2192  DialogActions,\n    17\u2192  TextField,\n    18\u2192  Alert,\n    19\u2192  CircularProgress,\n    20\u2192  Divider,\n    21\u2192} from '@mui/material';\n    22\u2192import {\n    23\u2192  CheckCircle as ApproveIcon,\n    24\u2192  Cancel as RejectIcon,\n    25\u2192  Refresh as RefreshIcon,\n    26\u2192  PictureAsPdf as PdfIcon,\n    27\u2192  Description as DocIcon,\n    28\u2192} from '@mui/icons-material';\n    29\u2192import { legalService } from '../../services/legalService';\n    30\u2192import type { ContractGeneration } from '../../types/legal';\n    31\u2192\n    32\u2192const FKReviewQueue: React.FC = () => {\n    33\u2192  const [contracts, setContracts] = useState<ContractGeneration[]>([]);\n    34\u2192  const [loading, setLoading] = useState(true);\n    35\u2192  const [selectedContract, setSelectedContract] = useState<ContractGeneration | null>(null);\n    36\u2192  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);\n    37\u2192  const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | null>(null);\n    38\u2192  const [reviewNotes, setReviewNotes] = useState('');\n    39\u2192  const [submitting, setSubmitting] = useState(false);\n    40\u2192  const [error, setError] = useState<string | null>(null);\n    41\u2192  const [success, setSuccess] = useState<string | null>(null);\n    42\u2192  const [downloading, setDownloading] = useState<string | null>(null);\n    43\u2192\n    44\u2192  useEffect(() => {\n    45\u2192    loadPendingReviews();\n    46\u2192  }, []);\n    47\u2192\n    48\u2192  const loadPendingReviews = async () => {\n    49\u2192    setLoading(true);\n    50\u2192    setError(null);\n    51\u2192    try {\n    52\u2192      const data = await legalService.getPendingReviews();\n    53\u2192      setContracts(data);\n    54\u2192    } catch (err) {\n    55\u2192      setError('Error al cargar contratos pendientes');\n    56\u2192      console.error('Load error:', err);\n    57\u2192    } finally {\n    58\u2192      setLoading(false);\n    59\u2192    }\n    60\u2192  };\n    61\u2192\n    62\u2192  const handleOpenReview = (contract: ContractGeneration, action: 'approve' | 'reject') => {\n    63\u2192    setSelectedContract(contract);\n    64\u2192    setReviewAction(action);\n    65\u2192    setReviewNotes('');\n    66\u2192    setReviewDialogOpen(true);\n    67\u2192  };\n    68\u2192\n    69\u2192  const handleCloseReview = () => {\n    70\u2192    setReviewDialogOpen(false);\n    71\u2192    setSelectedContract(null);\n    72\u2192    setReviewAction(null);\n    73\u2192    setReviewNotes('');\n    74\u2192  };\n    75\u2192\n    76\u2192  const handleSubmitReview = async () => {\n    77\u2192    if (!selectedContract || !reviewAction) return;\n    78\u2192\n    79\u2192    setSubmitting(true);\n    80\u2192    setError(null);\n    81\u2192\n    82\u2192    try {\n    83\u2192      // Use UUID for API operations, display business ID to users\n    84\u2192      await legalService.reviewContract(selectedContract.id, {\n    85\u2192        action: reviewAction,\n    86\u2192        notes: reviewNotes || undefined,\n    87\u2192      });\n    88\u2192\n    89\u2192      setSuccess(\n    90\u2192        reviewAction === 'approve'\n    91\u2192          ? `Contrato ${selectedContract.contract_id} aprobado exitosamente`\n    92\u2192          : `Contrato ${selectedContract.contract_id} rechazado`\n    93\u2192      );\n    94\u2192\n    95\u2192      handleCloseReview();\n    96\u2192      loadPendingReviews(); // Reload the list\n    97\u2192    } catch (err: unknown) {\n    98\u2192      const axiosError = err as { response?: { data?: { detail?: string } } };\n    99\u2192      setError(axiosError.response?.data?.detail || 'Error al procesar la revisi\u00f3n');\n   100\u2192      console.error('Review error:', err);\n   101\u2192    } finally {\n   102\u2192      setSubmitting(false);\n   103\u2192    }\n   104\u2192  };\n   105\u2192\n   106\u2192  const handleDownload = async (contractId: string, format: 'pdf' | 'docx') => {\n   107\u2192    setDownloading(contractId);\n   108\u2192    setError(null);\n   109\u2192\n   110\u2192    try {\n   111\u2192      let blob: Blob;\n   112\u2192      let filename: string;\n   113\u2192\n   114\u2192      if (format === 'pdf') {\n   115\u2192        blob = await legalService.downloadContractPDF(contractId);\n   116\u2192        const contract = contracts.find(c => c.id === contractId);\n   117\u2192        filename = `${contract?.contract_id || 'contrato'}.pdf`;\n   118\u2192      } else {\n   119\u2192        blob = await legalService.downloadContractDOCX(contractId);\n   120\u2192        const contract = contracts.find(c => c.id === contractId);\n   121\u2192        filename = `${contract?.contract_id || 'contrato'}.docx`;\n   122\u2192      }\n   123\u2192\n   124\u2192      // Create download link\n   125\u2192      const url = window.URL.createObjectURL(blob);\n   126\u2192      const link = document.createElement('a');\n   127\u2192      link.href = url;\n   128\u2192      link.download = filename;\n   129\u2192      document.body.appendChild(link);\n   130\u2192      link.click();\n   131\u2192      document.body.removeChild(link);\n   132\u2192      window.URL.revokeObjectURL(url);\n   133\u2192\n   134\u2192      setSuccess(`Documento descargado: ${filename}`);\n   135\u2192    } catch (err: unknown) {\n   136\u2192      const axiosError = err as { response?: { data?: { detail?: string } } };\n   137\u2192      setError(axiosError.response?.data?.detail || `Error al descargar ${format.toUpperCase()}`);\n   138\u2192      console.error('Download error:', err);\n   139\u2192    } finally {\n   140\u2192      setDownloading(null);\n   141\u2192    }\n   142\u2192  };\n   143\u2192\n   144\u2192  const formatDate = (dateString: string) => {\n   145\u2192    return new Date(dateString).toLocaleString('es-CO', {\n   146\u2192      year: 'numeric',\n   147\u2192      month: 'short',\n   148\u2192      day: 'numeric',\n   149\u2192      hour: '2-digit',\n   150\u2192      minute: '2-digit',\n   151\u2192    });\n   152\u2192  };\n   153\u2192\n   154\u2192  const formatCurrency = (amount: number) => {\n   155\u2192    return new Intl.NumberFormat('es-CO', {\n   156\u2192      style: 'currency',\n   157\u2192      currency: 'COP',\n   158\u2192      minimumFractionDigits: 0,\n   159\u2192    }).format(amount);\n   160\u2192  };\n   161\u2192\n   162\u2192  const getContractTypeBadge = (contractType: string) => {\n   163\u2192    if (contractType === 'otrosi') {\n   164\u2192      return {\n   165\u2192        label: 'Otros\u00ed No. 1',\n   166\u2192        color: 'warning' as const,\n   167\u2192      };\n   168\u2192    }\n   169\u2192    if (contractType === 'inventario_bodega') {\n   170\u2192      return {\n   171\u2192        label: 'Inventario Bodega 3ro',\n   172\u2192        color: 'success' as const,\n   173\u2192      };\n   174\u2192    }\n   175\u2192    return {\n   176\u2192      label: 'Activos',\n   177\u2192      color: 'info' as const,\n   178\u2192    };\n   179\u2192  };\n   180\u2192\n   181\u2192  return (\n   182\u2192    <Box>\n   183\u2192      {/* Success Message */}\n   184\u2192      {success && (\n   185\u2192        <Alert severity=\"success\" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>\n   186\u2192          {success}\n   187\u2192        </Alert>\n   188\u2192      )}\n   189\u2192\n   190\u2192      {/* Error Message */}\n   191\u2192      {error && (\n   192\u2192        <Alert severity=\"error\" sx={{ mb: 3 }} onClose={() => setError(null)}>\n   193\u2192          {error}\n   194\u2192        </Alert>\n   195\u2192      )}\n   196\u2192\n   197\u2192      {/* Header */}\n   198\u2192      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>\n   199\u2192        <Box>\n   200\u2192          <Typography variant=\"h6\" sx={{ fontWeight: 600 }}>\n   201\u2192            Contratos Pendientes de Revisi\u00f3n\n   202\u2192          </Typography>\n   203\u2192          <Typography variant=\"body2\" color=\"text.secondary\">\n   204\u2192            {contracts.length} contrato{contracts.length !== 1 ? 's' : ''} esperando revisi\u00f3n legal\n   205\u2192          </Typography>\n   206\u2192        </Box>\n   207\u2192        <Button\n   208\u2192          variant=\"outlined\"\n   209\u2192          startIcon={<RefreshIcon />}\n   210\u2192          onClick={loadPendingReviews}\n   211\u2192          disabled={loading}\n   212\u2192        >\n   213\u2192          Actualizar\n   214\u2192        </Button>\n   215\u2192      </Box>\n   216\u2192\n   217\u2192      {/* Loading State */}\n   218\u2192      {loading && (\n   219\u2192        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>\n   220\u2192          <CircularProgress />\n   221\u2192        </Box>\n   222\u2192      )}\n   223\u2192\n   224\u2192      {/* Empty State */}\n   225\u2192      {!loading && contracts.length === 0 && (\n   226\u2192        <Card>\n   227\u2192          <CardContent sx={{ textAlign: 'center', py: 6 }}>\n   228\u2192            <Typography variant=\"h6\" color=\"text.secondary\">\n   229\u2192              No hay contratos pendientes de revisi\u00f3n\n   230\u2192            </Typography>\n   231\u2192            <Typography variant=\"body2\" color=\"text.secondary\" sx={{ mt: 1 }}>\n   232\u2192              Todos los contratos han sido revisados\n   233\u2192            </Typography>\n   234\u2192          </CardContent>\n   235\u2192        </Card>\n   236\u2192      )}\n   237\u2192\n   238\u2192      {/* Contract List */}\n   239\u2192      {!loading && contracts.length > 0 && (\n   240\u2192        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>\n   241\u2192          {contracts.map((contract) => {\n   242\u2192            const snapshot = contract.data_snapshot as Record<string, unknown>;\n   243\u2192            return (\n   244\u2192              <Card key={contract.id}>\n   245\u2192                <CardContent>\n   246\u2192                  <Grid container spacing={2}>\n   247\u2192                    {/* Header Row */}\n   248\u2192                    <Grid size={{ xs: 12 }}>\n   249\u2192                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>\n   250\u2192                        <Box>\n   251\u2192                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>\n   252\u2192                            <Typography variant=\"h6\" sx={{ fontWeight: 600 }}>\n   253\u2192                              {contract.contract_id}\n   254\u2192                            </Typography>\n   255\u2192                            {(() => {\n   256\u2192                              const badge = getContractTypeBadge(contract.contract_type || 'activos');\n   257\u2192                              return (\n   258\u2192                                <Chip\n   259\u2192                                  label={badge.label}\n   260\u2192                                  color={badge.color}\n   261\u2192                                  size=\"small\"\n   262\u2192                                  sx={{ fontWeight: 500 }}\n   263\u2192                                />\n   264\u2192                              );\n   265\u2192                            })()}\n   266\u2192                          </Box>\n   267\u2192                          <Typography variant=\"body2\" color=\"text.secondary\">\n   268\u2192                            Generado: {formatDate(contract.generated_at)}\n   269\u2192                          </Typography>\n   270\u2192                        </Box>\n   271\u2192                        <Chip label={contract.status} color=\"warning\" />\n   272\u2192                      </Box>\n   273\u2192                    </Grid>\n   274\u2192\n   275\u2192                    {/* Client Info */}\n   276\u2192                    <Grid size={{ xs: 12, md: 6 }}>\n   277\u2192                      <Typography variant=\"body2\" color=\"text.secondary\">\n   278\u2192                        Importador\n   279\u2192                      </Typography>\n   280\u2192                      <Typography variant=\"body1\" sx={{ fontWeight: 600 }}>\n   281\u2192                        {snapshot?.nombre_importador}\n   282\u2192                      </Typography>\n   283\u2192                    </Grid>\n   284\u2192\n   285\u2192                    <Grid size={{ xs: 12, md: 3 }}>\n   286\u2192                      <Typography variant=\"body2\" color=\"text.secondary\">\n   287\u2192                        NIT\n   288\u2192                      </Typography>\n   289\u2192                      <Typography variant=\"body1\">{contract.client_nit}</Typography>\n   290\u2192                    </Grid>\n   291\u2192\n   292\u2192                    <Grid size={{ xs: 12, md: 3 }}>\n   293\u2192                      <Typography variant=\"body2\" color=\"text.secondary\">\n   294\u2192                        Cupo\n   295\u2192                      </Typography>\n   296\u2192                      <Typography variant=\"body1\" sx={{ fontWeight: 600, color: 'primary.main' }}>\n   297\u2192                        {formatCurrency(snapshot?.cupo_plataforma || 0)}\n   298\u2192                      </Typography>\n   299\u2192                    </Grid>\n   300\u2192\n   301\u2192                    <Grid size={{ xs: 12, md: 6 }}>\n   302\u2192                      <Typography variant=\"body2\" color=\"text.secondary\">\n   303\u2192                        Representante Legal\n   304\u2192                      </Typography>\n   305\u2192                      <Typography variant=\"body1\">{snapshot?.representante_legal}</Typography>\n   306\u2192                    </Grid>\n   307\u2192\n   308\u2192                    <Grid size={{ xs: 12, md: 6 }}>\n   309\u2192                      <Typography variant=\"body2\" color=\"text.secondary\">\n   310\u2192                        Ciudad\n   311\u2192                      </Typography>\n   312\u2192                      <Typography variant=\"body1\">{snapshot?.ciudad_domicilio}</Typography>\n   313\u2192                    </Grid>\n   314\u2192\n   315\u2192                    {/* Actions */}\n   316\u2192                    <Grid size={{ xs: 12 }}>\n   317\u2192                      <Divider sx={{ my: 1 }} />\n   318\u2192                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 2, flexWrap: 'wrap' }}>\n   319\u2192                        <Box sx={{ display: 'flex', gap: 1 }}>\n   320\u2192                          <Button\n   321\u2192                            variant=\"outlined\"\n   322\u2192                            startIcon={downloading === contract.id ? <CircularProgress size={16} /> : <DocIcon />}\n   323\u2192                            size=\"small\"\n   324\u2192                            onClick={() => handleDownload(contract.id, 'docx')}\n   325\u2192                            disabled={downloading === contract.id}\n   326\u2192                          >\n   327\u2192                            DOCX\n   328\u2192                          </Button>\n   329\u2192                          <Button\n   330\u2192                            variant=\"outlined\"\n   331\u2192                            startIcon={downloading === contract.id ? <CircularProgress size={16} /> : <PdfIcon />}\n   332\u2192                            size=\"small\"\n   333\u2192                            onClick={() => handleDownload(contract.id, 'pdf')}\n   334\u2192                            disabled={downloading === contract.id}\n   335\u2192                          >\n   336\u2192                            PDF\n   337\u2192                          </Button>\n   338\u2192                        </Box>\n   339\u2192                        <Box sx={{ display: 'flex', gap: 1 }}>\n   340\u2192                          <Button\n   341\u2192                            variant=\"outlined\"\n   342\u2192                            color=\"error\"\n   343\u2192                            startIcon={<RejectIcon />}\n   344\u2192                            size=\"small\"\n   345\u2192                            onClick={() => handleOpenReview(contract, 'reject')}\n   346\u2192                          >\n   347\u2192                            Rechazar\n   348\u2192                          </Button>\n   349\u2192                          <Button\n   350\u2192                            variant=\"contained\"\n   351\u2192                            color=\"success\"\n   352\u2192                            startIcon={<ApproveIcon />}\n   353\u2192                            size=\"small\"\n   354\u2192                            onClick={() => handleOpenReview(contract, 'approve')}\n   355\u2192                          >\n   356\u2192                            Aprobar\n   357\u2192                          </Button>\n   358\u2192                        </Box>\n   359\u2192                      </Box>\n   360\u2192                    </Grid>\n   361\u2192                  </Grid>\n   362\u2192                </CardContent>\n   363\u2192              </Card>\n   364\u2192            );\n   365\u2192          })}\n   366\u2192        </Box>\n   367\u2192      )}\n   368\u2192\n   369\u2192      {/* Review Dialog */}\n   370\u2192      <Dialog open={reviewDialogOpen} onClose={handleCloseReview} maxWidth=\"sm\" fullWidth>\n   371\u2192        <DialogTitle>\n   372\u2192          {reviewAction === 'approve' ? 'Aprobar Contrato' : 'Rechazar Contrato'}\n   373\u2192        </DialogTitle>\n   374\u2192        <DialogContent>\n   375\u2192          {selectedContract && (\n   376\u2192            <Box sx={{ mb: 2 }}>\n   377\u2192              <Typography variant=\"body2\" color=\"text.secondary\">\n   378\u2192                Contrato: <strong>{selectedContract.contract_id}</strong>\n   379\u2192              </Typography>\n   380\u2192              <Typography variant=\"body2\" color=\"text.secondary\">\n   381\u2192                Cliente: <strong>{selectedContract.client_nit}</strong>\n   382\u2192              </Typography>\n   383\u2192            </Box>\n   384\u2192          )}\n   385\u2192\n   386\u2192          <TextField\n   387\u2192            fullWidth\n   388\u2192            multiline\n   389\u2192            rows={4}\n   390\u2192            label={reviewAction === 'approve' ? 'Notas (opcional)' : 'Motivo del rechazo'}\n   391\u2192            value={reviewNotes}\n   392\u2192            onChange={(e) => setReviewNotes(e.target.value)}\n   393\u2192            placeholder={\n   394\u2192              reviewAction === 'approve'\n   395\u2192                ? 'Agregue notas si es necesario...'\n   396\u2192                : 'Por favor indique el motivo del rechazo...'\n   397\u2192            }\n   398\u2192          />\n   399\u2192        </DialogContent>\n   400\u2192        <DialogActions>\n   401\u2192          <Button onClick={handleCloseReview} disabled={submitting}>\n   402\u2192            Cancelar\n   403\u2192          </Button>\n   404\u2192          <Button\n   405\u2192            onClick={handleSubmitReview}\n   406\u2192            variant=\"contained\"\n   407\u2192            color={reviewAction === 'approve' ? 'success' : 'error'}\n   408\u2192            disabled={submitting}\n   409\u2192            startIcon={submitting ? <CircularProgress size={20} /> : null}\n   410\u2192          >\n   411\u2192            {submitting\n   412\u2192              ? 'Procesando...'\n   413\u2192              : reviewAction === 'approve'\n   414\u2192              ? 'Aprobar'\n   415\u2192              : 'Rechazar'}\n   416\u2192          </Button>\n   417\u2192        </DialogActions>\n   418\u2192      </Dialog>\n   419\u2192    </Box>\n   420\u2192  );\n   421\u2192};\n   422\u2192\n   423\u2192export default FKReviewQueue;\n   424\u2192\n\n<system-reminder>\nWhenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.\n</system-reminder>\n"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "3d2702d6-0dd0-4735-a0c4-878c53815769",
+    "tool_use_result": {
+      "type": "text",
+      "file": {
+        "filePath": "/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKReviewQueue.tsx",
+        "content": "/**\n * FKReviewQueue - Contract review queue for Legal team\n */\nimport React, { useState, useEffect } from 'react';\nimport {\n  Box,\n  Button,\n  Card,\n  CardContent,\n  Typography,\n  Grid,\n  Chip,\n  Dialog,\n  DialogTitle,\n  DialogContent,\n  DialogActions,\n  TextField,\n  Alert,\n  CircularProgress,\n  Divider,\n} from '@mui/material';\nimport {\n  CheckCircle as ApproveIcon,\n  Cancel as RejectIcon,\n  Refresh as RefreshIcon,\n  PictureAsPdf as PdfIcon,\n  Description as DocIcon,\n} from '@mui/icons-material';\nimport { legalService } from '../../services/legalService';\nimport type { ContractGeneration } from '../../types/legal';\n\nconst FKReviewQueue: React.FC = () => {\n  const [contracts, setContracts] = useState<ContractGeneration[]>([]);\n  const [loading, setLoading] = useState(true);\n  const [selectedContract, setSelectedContract] = useState<ContractGeneration | null>(null);\n  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);\n  const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | null>(null);\n  const [reviewNotes, setReviewNotes] = useState('');\n  const [submitting, setSubmitting] = useState(false);\n  const [error, setError] = useState<string | null>(null);\n  const [success, setSuccess] = useState<string | null>(null);\n  const [downloading, setDownloading] = useState<string | null>(null);\n\n  useEffect(() => {\n    loadPendingReviews();\n  }, []);\n\n  const loadPendingReviews = async () => {\n    setLoading(true);\n    setError(null);\n    try {\n      const data = await legalService.getPendingReviews();\n      setContracts(data);\n    } catch (err) {\n      setError('Error al cargar contratos pendientes');\n      console.error('Load error:', err);\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  const handleOpenReview = (contract: ContractGeneration, action: 'approve' | 'reject') => {\n    setSelectedContract(contract);\n    setReviewAction(action);\n    setReviewNotes('');\n    setReviewDialogOpen(true);\n  };\n\n  const handleCloseReview = () => {\n    setReviewDialogOpen(false);\n    setSelectedContract(null);\n    setReviewAction(null);\n    setReviewNotes('');\n  };\n\n  const handleSubmitReview = async () => {\n    if (!selectedContract || !reviewAction) return;\n\n    setSubmitting(true);\n    setError(null);\n\n    try {\n      // Use UUID for API operations, display business ID to users\n      await legalService.reviewContract(selectedContract.id, {\n        action: reviewAction,\n        notes: reviewNotes || undefined,\n      });\n\n      setSuccess(\n        reviewAction === 'approve'\n          ? `Contrato ${selectedContract.contract_id} aprobado exitosamente`\n          : `Contrato ${selectedContract.contract_id} rechazado`\n      );\n\n      handleCloseReview();\n      loadPendingReviews(); // Reload the list\n    } catch (err: unknown) {\n      const axiosError = err as { response?: { data?: { detail?: string } } };\n      setError(axiosError.response?.data?.detail || 'Error al procesar la revisi\u00f3n');\n      console.error('Review error:', err);\n    } finally {\n      setSubmitting(false);\n    }\n  };\n\n  const handleDownload = async (contractId: string, format: 'pdf' | 'docx') => {\n    setDownloading(contractId);\n    setError(null);\n\n    try {\n      let blob: Blob;\n      let filename: string;\n\n      if (format === 'pdf') {\n        blob = await legalService.downloadContractPDF(contractId);\n        const contract = contracts.find(c => c.id === contractId);\n        filename = `${contract?.contract_id || 'contrato'}.pdf`;\n      } else {\n        blob = await legalService.downloadContractDOCX(contractId);\n        const contract = contracts.find(c => c.id === contractId);\n        filename = `${contract?.contract_id || 'contrato'}.docx`;\n      }\n\n      // Create download link\n      const url = window.URL.createObjectURL(blob);\n      const link = document.createElement('a');\n      link.href = url;\n      link.download = filename;\n      document.body.appendChild(link);\n      link.click();\n      document.body.removeChild(link);\n      window.URL.revokeObjectURL(url);\n\n      setSuccess(`Documento descargado: ${filename}`);\n    } catch (err: unknown) {\n      const axiosError = err as { response?: { data?: { detail?: string } } };\n      setError(axiosError.response?.data?.detail || `Error al descargar ${format.toUpperCase()}`);\n      console.error('Download error:', err);\n    } finally {\n      setDownloading(null);\n    }\n  };\n\n  const formatDate = (dateString: string) => {\n    return new Date(dateString).toLocaleString('es-CO', {\n      year: 'numeric',\n      month: 'short',\n      day: 'numeric',\n      hour: '2-digit',\n      minute: '2-digit',\n    });\n  };\n\n  const formatCurrency = (amount: number) => {\n    return new Intl.NumberFormat('es-CO', {\n      style: 'currency',\n      currency: 'COP',\n      minimumFractionDigits: 0,\n    }).format(amount);\n  };\n\n  const getContractTypeBadge = (contractType: string) => {\n    if (contractType === 'otrosi') {\n      return {\n        label: 'Otros\u00ed No. 1',\n        color: 'warning' as const,\n      };\n    }\n    if (contractType === 'inventario_bodega') {\n      return {\n        label: 'Inventario Bodega 3ro',\n        color: 'success' as const,\n      };\n    }\n    return {\n      label: 'Activos',\n      color: 'info' as const,\n    };\n  };\n\n  return (\n    <Box>\n      {/* Success Message */}\n      {success && (\n        <Alert severity=\"success\" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>\n          {success}\n        </Alert>\n      )}\n\n      {/* Error Message */}\n      {error && (\n        <Alert severity=\"error\" sx={{ mb: 3 }} onClose={() => setError(null)}>\n          {error}\n        </Alert>\n      )}\n\n      {/* Header */}\n      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>\n        <Box>\n          <Typography variant=\"h6\" sx={{ fontWeight: 600 }}>\n            Contratos Pendientes de Revisi\u00f3n\n          </Typography>\n          <Typography variant=\"body2\" color=\"text.secondary\">\n            {contracts.length} contrato{contracts.length !== 1 ? 's' : ''} esperando revisi\u00f3n legal\n          </Typography>\n        </Box>\n        <Button\n          variant=\"outlined\"\n          startIcon={<RefreshIcon />}\n          onClick={loadPendingReviews}\n          disabled={loading}\n        >\n          Actualizar\n        </Button>\n      </Box>\n\n      {/* Loading State */}\n      {loading && (\n        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>\n          <CircularProgress />\n        </Box>\n      )}\n\n      {/* Empty State */}\n      {!loading && contracts.length === 0 && (\n        <Card>\n          <CardContent sx={{ textAlign: 'center', py: 6 }}>\n            <Typography variant=\"h6\" color=\"text.secondary\">\n              No hay contratos pendientes de revisi\u00f3n\n            </Typography>\n            <Typography variant=\"body2\" color=\"text.secondary\" sx={{ mt: 1 }}>\n              Todos los contratos han sido revisados\n            </Typography>\n          </CardContent>\n        </Card>\n      )}\n\n      {/* Contract List */}\n      {!loading && contracts.length > 0 && (\n        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>\n          {contracts.map((contract) => {\n            const snapshot = contract.data_snapshot as Record<string, unknown>;\n            return (\n              <Card key={contract.id}>\n                <CardContent>\n                  <Grid container spacing={2}>\n                    {/* Header Row */}\n                    <Grid size={{ xs: 12 }}>\n                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>\n                        <Box>\n                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>\n                            <Typography variant=\"h6\" sx={{ fontWeight: 600 }}>\n                              {contract.contract_id}\n                            </Typography>\n                            {(() => {\n                              const badge = getContractTypeBadge(contract.contract_type || 'activos');\n                              return (\n                                <Chip\n                                  label={badge.label}\n                                  color={badge.color}\n                                  size=\"small\"\n                                  sx={{ fontWeight: 500 }}\n                                />\n                              );\n                            })()}\n                          </Box>\n                          <Typography variant=\"body2\" color=\"text.secondary\">\n                            Generado: {formatDate(contract.generated_at)}\n                          </Typography>\n                        </Box>\n                        <Chip label={contract.status} color=\"warning\" />\n                      </Box>\n                    </Grid>\n\n                    {/* Client Info */}\n                    <Grid size={{ xs: 12, md: 6 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        Importador\n                      </Typography>\n                      <Typography variant=\"body1\" sx={{ fontWeight: 600 }}>\n                        {snapshot?.nombre_importador}\n                      </Typography>\n                    </Grid>\n\n                    <Grid size={{ xs: 12, md: 3 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        NIT\n                      </Typography>\n                      <Typography variant=\"body1\">{contract.client_nit}</Typography>\n                    </Grid>\n\n                    <Grid size={{ xs: 12, md: 3 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        Cupo\n                      </Typography>\n                      <Typography variant=\"body1\" sx={{ fontWeight: 600, color: 'primary.main' }}>\n                        {formatCurrency(snapshot?.cupo_plataforma || 0)}\n                      </Typography>\n                    </Grid>\n\n                    <Grid size={{ xs: 12, md: 6 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        Representante Legal\n                      </Typography>\n                      <Typography variant=\"body1\">{snapshot?.representante_legal}</Typography>\n                    </Grid>\n\n                    <Grid size={{ xs: 12, md: 6 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        Ciudad\n                      </Typography>\n                      <Typography variant=\"body1\">{snapshot?.ciudad_domicilio}</Typography>\n                    </Grid>\n\n                    {/* Actions */}\n                    <Grid size={{ xs: 12 }}>\n                      <Divider sx={{ my: 1 }} />\n                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 2, flexWrap: 'wrap' }}>\n                        <Box sx={{ display: 'flex', gap: 1 }}>\n                          <Button\n                            variant=\"outlined\"\n                            startIcon={downloading === contract.id ? <CircularProgress size={16} /> : <DocIcon />}\n                            size=\"small\"\n                            onClick={() => handleDownload(contract.id, 'docx')}\n                            disabled={downloading === contract.id}\n                          >\n                            DOCX\n                          </Button>\n                          <Button\n                            variant=\"outlined\"\n                            startIcon={downloading === contract.id ? <CircularProgress size={16} /> : <PdfIcon />}\n                            size=\"small\"\n                            onClick={() => handleDownload(contract.id, 'pdf')}\n                            disabled={downloading === contract.id}\n                          >\n                            PDF\n                          </Button>\n                        </Box>\n                        <Box sx={{ display: 'flex', gap: 1 }}>\n                          <Button\n                            variant=\"outlined\"\n                            color=\"error\"\n                            startIcon={<RejectIcon />}\n                            size=\"small\"\n                            onClick={() => handleOpenReview(contract, 'reject')}\n                          >\n                            Rechazar\n                          </Button>\n                          <Button\n                            variant=\"contained\"\n                            color=\"success\"\n                            startIcon={<ApproveIcon />}\n                            size=\"small\"\n                            onClick={() => handleOpenReview(contract, 'approve')}\n                          >\n                            Aprobar\n                          </Button>\n                        </Box>\n                      </Box>\n                    </Grid>\n                  </Grid>\n                </CardContent>\n              </Card>\n            );\n          })}\n        </Box>\n      )}\n\n      {/* Review Dialog */}\n      <Dialog open={reviewDialogOpen} onClose={handleCloseReview} maxWidth=\"sm\" fullWidth>\n        <DialogTitle>\n          {reviewAction === 'approve' ? 'Aprobar Contrato' : 'Rechazar Contrato'}\n        </DialogTitle>\n        <DialogContent>\n          {selectedContract && (\n            <Box sx={{ mb: 2 }}>\n              <Typography variant=\"body2\" color=\"text.secondary\">\n                Contrato: <strong>{selectedContract.contract_id}</strong>\n              </Typography>\n              <Typography variant=\"body2\" color=\"text.secondary\">\n                Cliente: <strong>{selectedContract.client_nit}</strong>\n              </Typography>\n            </Box>\n          )}\n\n          <TextField\n            fullWidth\n            multiline\n            rows={4}\n            label={reviewAction === 'approve' ? 'Notas (opcional)' : 'Motivo del rechazo'}\n            value={reviewNotes}\n            onChange={(e) => setReviewNotes(e.target.value)}\n            placeholder={\n              reviewAction === 'approve'\n                ? 'Agregue notas si es necesario...'\n                : 'Por favor indique el motivo del rechazo...'\n            }\n          />\n        </DialogContent>\n        <DialogActions>\n          <Button onClick={handleCloseReview} disabled={submitting}>\n            Cancelar\n          </Button>\n          <Button\n            onClick={handleSubmitReview}\n            variant=\"contained\"\n            color={reviewAction === 'approve' ? 'success' : 'error'}\n            disabled={submitting}\n            startIcon={submitting ? <CircularProgress size={20} /> : null}\n          >\n            {submitting\n              ? 'Procesando...'\n              : reviewAction === 'approve'\n              ? 'Aprobar'\n              : 'Rechazar'}\n          </Button>\n        </DialogActions>\n      </Dialog>\n    </Box>\n  );\n};\n\nexport default FKReviewQueue;\n",
+        "numLines": 424,
+        "startLine": 1,
+        "totalLines": 424
+      }
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01EcscyfBEccvNGBrVNfK1rP",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Now I need to check the `ClientDataSnapshot` type to understand its structure:"
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 5479,
+        "cache_read_input_tokens": 25013,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 5479,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 2,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "a7a6e4bd-e9f2-498c-82d2-4fc5dd2ca94a"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01EcscyfBEccvNGBrVNfK1rP",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01K31fxENeq3Nqw1xJDkCdcP",
+          "name": "Grep",
+          "input": {
+            "pattern": "ClientDataSnapshot",
+            "path": "/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src",
+            "output_mode": "files_with_matches"
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 5479,
+        "cache_read_input_tokens": 25013,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 5479,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 2,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "bba92df0-8941-4a35-a8fd-ef12c324bb15"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01K31fxENeq3Nqw1xJDkCdcP",
+          "type": "tool_result",
+          "content": "Found 1 file limit: 20, offset: 0\nfrontend/src/types/legal.ts"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "70afde86-84a4-4d6d-9c71-021c2c71a39f",
+    "tool_use_result": {
+      "mode": "files_with_matches",
+      "filenames": [
+        "frontend/src/types/legal.ts"
+      ],
+      "numFiles": 1,
+      "appliedLimit": 20
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01FN54j2ZLimZps364gnBfFt",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01NHSb9m65ZD18bJjTeHJpyE",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/types/legal.ts"
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 168,
+        "cache_read_input_tokens": 30492,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 168,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 79,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "9222b2d3-b800-485d-aa3f-a53e4c7ad455"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01NHSb9m65ZD18bJjTeHJpyE",
+          "type": "tool_result",
+          "content": "     1\u2192/**\n     2\u2192 * Legal Contract Automation Types\n     3\u2192 * Updated: Contract workflow types\n     4\u2192 */\n     5\u2192\n     6\u2192export interface Client {\n     7\u2192  id: string;\n     8\u2192  nit: string;\n     9\u2192  nombre_importador: string;\n    10\u2192  representante_legal: string;\n    11\u2192  cedula_representante: string;\n    12\u2192  ciudad_domicilio: string;\n    13\u2192  cupo_plataforma: number;\n    14\u2192  created_at?: string;\n    15\u2192  updated_at?: string;\n    16\u2192  is_active?: boolean;\n    17\u2192  notes?: string;\n    18\u2192  // New fields for contract template\n    19\u2192  direccion_comercial?: string;\n    20\u2192  tipo_identificacion_representante?: string;\n    21\u2192  nombre_contrato_marco?: string;\n    22\u2192  kam_nombre?: string;\n    23\u2192  kam_email?: string;\n    24\u2192  destinatario_nombre?: string;\n    25\u2192  destinatario_email?: string;\n    26\u2192}\n    27\u2192\n    28\u2192export interface ContractTemplate {\n    29\u2192  id: string;\n    30\u2192  version: string;\n    31\u2192  contract_type: string;\n    32\u2192  template_content: string;\n    33\u2192  active: boolean;\n    34\u2192  created_by?: string;\n    35\u2192  created_at?: string;\n    36\u2192  notes?: string;\n    37\u2192}\n    38\u2192\n    39\u2192export type ContractStatus =\n    40\u2192  | 'generated'\n    41\u2192  | 'under_review'\n    42\u2192  | 'approved'\n    43\u2192  | 'rejected';\n    44\u2192\n    45\u2192export const ContractStatus = {\n    46\u2192  GENERATED: 'generated' as const,\n    47\u2192  UNDER_REVIEW: 'under_review' as const,\n    48\u2192  APPROVED: 'approved' as const,\n    49\u2192  REJECTED: 'rejected' as const,\n    50\u2192};\n    51\u2192\n    52\u2192export interface ContractGeneration {\n    53\u2192  id: string;\n    54\u2192  contract_id: string;\n    55\u2192  contract_type: string;\n    56\u2192  client_nit: string;\n    57\u2192  client_id: string;\n    58\u2192  status: ContractStatus;\n    59\u2192  generated_by: string;\n    60\u2192  generated_at: string;\n    61\u2192  reviewed_by?: string;\n    62\u2192  reviewed_at?: string;\n    63\u2192  review_notes?: string;\n    64\u2192  pdf_url?: string;\n    65\u2192  pdf_storage_path?: string;\n    66\u2192  approved_document_url?: string;\n    67\u2192  template_id: string;\n    68\u2192  template_version: string;\n    69\u2192  data_snapshot: ClientDataSnapshot;\n    70\u2192  created_at: string;\n    71\u2192  updated_at: string;\n    72\u2192}\n    73\u2192\n    74\u2192export interface ClientDataSnapshot {\n    75\u2192  nit: string;\n    76\u2192  nombre_importador: string;\n    77\u2192  representante_legal: string;\n    78\u2192  cedula_representante: string;\n    79\u2192  ciudad_domicilio: string;\n    80\u2192  cupo_plataforma: number;\n    81\u2192  contract_id: string;\n    82\u2192  contract_type: string;\n    83\u2192  generation_date: string;\n    84\u2192  // Additional fields for contract template\n    85\u2192  direccion_comercial?: string;\n    86\u2192  tipo_identificacion_representante?: string;\n    87\u2192  nombre_contrato_marco?: string;\n    88\u2192  kam_nombre?: string;\n    89\u2192  kam_email?: string;\n    90\u2192  destinatario_nombre?: string;\n    91\u2192  destinatario_email?: string;\n    92\u2192}\n    93\u2192\n    94\u2192export interface DataImport {\n    95\u2192  id: string;\n    96\u2192  file_name: string;\n    97\u2192  file_size?: number;\n    98\u2192  total_rows?: number;\n    99\u2192  successful_rows?: number;\n   100\u2192  failed_rows?: number;\n   101\u2192  error_log?: Record<string, unknown>;\n   102\u2192  imported_by: string;\n   103\u2192  imported_at: string;\n   104\u2192  status: 'processing' | 'completed' | 'failed';\n   105\u2192}\n   106\u2192\n   107\u2192export interface ContractGenerationRequest {\n   108\u2192  client_nit: string;\n   109\u2192  contract_type?:\n   110\u2192    | 'activos'\n   111\u2192    | 'otrosi'\n   112\u2192    | 'inventario_bodega'\n   113\u2192    // Paga Local Colombia - Cuenta Cliente - Aval PJ\n   114\u2192    | 'pl_co_credito_aval_pj'\n   115\u2192    | 'pl_co_mandato_pj'\n   116\u2192    // Paga Local Colombia - Cuenta Cliente - Aval PN\n   117\u2192    | 'pl_co_credito_aval_pn'\n   118\u2192    | 'pl_co_mandato_pn'\n   119\u2192    // Paga Local Colombia - Cuenta Cliente - Sin Aval\n   120\u2192    | 'pl_co_credito_no_aval'\n   121\u2192    | 'pl_co_mandato_no_aval'\n   122\u2192    // Paga Local Colombia - Documentos Operaci\u00f3n\n   123\u2192    | 'pl_co_mandato_im'\n   124\u2192    | 'pl_co_solicitud_desembolso'\n   125\u2192    | 'pl_co_dian_mandato_im';\n   126\u2192}\n   127\u2192\n   128\u2192export interface ContractReviewRequest {\n   129\u2192  action: 'approve' | 'reject';\n   130\u2192  notes?: string;\n   131\u2192}\n   132\u2192\n   133\u2192export interface ClientSearchParams {\n   134\u2192  query?: string;\n   135\u2192  nit?: string;\n   136\u2192  nombre?: string;\n   137\u2192  is_active?: boolean;\n   138\u2192}\n   139\u2192\n   140\u2192// Operations Sorting Types\n   141\u2192export type OperationsSortField =\n   142\u2192  | 'contract_id'\n   143\u2192  | 'contract_type'\n   144\u2192  | 'client_nit'\n   145\u2192  | 'reviewed_at'\n   146\u2192  | 'nombre_importador'\n   147\u2192  | 'cupo_plataforma';\n   148\u2192\n   149\u2192export type OperationsSortOrder = 'asc' | 'desc';\n   150\u2192\n   151\u2192export interface OperationsSortParams {\n   152\u2192  sort_by?: OperationsSortField;\n   153\u2192  sort_order?: OperationsSortOrder;\n   154\u2192}\n   155\u2192\n   156\u2192// Operations Filter Types\n   157\u2192export interface OperationsFilterParams {\n   158\u2192  contract_types?: string[];\n   159\u2192  client_name?: string;\n   160\u2192  client_nit?: string;\n   161\u2192  date_from?: string;\n   162\u2192  date_to?: string;\n   163\u2192  cupo_min?: number;\n   164\u2192  cupo_max?: number;\n   165\u2192}\n   166\u2192\n\n<system-reminder>\nWhenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.\n</system-reminder>\n"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "47bbcf6b-cdd8-4f39-8205-bf0ac82195bf",
+    "tool_use_result": {
+      "type": "text",
+      "file": {
+        "filePath": "/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/types/legal.ts",
+        "content": "/**\n * Legal Contract Automation Types\n * Updated: Contract workflow types\n */\n\nexport interface Client {\n  id: string;\n  nit: string;\n  nombre_importador: string;\n  representante_legal: string;\n  cedula_representante: string;\n  ciudad_domicilio: string;\n  cupo_plataforma: number;\n  created_at?: string;\n  updated_at?: string;\n  is_active?: boolean;\n  notes?: string;\n  // New fields for contract template\n  direccion_comercial?: string;\n  tipo_identificacion_representante?: string;\n  nombre_contrato_marco?: string;\n  kam_nombre?: string;\n  kam_email?: string;\n  destinatario_nombre?: string;\n  destinatario_email?: string;\n}\n\nexport interface ContractTemplate {\n  id: string;\n  version: string;\n  contract_type: string;\n  template_content: string;\n  active: boolean;\n  created_by?: string;\n  created_at?: string;\n  notes?: string;\n}\n\nexport type ContractStatus =\n  | 'generated'\n  | 'under_review'\n  | 'approved'\n  | 'rejected';\n\nexport const ContractStatus = {\n  GENERATED: 'generated' as const,\n  UNDER_REVIEW: 'under_review' as const,\n  APPROVED: 'approved' as const,\n  REJECTED: 'rejected' as const,\n};\n\nexport interface ContractGeneration {\n  id: string;\n  contract_id: string;\n  contract_type: string;\n  client_nit: string;\n  client_id: string;\n  status: ContractStatus;\n  generated_by: string;\n  generated_at: string;\n  reviewed_by?: string;\n  reviewed_at?: string;\n  review_notes?: string;\n  pdf_url?: string;\n  pdf_storage_path?: string;\n  approved_document_url?: string;\n  template_id: string;\n  template_version: string;\n  data_snapshot: ClientDataSnapshot;\n  created_at: string;\n  updated_at: string;\n}\n\nexport interface ClientDataSnapshot {\n  nit: string;\n  nombre_importador: string;\n  representante_legal: string;\n  cedula_representante: string;\n  ciudad_domicilio: string;\n  cupo_plataforma: number;\n  contract_id: string;\n  contract_type: string;\n  generation_date: string;\n  // Additional fields for contract template\n  direccion_comercial?: string;\n  tipo_identificacion_representante?: string;\n  nombre_contrato_marco?: string;\n  kam_nombre?: string;\n  kam_email?: string;\n  destinatario_nombre?: string;\n  destinatario_email?: string;\n}\n\nexport interface DataImport {\n  id: string;\n  file_name: string;\n  file_size?: number;\n  total_rows?: number;\n  successful_rows?: number;\n  failed_rows?: number;\n  error_log?: Record<string, unknown>;\n  imported_by: string;\n  imported_at: string;\n  status: 'processing' | 'completed' | 'failed';\n}\n\nexport interface ContractGenerationRequest {\n  client_nit: string;\n  contract_type?:\n    | 'activos'\n    | 'otrosi'\n    | 'inventario_bodega'\n    // Paga Local Colombia - Cuenta Cliente - Aval PJ\n    | 'pl_co_credito_aval_pj'\n    | 'pl_co_mandato_pj'\n    // Paga Local Colombia - Cuenta Cliente - Aval PN\n    | 'pl_co_credito_aval_pn'\n    | 'pl_co_mandato_pn'\n    // Paga Local Colombia - Cuenta Cliente - Sin Aval\n    | 'pl_co_credito_no_aval'\n    | 'pl_co_mandato_no_aval'\n    // Paga Local Colombia - Documentos Operaci\u00f3n\n    | 'pl_co_mandato_im'\n    | 'pl_co_solicitud_desembolso'\n    | 'pl_co_dian_mandato_im';\n}\n\nexport interface ContractReviewRequest {\n  action: 'approve' | 'reject';\n  notes?: string;\n}\n\nexport interface ClientSearchParams {\n  query?: string;\n  nit?: string;\n  nombre?: string;\n  is_active?: boolean;\n}\n\n// Operations Sorting Types\nexport type OperationsSortField =\n  | 'contract_id'\n  | 'contract_type'\n  | 'client_nit'\n  | 'reviewed_at'\n  | 'nombre_importador'\n  | 'cupo_plataforma';\n\nexport type OperationsSortOrder = 'asc' | 'desc';\n\nexport interface OperationsSortParams {\n  sort_by?: OperationsSortField;\n  sort_order?: OperationsSortOrder;\n}\n\n// Operations Filter Types\nexport interface OperationsFilterParams {\n  contract_types?: string[];\n  client_name?: string;\n  client_nit?: string;\n  date_from?: string;\n  date_to?: string;\n  cupo_min?: number;\n  cupo_max?: number;\n}\n",
+        "numLines": 166,
+        "startLine": 1,
+        "totalLines": 166
+      }
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_011jjWroaV4wxZuqTPE279kn",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Now I understand the issues. Let me analyze each TypeScript error:\n\n1. **Line 242** - `ClientDataSnapshot` is being cast to `Record<string, unknown>` which TypeScript considers a mistake because they don't overlap well. Need to cast through `unknown` first.\n\n2. **Lines 281, 305, 312** - Accessing properties like `snapshot?.nombre_importador`, `snapshot?.representante_legal`, `snapshot?.ciudad_domicilio` returns `unknown` when using `Record<string, unknown>`, which can't be directly used as ReactNode.\n\n3. **Line 297** - `snapshot?.cupo_plataforma || 0` is being passed to `formatCurrency`, but with `Record<string, unknown>`, it could be `unknown` instead of `number`.\n\nThe fix is to keep the type as `ClientDataSnapshot` instead of casting to `Record<string, unknown>`, since we know the exact type from the interface."
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 2024,
+        "cache_read_input_tokens": 30660,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 2024,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 2,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "3cb338db-6821-418a-a4ea-197fea0ad77e"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_011jjWroaV4wxZuqTPE279kn",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01XocRCDqtoqD1NeywqksAPz",
+          "name": "TodoWrite",
+          "input": {
+            "todos": [
+              {
+                "content": "Fix TypeScript errors in FKReviewQueue.tsx",
+                "status": "in_progress",
+                "activeForm": "Fixing TypeScript errors in FKReviewQueue.tsx"
+              }
+            ]
+          }
+        }
+      ],
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 2024,
+        "cache_read_input_tokens": 30660,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 2024,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 316,
+        "service_tier": "standard"
+      },
+      "context_management": {
+        "applied_edits": []
+      }
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "9e4affad-0667-4d63-8c45-20de2f9cfde0"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01XocRCDqtoqD1NeywqksAPz",
+          "type": "tool_result",
+          "content": "Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "0acdbc7f-c5a4-4472-b81e-7da015d67df9",
+    "tool_use_result": {
+      "oldTodos": [],
+      "newTodos": [
+        {
+          "content": "Fix TypeScript errors in FKReviewQueue.tsx",
+          "status": "in_progress",
+          "activeForm": "Fixing TypeScript errors in FKReviewQueue.tsx"
+        }
+      ]
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01CM7CU1poRad98pMibKLbY5",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01Vk7MyAvkg7RZ4MMxdfHqaS",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKReviewQueue.tsx",
+            "old_string": "      {!loading && contracts.length > 0 && (\n        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>\n          {contracts.map((contract) => {\n            const snapshot = contract.data_snapshot as Record<string, unknown>;\n            return (",
+            "new_string": "      {!loading && contracts.length > 0 && (\n        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>\n          {contracts.map((contract) => {\n            const snapshot = contract.data_snapshot;\n            return ("
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 358,
+        "cache_read_input_tokens": 32684,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 358,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 259,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "c2e7bd47-ace6-42d3-9ee7-3a0756e67562"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01Vk7MyAvkg7RZ4MMxdfHqaS",
+          "type": "tool_result",
+          "content": "The file /Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKReviewQueue.tsx has been updated. Here's the result of running `cat -n` on a snippet of the edited file:\n   235\u2192        </Card>\n   236\u2192      )}\n   237\u2192\n   238\u2192      {/* Contract List */}\n   239\u2192      {!loading && contracts.length > 0 && (\n   240\u2192        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>\n   241\u2192          {contracts.map((contract) => {\n   242\u2192            const snapshot = contract.data_snapshot;\n   243\u2192            return (\n   244\u2192              <Card key={contract.id}>\n   245\u2192                <CardContent>\n   246\u2192                  <Grid container spacing={2}>\n   247\u2192                    {/* Header Row */}"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "c2b701c1-8fdf-4ffd-b1c4-108fe8d1b509",
+    "tool_use_result": {
+      "filePath": "/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKReviewQueue.tsx",
+      "oldString": "      {!loading && contracts.length > 0 && (\n        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>\n          {contracts.map((contract) => {\n            const snapshot = contract.data_snapshot as Record<string, unknown>;\n            return (",
+      "newString": "      {!loading && contracts.length > 0 && (\n        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>\n          {contracts.map((contract) => {\n            const snapshot = contract.data_snapshot;\n            return (",
+      "originalFile": "/**\n * FKReviewQueue - Contract review queue for Legal team\n */\nimport React, { useState, useEffect } from 'react';\nimport {\n  Box,\n  Button,\n  Card,\n  CardContent,\n  Typography,\n  Grid,\n  Chip,\n  Dialog,\n  DialogTitle,\n  DialogContent,\n  DialogActions,\n  TextField,\n  Alert,\n  CircularProgress,\n  Divider,\n} from '@mui/material';\nimport {\n  CheckCircle as ApproveIcon,\n  Cancel as RejectIcon,\n  Refresh as RefreshIcon,\n  PictureAsPdf as PdfIcon,\n  Description as DocIcon,\n} from '@mui/icons-material';\nimport { legalService } from '../../services/legalService';\nimport type { ContractGeneration } from '../../types/legal';\n\nconst FKReviewQueue: React.FC = () => {\n  const [contracts, setContracts] = useState<ContractGeneration[]>([]);\n  const [loading, setLoading] = useState(true);\n  const [selectedContract, setSelectedContract] = useState<ContractGeneration | null>(null);\n  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);\n  const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | null>(null);\n  const [reviewNotes, setReviewNotes] = useState('');\n  const [submitting, setSubmitting] = useState(false);\n  const [error, setError] = useState<string | null>(null);\n  const [success, setSuccess] = useState<string | null>(null);\n  const [downloading, setDownloading] = useState<string | null>(null);\n\n  useEffect(() => {\n    loadPendingReviews();\n  }, []);\n\n  const loadPendingReviews = async () => {\n    setLoading(true);\n    setError(null);\n    try {\n      const data = await legalService.getPendingReviews();\n      setContracts(data);\n    } catch (err) {\n      setError('Error al cargar contratos pendientes');\n      console.error('Load error:', err);\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  const handleOpenReview = (contract: ContractGeneration, action: 'approve' | 'reject') => {\n    setSelectedContract(contract);\n    setReviewAction(action);\n    setReviewNotes('');\n    setReviewDialogOpen(true);\n  };\n\n  const handleCloseReview = () => {\n    setReviewDialogOpen(false);\n    setSelectedContract(null);\n    setReviewAction(null);\n    setReviewNotes('');\n  };\n\n  const handleSubmitReview = async () => {\n    if (!selectedContract || !reviewAction) return;\n\n    setSubmitting(true);\n    setError(null);\n\n    try {\n      // Use UUID for API operations, display business ID to users\n      await legalService.reviewContract(selectedContract.id, {\n        action: reviewAction,\n        notes: reviewNotes || undefined,\n      });\n\n      setSuccess(\n        reviewAction === 'approve'\n          ? `Contrato ${selectedContract.contract_id} aprobado exitosamente`\n          : `Contrato ${selectedContract.contract_id} rechazado`\n      );\n\n      handleCloseReview();\n      loadPendingReviews(); // Reload the list\n    } catch (err: unknown) {\n      const axiosError = err as { response?: { data?: { detail?: string } } };\n      setError(axiosError.response?.data?.detail || 'Error al procesar la revisi\u00f3n');\n      console.error('Review error:', err);\n    } finally {\n      setSubmitting(false);\n    }\n  };\n\n  const handleDownload = async (contractId: string, format: 'pdf' | 'docx') => {\n    setDownloading(contractId);\n    setError(null);\n\n    try {\n      let blob: Blob;\n      let filename: string;\n\n      if (format === 'pdf') {\n        blob = await legalService.downloadContractPDF(contractId);\n        const contract = contracts.find(c => c.id === contractId);\n        filename = `${contract?.contract_id || 'contrato'}.pdf`;\n      } else {\n        blob = await legalService.downloadContractDOCX(contractId);\n        const contract = contracts.find(c => c.id === contractId);\n        filename = `${contract?.contract_id || 'contrato'}.docx`;\n      }\n\n      // Create download link\n      const url = window.URL.createObjectURL(blob);\n      const link = document.createElement('a');\n      link.href = url;\n      link.download = filename;\n      document.body.appendChild(link);\n      link.click();\n      document.body.removeChild(link);\n      window.URL.revokeObjectURL(url);\n\n      setSuccess(`Documento descargado: ${filename}`);\n    } catch (err: unknown) {\n      const axiosError = err as { response?: { data?: { detail?: string } } };\n      setError(axiosError.response?.data?.detail || `Error al descargar ${format.toUpperCase()}`);\n      console.error('Download error:', err);\n    } finally {\n      setDownloading(null);\n    }\n  };\n\n  const formatDate = (dateString: string) => {\n    return new Date(dateString).toLocaleString('es-CO', {\n      year: 'numeric',\n      month: 'short',\n      day: 'numeric',\n      hour: '2-digit',\n      minute: '2-digit',\n    });\n  };\n\n  const formatCurrency = (amount: number) => {\n    return new Intl.NumberFormat('es-CO', {\n      style: 'currency',\n      currency: 'COP',\n      minimumFractionDigits: 0,\n    }).format(amount);\n  };\n\n  const getContractTypeBadge = (contractType: string) => {\n    if (contractType === 'otrosi') {\n      return {\n        label: 'Otros\u00ed No. 1',\n        color: 'warning' as const,\n      };\n    }\n    if (contractType === 'inventario_bodega') {\n      return {\n        label: 'Inventario Bodega 3ro',\n        color: 'success' as const,\n      };\n    }\n    return {\n      label: 'Activos',\n      color: 'info' as const,\n    };\n  };\n\n  return (\n    <Box>\n      {/* Success Message */}\n      {success && (\n        <Alert severity=\"success\" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>\n          {success}\n        </Alert>\n      )}\n\n      {/* Error Message */}\n      {error && (\n        <Alert severity=\"error\" sx={{ mb: 3 }} onClose={() => setError(null)}>\n          {error}\n        </Alert>\n      )}\n\n      {/* Header */}\n      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>\n        <Box>\n          <Typography variant=\"h6\" sx={{ fontWeight: 600 }}>\n            Contratos Pendientes de Revisi\u00f3n\n          </Typography>\n          <Typography variant=\"body2\" color=\"text.secondary\">\n            {contracts.length} contrato{contracts.length !== 1 ? 's' : ''} esperando revisi\u00f3n legal\n          </Typography>\n        </Box>\n        <Button\n          variant=\"outlined\"\n          startIcon={<RefreshIcon />}\n          onClick={loadPendingReviews}\n          disabled={loading}\n        >\n          Actualizar\n        </Button>\n      </Box>\n\n      {/* Loading State */}\n      {loading && (\n        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>\n          <CircularProgress />\n        </Box>\n      )}\n\n      {/* Empty State */}\n      {!loading && contracts.length === 0 && (\n        <Card>\n          <CardContent sx={{ textAlign: 'center', py: 6 }}>\n            <Typography variant=\"h6\" color=\"text.secondary\">\n              No hay contratos pendientes de revisi\u00f3n\n            </Typography>\n            <Typography variant=\"body2\" color=\"text.secondary\" sx={{ mt: 1 }}>\n              Todos los contratos han sido revisados\n            </Typography>\n          </CardContent>\n        </Card>\n      )}\n\n      {/* Contract List */}\n      {!loading && contracts.length > 0 && (\n        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>\n          {contracts.map((contract) => {\n            const snapshot = contract.data_snapshot as Record<string, unknown>;\n            return (\n              <Card key={contract.id}>\n                <CardContent>\n                  <Grid container spacing={2}>\n                    {/* Header Row */}\n                    <Grid size={{ xs: 12 }}>\n                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>\n                        <Box>\n                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>\n                            <Typography variant=\"h6\" sx={{ fontWeight: 600 }}>\n                              {contract.contract_id}\n                            </Typography>\n                            {(() => {\n                              const badge = getContractTypeBadge(contract.contract_type || 'activos');\n                              return (\n                                <Chip\n                                  label={badge.label}\n                                  color={badge.color}\n                                  size=\"small\"\n                                  sx={{ fontWeight: 500 }}\n                                />\n                              );\n                            })()}\n                          </Box>\n                          <Typography variant=\"body2\" color=\"text.secondary\">\n                            Generado: {formatDate(contract.generated_at)}\n                          </Typography>\n                        </Box>\n                        <Chip label={contract.status} color=\"warning\" />\n                      </Box>\n                    </Grid>\n\n                    {/* Client Info */}\n                    <Grid size={{ xs: 12, md: 6 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        Importador\n                      </Typography>\n                      <Typography variant=\"body1\" sx={{ fontWeight: 600 }}>\n                        {snapshot?.nombre_importador}\n                      </Typography>\n                    </Grid>\n\n                    <Grid size={{ xs: 12, md: 3 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        NIT\n                      </Typography>\n                      <Typography variant=\"body1\">{contract.client_nit}</Typography>\n                    </Grid>\n\n                    <Grid size={{ xs: 12, md: 3 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        Cupo\n                      </Typography>\n                      <Typography variant=\"body1\" sx={{ fontWeight: 600, color: 'primary.main' }}>\n                        {formatCurrency(snapshot?.cupo_plataforma || 0)}\n                      </Typography>\n                    </Grid>\n\n                    <Grid size={{ xs: 12, md: 6 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        Representante Legal\n                      </Typography>\n                      <Typography variant=\"body1\">{snapshot?.representante_legal}</Typography>\n                    </Grid>\n\n                    <Grid size={{ xs: 12, md: 6 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        Ciudad\n                      </Typography>\n                      <Typography variant=\"body1\">{snapshot?.ciudad_domicilio}</Typography>\n                    </Grid>\n\n                    {/* Actions */}\n                    <Grid size={{ xs: 12 }}>\n                      <Divider sx={{ my: 1 }} />\n                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 2, flexWrap: 'wrap' }}>\n                        <Box sx={{ display: 'flex', gap: 1 }}>\n                          <Button\n                            variant=\"outlined\"\n                            startIcon={downloading === contract.id ? <CircularProgress size={16} /> : <DocIcon />}\n                            size=\"small\"\n                            onClick={() => handleDownload(contract.id, 'docx')}\n                            disabled={downloading === contract.id}\n                          >\n                            DOCX\n                          </Button>\n                          <Button\n                            variant=\"outlined\"\n                            startIcon={downloading === contract.id ? <CircularProgress size={16} /> : <PdfIcon />}\n                            size=\"small\"\n                            onClick={() => handleDownload(contract.id, 'pdf')}\n                            disabled={downloading === contract.id}\n                          >\n                            PDF\n                          </Button>\n                        </Box>\n                        <Box sx={{ display: 'flex', gap: 1 }}>\n                          <Button\n                            variant=\"outlined\"\n                            color=\"error\"\n                            startIcon={<RejectIcon />}\n                            size=\"small\"\n                            onClick={() => handleOpenReview(contract, 'reject')}\n                          >\n                            Rechazar\n                          </Button>\n                          <Button\n                            variant=\"contained\"\n                            color=\"success\"\n                            startIcon={<ApproveIcon />}\n                            size=\"small\"\n                            onClick={() => handleOpenReview(contract, 'approve')}\n                          >\n                            Aprobar\n                          </Button>\n                        </Box>\n                      </Box>\n                    </Grid>\n                  </Grid>\n                </CardContent>\n              </Card>\n            );\n          })}\n        </Box>\n      )}\n\n      {/* Review Dialog */}\n      <Dialog open={reviewDialogOpen} onClose={handleCloseReview} maxWidth=\"sm\" fullWidth>\n        <DialogTitle>\n          {reviewAction === 'approve' ? 'Aprobar Contrato' : 'Rechazar Contrato'}\n        </DialogTitle>\n        <DialogContent>\n          {selectedContract && (\n            <Box sx={{ mb: 2 }}>\n              <Typography variant=\"body2\" color=\"text.secondary\">\n                Contrato: <strong>{selectedContract.contract_id}</strong>\n              </Typography>\n              <Typography variant=\"body2\" color=\"text.secondary\">\n                Cliente: <strong>{selectedContract.client_nit}</strong>\n              </Typography>\n            </Box>\n          )}\n\n          <TextField\n            fullWidth\n            multiline\n            rows={4}\n            label={reviewAction === 'approve' ? 'Notas (opcional)' : 'Motivo del rechazo'}\n            value={reviewNotes}\n            onChange={(e) => setReviewNotes(e.target.value)}\n            placeholder={\n              reviewAction === 'approve'\n                ? 'Agregue notas si es necesario...'\n                : 'Por favor indique el motivo del rechazo...'\n            }\n          />\n        </DialogContent>\n        <DialogActions>\n          <Button onClick={handleCloseReview} disabled={submitting}>\n            Cancelar\n          </Button>\n          <Button\n            onClick={handleSubmitReview}\n            variant=\"contained\"\n            color={reviewAction === 'approve' ? 'success' : 'error'}\n            disabled={submitting}\n            startIcon={submitting ? <CircularProgress size={20} /> : null}\n          >\n            {submitting\n              ? 'Procesando...'\n              : reviewAction === 'approve'\n              ? 'Aprobar'\n              : 'Rechazar'}\n          </Button>\n        </DialogActions>\n      </Dialog>\n    </Box>\n  );\n};\n\nexport default FKReviewQueue;\n",
+      "structuredPatch": [
+        {
+          "oldStart": 239,
+          "oldLines": 7,
+          "newStart": 239,
+          "newLines": 7,
+          "lines": [
+            "       {!loading && contracts.length > 0 && (",
+            "         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>",
+            "           {contracts.map((contract) => {",
+            "-            const snapshot = contract.data_snapshot as Record<string, unknown>;",
+            "+            const snapshot = contract.data_snapshot;",
+            "             return (",
+            "               <Card key={contract.id}>",
+            "                 <CardContent>"
+          ]
+        }
+      ],
+      "userModified": false,
+      "replaceAll": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_0144he6nXA9nwzqFRVtudRwn",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Now I need to fix line 297 where `cupo_plataforma` needs to be a number. Let me check the current code:"
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 486,
+        "cache_read_input_tokens": 33042,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 486,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "260ad470-2efe-4d4b-a3ea-849753e7f757"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_0144he6nXA9nwzqFRVtudRwn",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01M1uvTyqqCWKfR15u1bJufa",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKReviewQueue.tsx",
+            "offset": 290,
+            "limit": 30
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 486,
+        "cache_read_input_tokens": 33042,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 486,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 151,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "6b0d506b-a40c-4e5d-846f-0a481b32c38d"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01M1uvTyqqCWKfR15u1bJufa",
+          "type": "tool_result",
+          "content": "   290\u2192                    </Grid>\n   291\u2192\n   292\u2192                    <Grid size={{ xs: 12, md: 3 }}>\n   293\u2192                      <Typography variant=\"body2\" color=\"text.secondary\">\n   294\u2192                        Cupo\n   295\u2192                      </Typography>\n   296\u2192                      <Typography variant=\"body1\" sx={{ fontWeight: 600, color: 'primary.main' }}>\n   297\u2192                        {formatCurrency(snapshot?.cupo_plataforma || 0)}\n   298\u2192                      </Typography>\n   299\u2192                    </Grid>\n   300\u2192\n   301\u2192                    <Grid size={{ xs: 12, md: 6 }}>\n   302\u2192                      <Typography variant=\"body2\" color=\"text.secondary\">\n   303\u2192                        Representante Legal\n   304\u2192                      </Typography>\n   305\u2192                      <Typography variant=\"body1\">{snapshot?.representante_legal}</Typography>\n   306\u2192                    </Grid>\n   307\u2192\n   308\u2192                    <Grid size={{ xs: 12, md: 6 }}>\n   309\u2192                      <Typography variant=\"body2\" color=\"text.secondary\">\n   310\u2192                        Ciudad\n   311\u2192                      </Typography>\n   312\u2192                      <Typography variant=\"body1\">{snapshot?.ciudad_domicilio}</Typography>\n   313\u2192                    </Grid>\n   314\u2192\n   315\u2192                    {/* Actions */}\n   316\u2192                    <Grid size={{ xs: 12 }}>\n   317\u2192                      <Divider sx={{ my: 1 }} />\n   318\u2192                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 2, flexWrap: 'wrap' }}>\n   319\u2192                        <Box sx={{ display: 'flex', gap: 1 }}>\n\n<system-reminder>\nWhenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.\n</system-reminder>\n"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "454f7e5e-531a-464b-a09e-c56d6ee9bcac",
+    "tool_use_result": {
+      "type": "text",
+      "file": {
+        "filePath": "/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKReviewQueue.tsx",
+        "content": "                    </Grid>\n\n                    <Grid size={{ xs: 12, md: 3 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        Cupo\n                      </Typography>\n                      <Typography variant=\"body1\" sx={{ fontWeight: 600, color: 'primary.main' }}>\n                        {formatCurrency(snapshot?.cupo_plataforma || 0)}\n                      </Typography>\n                    </Grid>\n\n                    <Grid size={{ xs: 12, md: 6 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        Representante Legal\n                      </Typography>\n                      <Typography variant=\"body1\">{snapshot?.representante_legal}</Typography>\n                    </Grid>\n\n                    <Grid size={{ xs: 12, md: 6 }}>\n                      <Typography variant=\"body2\" color=\"text.secondary\">\n                        Ciudad\n                      </Typography>\n                      <Typography variant=\"body1\">{snapshot?.ciudad_domicilio}</Typography>\n                    </Grid>\n\n                    {/* Actions */}\n                    <Grid size={{ xs: 12 }}>\n                      <Divider sx={{ my: 1 }} />\n                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 2, flexWrap: 'wrap' }}>\n                        <Box sx={{ display: 'flex', gap: 1 }}>",
+        "numLines": 30,
+        "startLine": 290,
+        "totalLines": 424
+      }
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01U6ogmfn2xvBBNLWRSe1S5J",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Now let me run the build to verify the fix works:"
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 696,
+        "cache_read_input_tokens": 33528,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 696,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "5502deb3-2fe4-45b1-af2d-76946da1f303"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01U6ogmfn2xvBBNLWRSe1S5J",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01GtjGJTPsv7AT251D3R5BQe",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/frontend && npm run build 2>&1",
+            "description": "Run frontend build to verify fix",
+            "timeout": 120000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 696,
+        "cache_read_input_tokens": 33528,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 696,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "e3523c40-b390-4f5c-b71a-d773a1300d1c"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01GtjGJTPsv7AT251D3R5BQe",
+          "type": "tool_result",
+          "content": "> frontend@0.0.0 build\n> tsc -b && vite build\n\nvite v7.1.9 building for production...\ntransforming...\n\u2713 11856 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.46 kB \u2502 gzip:   0.29 kB\ndist/assets/index-BGxMQKeU.css    0.60 kB \u2502 gzip:   0.37 kB\ndist/assets/index-kTHLCLHv.js   918.18 kB \u2502 gzip: 268.18 kB\n\n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\n\u2713 built in 3.96s",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "54375c8b-1650-4e22-9a92-883397059b09",
+    "tool_use_result": {
+      "stdout": "> frontend@0.0.0 build\n> tsc -b && vite build\n\nvite v7.1.9 building for production...\ntransforming...\n\u2713 11856 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.46 kB \u2502 gzip:   0.29 kB\ndist/assets/index-BGxMQKeU.css    0.60 kB \u2502 gzip:   0.37 kB\ndist/assets/index-kTHLCLHv.js   918.18 kB \u2502 gzip: 268.18 kB\n\n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\n\u2713 built in 3.96s",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01BoKLXBuir2ytXYdnfKdv71",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "The build succeeded. Let me update the todo and provide a summary:"
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 401,
+        "cache_read_input_tokens": 34224,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 401,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "33d74e1a-3c27-41e1-91a8-382dea622e36"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01BoKLXBuir2ytXYdnfKdv71",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01HmgBDCXTTCTVR8otDXihYA",
+          "name": "TodoWrite",
+          "input": {
+            "todos": [
+              {
+                "content": "Fix TypeScript errors in FKReviewQueue.tsx",
+                "status": "completed",
+                "activeForm": "Fixing TypeScript errors in FKReviewQueue.tsx"
+              }
+            ]
+          }
+        }
+      ],
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 401,
+        "cache_read_input_tokens": 34224,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 401,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 110,
+        "service_tier": "standard"
+      },
+      "context_management": {
+        "applied_edits": []
+      }
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "d69e63ca-9bee-492d-a372-331be0430f69"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01HmgBDCXTTCTVR8otDXihYA",
+          "type": "tool_result",
+          "content": "Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "9330fde8-e0cd-44bd-a191-d1eae683feda",
+    "tool_use_result": {
+      "oldTodos": [
+        {
+          "content": "Fix TypeScript errors in FKReviewQueue.tsx",
+          "status": "in_progress",
+          "activeForm": "Fixing TypeScript errors in FKReviewQueue.tsx"
+        }
+      ],
+      "newTodos": [
+        {
+          "content": "Fix TypeScript errors in FKReviewQueue.tsx",
+          "status": "completed",
+          "activeForm": "Fixing TypeScript errors in FKReviewQueue.tsx"
+        }
+      ]
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01VLhPuzQbreb61PGNjjzjM6",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "## Summary\n\n### Root Cause Identified\nThe TypeScript error was caused by an unnecessary and incorrect type cast on line 242. The code was casting `contract.data_snapshot` (which is already typed as `ClientDataSnapshot`) to `Record<string, unknown>`:\n\n```typescript\nconst snapshot = contract.data_snapshot as Record<string, unknown>;\n```\n\nThis caused five TypeScript errors:\n1. **TS2352**: The cast itself was flagged as potentially mistaken since `ClientDataSnapshot` doesn't sufficiently overlap with `Record<string, unknown>`\n2. **TS2769** (3 occurrences): Properties like `nombre_importador`, `representante_legal`, `ciudad_domicilio` became `unknown` type and couldn't be used as `ReactNode`\n3. **TS2345**: `cupo_plataforma` became `unknown` instead of `number`, making it incompatible with the `formatCurrency(number)` function\n\n### Specific Fix Applied\nRemoved the unnecessary type cast on line 242 in `FKReviewQueue.tsx`:\n\n```diff\n- const snapshot = contract.data_snapshot as Record<string, unknown>;\n+ const snapshot = contract.data_snapshot;\n```\n\nThe `data_snapshot` property is already properly typed as `ClientDataSnapshot` in the `ContractGeneration` interface (`frontend/src/types/legal.ts:69`), so no type casting was needed.\n\n### Confirmation\nThe frontend build now passes successfully:\n```\n\u2713 11856 modules transformed\n\u2713 built in 3.96s\n```"
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 152,
+        "cache_read_input_tokens": 34625,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 152,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "uuid": "cb15b2c9-b62a-443e-900c-1f74e0301621"
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 65554,
+    "duration_api_ms": 75575,
+    "num_turns": 9,
+    "result": "## Summary\n\n### Root Cause Identified\nThe TypeScript error was caused by an unnecessary and incorrect type cast on line 242. The code was casting `contract.data_snapshot` (which is already typed as `ClientDataSnapshot`) to `Record<string, unknown>`:\n\n```typescript\nconst snapshot = contract.data_snapshot as Record<string, unknown>;\n```\n\nThis caused five TypeScript errors:\n1. **TS2352**: The cast itself was flagged as potentially mistaken since `ClientDataSnapshot` doesn't sufficiently overlap with `Record<string, unknown>`\n2. **TS2769** (3 occurrences): Properties like `nombre_importador`, `representante_legal`, `ciudad_domicilio` became `unknown` type and couldn't be used as `ReactNode`\n3. **TS2345**: `cupo_plataforma` became `unknown` instead of `number`, making it incompatible with the `formatCurrency(number)` function\n\n### Specific Fix Applied\nRemoved the unnecessary type cast on line 242 in `FKReviewQueue.tsx`:\n\n```diff\n- const snapshot = contract.data_snapshot as Record<string, unknown>;\n+ const snapshot = contract.data_snapshot;\n```\n\nThe `data_snapshot` property is already properly typed as `ClientDataSnapshot` in the `ContractGeneration` interface (`frontend/src/types/legal.ts:69`), so no type casting was needed.\n\n### Confirmation\nThe frontend build now passes successfully:\n```\n\u2713 11856 modules transformed\n\u2713 built in 3.96s\n```",
+    "session_id": "fc80a6c7-27ae-4592-a98a-bb7625ccfcb0",
+    "total_cost_usd": 0.35357825,
+    "usage": {
+      "input_tokens": 11,
+      "cache_creation_input_tokens": 21235,
+      "cache_read_input_tokens": 267810,
+      "output_tokens": 1633,
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 21235
+      }
+    },
+    "modelUsage": {
+      "claude-opus-4-5-20251101": {
+        "inputTokens": 11,
+        "outputTokens": 1633,
+        "cacheReadInputTokens": 267810,
+        "cacheCreationInputTokens": 21235,
+        "webSearchRequests": 0,
+        "costUSD": 0.30750374999999996,
+        "contextWindow": 200000
+      },
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 598,
+        "outputTokens": 329,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 7803,
+        "webSearchRequests": 0,
+        "costUSD": 0.01199675,
+        "contextWindow": 200000
+      },
+      "claude-sonnet-4-5-20250929": {
+        "inputTokens": 3,
+        "outputTokens": 288,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 7933,
+        "webSearchRequests": 0,
+        "costUSD": 0.034077750000000004,
+        "contextWindow": 200000
+      }
+    },
+    "permission_denials": [],
+    "uuid": "f73b5a68-eaaa-49d1-ac8e-22916a265c87"
+  }
+]

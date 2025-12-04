@@ -59,7 +59,7 @@ COMMENT ON TABLE clients IS 'Client data imported from platform exports';
 CREATE TABLE IF NOT EXISTS user_profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     full_name TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('admin', 'commercial', 'analyst', 'mesa_control', 'manager', 'user', 'legal', 'operations', 'cliente')),
+    role TEXT NOT NULL CHECK (role IN ('admin', 'commercial', 'analyst', 'mesa_control', 'manager', 'user', 'legal', 'operations', 'tesoreria', 'cliente')),
     is_active BOOLEAN DEFAULT true NOT NULL,
     last_login TIMESTAMP WITH TIME ZONE,
 
@@ -80,7 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_user_profiles_user_type ON user_profiles(user_typ
 CREATE INDEX IF NOT EXISTS idx_user_profiles_client_id ON user_profiles(client_id);
 
 COMMENT ON TABLE user_profiles IS 'User profiles linked to Supabase auth.users for application-specific user data';
-COMMENT ON COLUMN user_profiles.role IS 'User role: admin, commercial, analyst, mesa_control, manager, user, legal, operations, or cliente';
+COMMENT ON COLUMN user_profiles.role IS 'User role: admin, commercial, analyst, mesa_control, manager, user, legal, operations, tesoreria, or cliente';
 COMMENT ON COLUMN user_profiles.user_type IS 'Type of user: funcionario (internal employee) or cliente (external client)';
 
 -- ============================================================================
@@ -214,7 +214,8 @@ CREATE TABLE IF NOT EXISTS data_imports (
 
 -- ============================================================================
 -- FUNCTION: Generate next contract ID
--- Supports multiple contract types: activos, otrosi, inventario_bodega, minuta_compraventa
+-- Supports multiple contract types: activos, otrosi, inventario_bodega, minuta_compraventa,
+-- and Paga Local Colombia contracts (pl_co_*)
 -- ============================================================================
 CREATE OR REPLACE FUNCTION generate_contract_id(p_contract_type VARCHAR DEFAULT 'activos')
 RETURNS VARCHAR AS $$
@@ -226,15 +227,36 @@ BEGIN
     current_year := EXTRACT(YEAR FROM CURRENT_DATE);
 
     -- Determine prefix based on contract type
-    IF p_contract_type = 'otrosi' THEN
-        prefix := 'OTRO';
-    ELSIF p_contract_type = 'inventario_bodega' THEN
-        prefix := 'INV';
-    ELSIF p_contract_type = 'minuta_compraventa' THEN
-        prefix := 'MIN';
-    ELSE
-        prefix := 'ACT';  -- Default to Activos
-    END IF;
+    CASE p_contract_type
+        -- Existing contract types
+        WHEN 'activos' THEN prefix := 'ACT';
+        WHEN 'otrosi' THEN prefix := 'OTRO';
+        WHEN 'inventario_bodega' THEN prefix := 'INV';
+        WHEN 'minuta_compraventa' THEN prefix := 'MIN';
+
+        -- Paga Local Colombia - Credito contracts (Account-Level)
+        -- PLCR = Paga Local CRedito
+        WHEN 'pl_co_credito_no_aval' THEN prefix := 'PLCR';
+        WHEN 'pl_co_credito_aval_pj' THEN prefix := 'PLCR';
+        WHEN 'pl_co_credito_aval_pn' THEN prefix := 'PLCR';
+
+        -- Paga Local Colombia - Mandato contracts (Account-Level)
+        -- PLCM = Paga Local Cuenta Mandato
+        WHEN 'pl_co_mandato_no_aval' THEN prefix := 'PLCM';
+        WHEN 'pl_co_mandato_pj' THEN prefix := 'PLCM';
+        WHEN 'pl_co_mandato_pn' THEN prefix := 'PLCM';
+
+        -- Paga Local Colombia - Documentos Operacion (Operation-Level)
+        -- PLMI = Paga Local Mandato Importacion
+        WHEN 'pl_co_mandato_im' THEN prefix := 'PLMI';
+        -- PLSD = Paga Local Solicitud Desembolso
+        WHEN 'pl_co_solicitud_desembolso' THEN prefix := 'PLSD';
+        -- PLDI = Paga Local DIAN
+        WHEN 'pl_co_dian_mandato_im' THEN prefix := 'PLDI';
+
+        -- Default fallback for backward compatibility
+        ELSE prefix := 'ACT';
+    END CASE;
 
     -- Try to get existing sequence for this year and contract type
     SELECT last_sequence INTO next_sequence
@@ -246,13 +268,13 @@ BEGIN
     IF FOUND THEN
         next_sequence := next_sequence + 1;
         UPDATE contract_id_sequence
-        SET last_sequence = next_sequence, updated_at = NOW()
+        SET last_sequence = next_sequence
         WHERE year = current_year AND contract_type = p_contract_type;
     ELSE
         -- Initialize new sequence for this year and contract type
         next_sequence := 1;
-        INSERT INTO contract_id_sequence (year, contract_type, last_sequence, created_at, updated_at)
-        VALUES (current_year, p_contract_type, next_sequence, NOW(), NOW());
+        INSERT INTO contract_id_sequence (year, contract_type, last_sequence)
+        VALUES (current_year, p_contract_type, next_sequence);
     END IF;
 
     -- Return formatted contract ID: PREFIX-YYYY-NNN

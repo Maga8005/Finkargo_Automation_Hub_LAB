@@ -1,0 +1,1 @@
+/implement specs/issue-45-adw-058c5c18-sdlc_planner-paga-local-sin-aval-templates.md

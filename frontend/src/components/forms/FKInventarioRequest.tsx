@@ -111,8 +111,9 @@ const FKInventarioRequest: React.FC = () => {
       setSearchResults([]);
       setRutFile(null);
       setRutFileName('');
-    } catch (err: any) {
-      const errorDetail = err.response?.data?.detail || 'Error al solicitar el Inventario Bodega de 3ro';
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      const errorDetail = axiosError.response?.data?.detail || 'Error al solicitar el Inventario Bodega de 3ro';
       setError(errorDetail);
       console.error('Request error:', err);
     } finally {

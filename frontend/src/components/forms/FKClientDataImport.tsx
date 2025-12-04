@@ -76,8 +76,9 @@ const FKClientDataImport: React.FC = () => {
       if (fileInput) {
         fileInput.value = '';
       }
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al importar el archivo');
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError.response?.data?.detail || 'Error al importar el archivo');
       console.error('Import error:', err);
     } finally {
       setUploading(false);

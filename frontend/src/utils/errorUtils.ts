@@ -9,7 +9,7 @@ interface ValidationError {
   type: string;
   loc: (string | number)[];
   msg: string;
-  input?: any;
+  input?: unknown;
 }
 
 /**
@@ -67,14 +67,17 @@ function formatValidationError(error: ValidationError): string {
  * @param error - The error object from axios or other source
  * @returns User-friendly error message in Spanish
  */
-export function formatApiError(error: any): string {
+export function formatApiError(error: unknown): string {
   // Default fallback message
   const defaultMessage = 'Error al procesar la solicitud. Por favor intente nuevamente.';
 
   try {
+    // Type assertion for axios error structure
+    const axiosError = error as { response?: { data?: { detail?: unknown } }; message?: string };
+
     // Handle axios error structure
-    if (error?.response?.data) {
-      const { detail } = error.response.data;
+    if (axiosError?.response?.data) {
+      const { detail } = axiosError.response.data;
 
       // Case 1: Pydantic validation errors (array of error objects)
       if (Array.isArray(detail)) {
@@ -93,19 +96,20 @@ export function formatApiError(error: any): string {
       }
 
       // Case 3: Object with message property
-      if (typeof detail === 'object' && detail.message) {
-        return ERROR_TRANSLATIONS[detail.message] || detail.message;
+      if (typeof detail === 'object' && detail !== null && 'message' in detail) {
+        const detailWithMessage = detail as { message: string };
+        return ERROR_TRANSLATIONS[detailWithMessage.message] || detailWithMessage.message;
       }
     }
 
     // Handle direct error message
-    if (error?.message) {
+    if (axiosError?.message) {
       // Check for network errors
-      if (error.message.includes('Network Error') || error.message.includes('ERR_NETWORK')) {
+      if (axiosError.message.includes('Network Error') || axiosError.message.includes('ERR_NETWORK')) {
         return 'Error de conexión. Verifique su conexión a internet e intente nuevamente.';
       }
 
-      return ERROR_TRANSLATIONS[error.message] || error.message;
+      return ERROR_TRANSLATIONS[axiosError.message] || axiosError.message;
     }
 
     // Handle string errors
@@ -124,27 +128,31 @@ export function formatApiError(error: any): string {
 /**
  * Check if an error is a validation error (422)
  */
-export function isValidationError(error: any): boolean {
-  return error?.response?.status === 422;
+export function isValidationError(error: unknown): boolean {
+  const axiosError = error as { response?: { status?: number } };
+  return axiosError?.response?.status === 422;
 }
 
 /**
  * Check if an error is an authentication error (401)
  */
-export function isAuthError(error: any): boolean {
-  return error?.response?.status === 401;
+export function isAuthError(error: unknown): boolean {
+  const axiosError = error as { response?: { status?: number } };
+  return axiosError?.response?.status === 401;
 }
 
 /**
  * Check if an error is a forbidden error (403)
  */
-export function isForbiddenError(error: any): boolean {
-  return error?.response?.status === 403;
+export function isForbiddenError(error: unknown): boolean {
+  const axiosError = error as { response?: { status?: number } };
+  return axiosError?.response?.status === 403;
 }
 
 /**
  * Check if an error is a not found error (404)
  */
-export function isNotFoundError(error: any): boolean {
-  return error?.response?.status === 404;
+export function isNotFoundError(error: unknown): boolean {
+  const axiosError = error as { response?: { status?: number } };
+  return axiosError?.response?.status === 404;
 }

@@ -74,8 +74,9 @@ const FKContractRequest: React.FC = () => {
       setSearchQuery('');
       setSelectedClient(null);
       setSearchResults([]);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al solicitar el contrato');
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
+      setError(axiosError.response?.data?.detail || 'Error al solicitar el contrato');
       console.error('Request error:', err);
     } finally {
       setRequesting(false);
