@@ -1,0 +1,1 @@
+/classify_issue {"number":47,"title":"Adds PDF Export to the contratos aprobados screen","body":"Adds PDF Export to the contratos aprobados screen. Currently we already have the export fucntionality for excel, we need the same but with export to PDF. "}

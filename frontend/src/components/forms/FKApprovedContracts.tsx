@@ -35,9 +35,11 @@ import {
   CheckCircle as CheckCircleIcon,
   FilterList as FilterListIcon,
   Clear as ClearIcon,
+  FileDownload as FileDownloadIcon,
 } from '@mui/icons-material';
 import { operationsService } from '../../services/operationsService';
 import type { ContractGeneration, OperationsSortOrder, OperationsFilterParams } from '../../types/legal';
+import { exportContractsToPDF } from '../../utils/pdfExport';
 
 // Mapping of frontend sort field names to backend database fields
 const SORT_FIELD_MAP: Record<string, string> = {
@@ -56,6 +58,7 @@ const FKApprovedContracts: React.FC = () => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string>('reviewed_at');
   const [sortOrder, setSortOrder] = useState<OperationsSortOrder>('desc');
+  const [exportingPDF, setExportingPDF] = useState(false);
 
   // Filter state
   const [showFilters, setShowFilters] = useState(false);
@@ -158,6 +161,18 @@ const FKApprovedContracts: React.FC = () => {
     }
   };
 
+  const handleExportPDF = async () => {
+    try {
+      setExportingPDF(true);
+      exportContractsToPDF(contracts);
+    } catch (err) {
+      console.error('Error exporting PDF:', err);
+      alert('Error al exportar PDF');
+    } finally {
+      setExportingPDF(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('es-CO', {
       year: 'numeric',
@@ -250,6 +265,16 @@ const FKApprovedContracts: React.FC = () => {
             sx={{ textTransform: 'none' }}
           >
             Actualizar
+          </Button>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={handleExportPDF}
+            disabled={contracts.length === 0 || exportingPDF}
+            startIcon={exportingPDF ? <CircularProgress size={16} /> : <FileDownloadIcon />}
+            sx={{ textTransform: 'none' }}
+          >
+            {exportingPDF ? 'Exportando...' : 'Exportar PDF'}
           </Button>
         </Box>
       </Box>
