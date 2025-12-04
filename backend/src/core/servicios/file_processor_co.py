@@ -8,6 +8,7 @@ Implements LEFT JOIN consolidation, product classification, and Excel generation
 import logging
 import json
 import io
+import re
 from typing import List, Dict, Tuple, Optional
 from datetime import date, datetime
 from pathlib import Path
@@ -195,14 +196,36 @@ class COFileProcessor:
             if record.get("numero_factura")
         }
 
+        # Debug: Log sample of Netsuite invoice numbers
+        sample_netsuite = list(netsuite_by_factura.keys())[:5]
+        logger.info(f"Sample Netsuite invoice numbers: {sample_netsuite}")
+
+        # Debug: Log sample of Noova invoice numbers
+        sample_noova = [r.get("numero_factura") for r in noova_records[:5]]
+        logger.info(f"Sample Noova invoice numbers: {sample_noova}")
+
+        # Also create a normalized index for more flexible matching
+        # This handles cases where Netsuite has "FE12345" and Noova has "FE12345" but with different formats
+        netsuite_normalized = {}
+        for factura, record in netsuite_by_factura.items():
+            if factura:
+                # Normalize: remove spaces, convert to uppercase
+                normalized = str(factura).strip().upper().replace(" ", "")
+                netsuite_normalized[normalized] = record
+
         consolidated = []
         matched_count = 0
 
         for noova in noova_records:
             numero_factura = noova.get("numero_factura")
 
-            # LEFT JOIN with Netsuite
+            # Try exact match first
             netsuite_match = netsuite_by_factura.get(numero_factura)
+
+            # If no exact match, try normalized match
+            if not netsuite_match and numero_factura:
+                normalized_noova = str(numero_factura).strip().upper().replace(" ", "")
+                netsuite_match = netsuite_normalized.get(normalized_noova)
 
             record = ConsolidatedRecord(
                 fecha=noova.get("fecha"),
@@ -221,6 +244,13 @@ class COFileProcessor:
 
             if netsuite_match:
                 matched_count += 1
+                # Log first few matches for debugging
+                if matched_count <= 3:
+                    logger.info(
+                        f"[Match #{matched_count}] factura={numero_factura}, "
+                        f"valor={netsuite_match.get('valor')}, "
+                        f"codigo_producto={noova.get('codigo_producto')}"
+                    )
 
             consolidated.append(record)
 
@@ -232,6 +262,43 @@ class COFileProcessor:
 
         return consolidated
 
+    def _extract_product_code(self, codigo_producto: str) -> Optional[str]:
+        """
+        Extract numeric product code from various formats.
+
+        Handles formats like:
+        - "101" -> "101"
+        - "0101" -> "101" (removes leading zeros)
+        - "0302" -> "302" (removes leading zeros)
+        - "101 - Interes corriente" -> "101"
+        - " 101 " -> "101"
+        - "Producto 101" -> "101"
+
+        Args:
+            codigo_producto: Raw product code string
+
+        Returns:
+            Extracted numeric code or None (without leading zeros)
+        """
+        if not codigo_producto:
+            return None
+
+        codigo_str = str(codigo_producto).strip()
+
+        # Try to extract just digits if the string contains non-numeric chars
+        # Match first sequence of digits (possibly at start or after text)
+        match = re.search(r'(\d+)', codigo_str)
+        if match:
+            # Remove leading zeros by converting to int and back to string
+            # This handles cases like "0302" -> "302", "0101" -> "101"
+            extracted = match.group(1)
+            try:
+                return str(int(extracted))
+            except ValueError:
+                return extracted
+
+        return None
+
     def classify_records(
         self,
         records: List[ConsolidatedRecord]
@@ -240,7 +307,7 @@ class COFileProcessor:
         Classify records by product code and determine destination sheet.
 
         Classification priority:
-        1. Product code (primary method) - 146 codes mapped in config
+        1. Product code (primary method) - codes mapped in config
         2. Concept keywords (fallback) - if code not found
         3. Invoice prefix - determines destination sheet
 
@@ -257,19 +324,49 @@ class COFileProcessor:
         prefix_rules = self.classification_rules.get("tipo_factura_por_prefijo", {})
         concept_keywords = self.classification_rules.get("clasificacion_conceptos", {})
 
+        # Track classification stats for debugging
+        classification_stats = {
+            "by_product_code": 0,
+            "by_keywords": 0,
+            "default_otros": 0,
+            "unclassified_codes": set(),
+            "raw_codes_sample": [],  # Sample of raw codes for debugging
+            "categories_found": {}  # Count per category
+        }
+
         for record in records:
             # Step 1: Classify by product code (primary)
             codigo_producto = record.codigo_producto
-            if codigo_producto and str(codigo_producto) in product_map:
-                product_info = product_map[str(codigo_producto)]
+            extracted_code = self._extract_product_code(codigo_producto)
+
+            # Log sample of raw codes for debugging
+            if len(classification_stats["raw_codes_sample"]) < 10:
+                classification_stats["raw_codes_sample"].append(
+                    f"raw='{codigo_producto}' -> extracted='{extracted_code}'"
+                )
+
+            if extracted_code and extracted_code in product_map:
+                product_info = product_map[extracted_code]
                 categoria_str = product_info.get("categoria", "otros")
                 record.categoria = ProductCategory(categoria_str)
-            else:
-                # Fallback: Classify by concept keywords
+                classification_stats["by_product_code"] += 1
+                # Track category counts
+                classification_stats["categories_found"][categoria_str] = \
+                    classification_stats["categories_found"].get(categoria_str, 0) + 1
+            elif concept_keywords:
+                # Fallback: Classify by concept keywords (only if rules exist)
                 record.categoria = self._classify_by_keywords(
                     record.concepto,
                     concept_keywords
                 )
+                classification_stats["by_keywords"] += 1
+            else:
+                # No product code match and no keyword rules - default to None (no category)
+                # This will prevent the value from going to "Otros Valor"
+                record.categoria = None
+                classification_stats["default_otros"] += 1
+                if extracted_code:
+                    classification_stats["unclassified_codes"].add(extracted_code)
 
             # Step 2: Extract invoice prefix and determine destination sheet
             numero_factura = record.numero_factura or ""
@@ -303,7 +400,34 @@ class COFileProcessor:
                 record.tipo_factura = "Desconocido"
                 record.hoja_destino = SheetDestination.COSTOS_FIJOS
 
-        logger.info("Clasificación completada")
+        # Log classification statistics
+        logger.info(
+            f"Clasificación completada: "
+            f"{classification_stats['by_product_code']} por código, "
+            f"{classification_stats['by_keywords']} por keywords, "
+            f"{classification_stats['default_otros']} sin clasificar"
+        )
+
+        # Log sample of raw codes
+        if classification_stats["raw_codes_sample"]:
+            logger.info(
+                f"Muestra de códigos de producto: "
+                f"{classification_stats['raw_codes_sample']}"
+            )
+
+        # Log category distribution
+        if classification_stats["categories_found"]:
+            logger.info(
+                f"Distribución por categoría: "
+                f"{classification_stats['categories_found']}"
+            )
+
+        if classification_stats["unclassified_codes"]:
+            logger.warning(
+                f"Códigos de producto no clasificados: "
+                f"{sorted(classification_stats['unclassified_codes'])}"
+            )
+
         return records
 
     def _classify_by_keywords(
@@ -479,6 +603,11 @@ class COFileProcessor:
         category_column_map = self.product_classification.get("mapeo_categoria_columna", {})
 
         # Write data rows
+        # Debug: track how many records have values assigned
+        records_with_netsuite = 0
+        records_with_categoria = 0
+        records_with_both = 0
+
         for row_idx, record in enumerate(records, start=2):
             # Determine which value column to populate based on category
             valores = {
@@ -489,10 +618,40 @@ class COFileProcessor:
                 "Otros Valor": 0.0
             }
 
+            # Debug tracking
+            if record.valor_netsuite:
+                records_with_netsuite += 1
+            if record.categoria:
+                records_with_categoria += 1
+
+            # Log first few records for debugging
+            if row_idx <= 5:
+                logger.info(
+                    f"[Costos Fijos] Record {row_idx}: factura={record.numero_factura}, "
+                    f"categoria={record.categoria}, valor_netsuite={record.valor_netsuite}, "
+                    f"codigo_producto={record.codigo_producto}"
+                )
+
+            # Only assign value if category is explicitly set
             if record.categoria and record.valor_netsuite:
-                target_column = category_column_map.get(record.categoria.value)
-                if target_column and target_column in valores:
-                    valores[target_column] = record.valor_netsuite
+                records_with_both += 1
+                # Log first value assignments for debugging
+                if records_with_both <= 3:
+                    logger.info(
+                        f"[Costos Fijos] ASIGNANDO VALOR: factura={record.numero_factura}, "
+                        f"categoria={record.categoria.value}, valor={record.valor_netsuite}"
+                    )
+                if record.categoria == ProductCategory.COSTOS_FIJOS:
+                    valores["Valor Costos Fijos"] = record.valor_netsuite
+                elif record.categoria == ProductCategory.SEGURO_IVA:
+                    valores["Seguro + Iva"] = record.valor_netsuite
+                elif record.categoria == ProductCategory.INTERESES_CORRIENTE:
+                    valores["Int. Corriente Facturado FK"] = record.valor_netsuite
+                elif record.categoria == ProductCategory.INTERESES_MORA:
+                    valores["Int. Mora Facturado FK"] = record.valor_netsuite
+                elif record.categoria == ProductCategory.OTROS:
+                    # ONLY put in Otros Valor if explicitly classified as "otros"
+                    valores["Otros Valor"] = record.valor_netsuite
 
             # Calculate Valor Neto Facturado (sum of all value columns)
             valor_neto = sum(valores.values())
@@ -515,6 +674,14 @@ class COFileProcessor:
 
             for col_idx, value in enumerate(row_data, start=1):
                 sheet.cell(row=row_idx, column=col_idx, value=value)
+
+        # Log debug summary
+        logger.info(
+            f"[Costos Fijos Sheet] Total: {len(records)}, "
+            f"con valor_netsuite: {records_with_netsuite}, "
+            f"con categoria: {records_with_categoria}, "
+            f"con ambos (valor asignado): {records_with_both}"
+        )
 
         # Auto-size columns
         for col_idx in range(1, len(COSTOS_FIJOS_COLUMNS) + 1):
@@ -556,6 +723,11 @@ class COFileProcessor:
         }
 
         # Write data rows
+        # Debug: track how many records have values assigned
+        records_with_netsuite = 0
+        records_with_categoria = 0
+        records_with_both = 0
+
         for row_idx, record in enumerate(records, start=2):
             # Determine which value column to populate based on category
             valores = {
@@ -564,15 +736,31 @@ class COFileProcessor:
                 "Otros Valor": 0.0
             }
 
+            # Debug tracking
+            if record.valor_netsuite:
+                records_with_netsuite += 1
+            if record.categoria:
+                records_with_categoria += 1
+
+            # Log first few records for debugging
+            if row_idx <= 5:
+                logger.info(
+                    f"[Mandato] Record {row_idx}: factura={record.numero_factura}, "
+                    f"categoria={record.categoria}, valor_netsuite={record.valor_netsuite}, "
+                    f"codigo_producto={record.codigo_producto}"
+                )
+
+            # Only assign value if category is explicitly set AND matches expected categories
             if record.categoria and record.valor_netsuite:
-                target_column = category_column_map.get(record.categoria.value)
-                # Map to Mandato column names
-                if record.categoria.value == "intereses_corriente":
+                records_with_both += 1
+                if record.categoria == ProductCategory.INTERESES_CORRIENTE:
                     valores["Interes Corriente Facturado"] = record.valor_netsuite
-                elif record.categoria.value == "intereses_mora":
+                elif record.categoria == ProductCategory.INTERESES_MORA:
                     valores["Interes Mora Facturado Mandato"] = record.valor_netsuite
-                elif record.categoria.value == "otros":
+                elif record.categoria == ProductCategory.OTROS:
+                    # ONLY put in Otros Valor if explicitly classified as "otros"
                     valores["Otros Valor"] = record.valor_netsuite
+                # Note: costos_fijos and seguro_iva go to Costos Fijos sheet, not Mandato
 
             # Calculate Valor Neto Facturado (sum of all value columns)
             valor_neto = sum(valores.values())
@@ -600,6 +788,14 @@ class COFileProcessor:
 
             for col_idx, value in enumerate(row_data, start=1):
                 sheet.cell(row=row_idx, column=col_idx, value=value)
+
+        # Log debug summary
+        logger.info(
+            f"[Mandato Sheet] Total: {len(records)}, "
+            f"con valor_netsuite: {records_with_netsuite}, "
+            f"con categoria: {records_with_categoria}, "
+            f"con ambos (valor asignado): {records_with_both}"
+        )
 
         # Auto-size columns
         for col_idx in range(1, len(MANDATO_COLUMNS) + 1):

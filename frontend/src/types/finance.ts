@@ -1,12 +1,5 @@
 export type SearchType = 'codigo_operacion' | 'rfc' | 'fecha';
 
-export type GastoClasificacion =
-  | 'Intereses por Préstamo'
-  | 'Comisiones'
-  | 'Honorarios'
-  | 'Gastos Aduanales'
-  | 'Otros';
-
 export type ArchivoEstado = 'Disponible' | 'No disponible' | 'Pendiente';
 
 export interface InvoiceRecord {
@@ -20,7 +13,8 @@ export interface InvoiceRecord {
   iva_trasladado: number;
   iva_exento: number;
   total: number;
-  clasificacion_gasto?: GastoClasificacion;
+  uuid_relacionados?: string;
+  tipo_comprobante?: string;
 }
 
 export interface ExcelValidationError {

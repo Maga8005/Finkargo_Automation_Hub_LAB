@@ -179,6 +179,14 @@ class COProcessingResponse(BaseModel):
         default=None,
         description="URL to download generated Excel report"
     )
+    drive_uploaded: bool = Field(
+        default=False,
+        description="Whether the report was uploaded to Google Drive"
+    )
+    drive_url: Optional[str] = Field(
+        default=None,
+        description="Google Drive URL for the uploaded report"
+    )
     message: str = Field(default="Procesamiento completado exitosamente")
 
     class Config:
@@ -285,3 +293,141 @@ MANDATO_COLUMNS = [
     "Nit",
     "Otros Valor"
 ]
+
+
+# ============================================================================
+# Filter DTOs for Querying Drive Master Excel
+# ============================================================================
+
+class COFilterRequest(BaseModel):
+    """
+    Request model for filtering/querying the CO Drive master Excel.
+
+    Supports filtering by:
+    - operaciones: One or more operation codes
+    - nit: Client tax ID (partial or exact match)
+    - fecha_inicio / fecha_fin: Date range
+
+    All filters can be combined.
+    """
+    operaciones: Optional[List[str]] = Field(
+        default=None,
+        description="List of operation codes to filter by (codigo_operacion)"
+    )
+    nit: Optional[str] = Field(
+        default=None,
+        description="Client NIT to filter by (exact or partial match)"
+    )
+    fecha_inicio: Optional[date] = Field(
+        default=None,
+        description="Start date for date range filter (inclusive)"
+    )
+    fecha_fin: Optional[date] = Field(
+        default=None,
+        description="End date for date range filter (inclusive)"
+    )
+    hoja: Optional[str] = Field(
+        default=None,
+        description="Sheet to filter: 'costos_fijos' or 'mandato' (default: both)"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "operaciones": ["OP-2025-001", "OP-2025-002"],
+                "nit": "900123456",
+                "fecha_inicio": "2025-01-01",
+                "fecha_fin": "2025-12-31",
+                "hoja": "costos_fijos"
+            }
+        }
+
+
+class COFilteredRecord(BaseModel):
+    """
+    A single filtered record from the CO Drive master Excel.
+
+    Note: alias are defined for documentation purposes only.
+    Serialization uses field names (not aliases) for frontend compatibility.
+    """
+    codigo_operacion: Optional[str] = Field(None, description="Codigo del desembolso")
+    fecha: Optional[str] = Field(None, description="Fecha Facturacion")
+    numero_factura: Optional[str] = Field(None, description="# Factura")
+    nit: Optional[str] = Field(None, description="Nit")
+    moneda: Optional[str] = Field(None, description="Moneda")
+    valor_costos_fijos: Optional[float] = Field(None, description="Valor Costos Fijos")
+    seguro_iva: Optional[float] = Field(None, description="Seguro + Iva")
+    int_corriente: Optional[float] = Field(None, description="Int. Corriente Facturado FK")
+    int_mora: Optional[float] = Field(None, description="Int. Mora Facturado FK")
+    retencion_fuente: Optional[float] = Field(None, description="(-) Retencion en la Fuente")
+    valor_neto: Optional[float] = Field(None, description="Valor Neto Facturado")
+    otros_valor: Optional[float] = Field(None, description="Otros Valor")
+    hoja_origen: Optional[str] = Field(None, description="Sheet where record was found")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "codigo_operacion": "OP-2025-001",
+                "fecha": "2025-08-15",
+                "numero_factura": "FE-12345",
+                "nit": "900123456",
+                "moneda": "COP",
+                "valor_costos_fijos": 1500000.00,
+                "valor_neto": 1400000.00,
+                "hoja_origen": "Relacion facturas Costos Fijos"
+            }
+        }
+
+
+class COFilterResponse(BaseModel):
+    """
+    Response model for CO filter queries.
+    """
+    success: bool
+    total_records: int = Field(..., description="Total number of matching records")
+    records: List[COFilteredRecord] = Field(default_factory=list)
+    filters_applied: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Summary of filters that were applied"
+    )
+    sheets_searched: List[str] = Field(
+        default_factory=list,
+        description="Sheets that were searched"
+    )
+    message: str = Field(default="Consulta completada exitosamente")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "total_records": 25,
+                "records": [],
+                "filters_applied": {
+                    "operaciones": "OP-2025-001, OP-2025-002",
+                    "fecha_rango": "2025-01-01 a 2025-12-31"
+                },
+                "sheets_searched": ["Relacion facturas Costos Fijos", "Relación facturas mandato"],
+                "message": "Se encontraron 25 registros"
+            }
+        }
+
+
+class CODistinctValuesResponse(BaseModel):
+    """
+    Response model for getting distinct values from a column.
+    Used for autocomplete/dropdown in filter UI.
+    """
+    success: bool
+    field: str = Field(..., description="Field name queried")
+    values: List[str] = Field(default_factory=list, description="Unique values found")
+    count: int = Field(..., description="Number of unique values")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "field": "nit",
+                "values": ["900123456", "900654321", "800111222"],
+                "count": 3
+            }
+        }

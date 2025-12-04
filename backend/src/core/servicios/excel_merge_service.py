@@ -119,6 +119,13 @@ class ExcelMergeService:
                 else:
                     continue  # Skip records without date
 
+                # Get optional fields
+                uuid_rel = record.get("UUIDs relacionados")
+                uuid_relacionados = str(uuid_rel).strip() if uuid_rel and str(uuid_rel).strip().lower() != 'nan' else None
+
+                tipo_comp = record.get("Tipo")
+                tipo_comprobante = str(tipo_comp).strip() if tipo_comp and str(tipo_comp).strip().lower() != 'nan' else None
+
                 # Create InvoiceRecord
                 invoice_record = InvoiceRecord(
                     uuid=str(record.get("UUID", "")).strip().upper(),
@@ -131,7 +138,8 @@ class ExcelMergeService:
                     iva_trasladado=float(record.get("IVA Trasladado", 0) or 0),
                     iva_exento=float(record.get("IVA Exento", 0) or 0),
                     total=float(record.get("Total", 0) or 0),
-                    clasificacion_gasto=None  # Can be inferred later if needed
+                    uuid_relacionados=uuid_relacionados,
+                    tipo_comprobante=tipo_comprobante
                 )
                 invoice_records.append(invoice_record)
 

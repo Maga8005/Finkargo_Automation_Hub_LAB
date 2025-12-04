@@ -91,7 +91,8 @@ class ExcelReportService:
                 "IVA Trasladado",
                 "IVA Exento",
                 "Total",
-                "Clasificación",
+                "UUIDs relacionados",
+                "Tipo",
                 "Estado PDF",
                 "Estado XML"
             ]
@@ -131,7 +132,8 @@ class ExcelReportService:
                     invoice.get("iva_trasladado", 0),
                     invoice.get("iva_exento", 0),
                     invoice.get("total", 0),
-                    invoice.get("clasificacion_gasto", ""),
+                    invoice.get("uuid_relacionados", ""),
+                    invoice.get("tipo_comprobante", ""),
                     pdf_status,
                     xml_status
                 ]
@@ -212,7 +214,7 @@ class ExcelReportService:
                 cell.alignment = self.DATA_ALIGNMENT
 
             # Color para archivos no disponibles
-            if col_idx in [12, 13] and value == "No disponible":
+            if col_idx in [13, 14] and value == "No disponible":
                 cell.font = Font(name='Arial', size=10, color='CC071E')
 
     def _add_totals_row(self, ws, row: int, data_start_row: int, num_rows: int, num_cols: int):
@@ -283,9 +285,10 @@ class ExcelReportService:
             8: 12,  # IVA Trasladado
             9: 12,  # IVA Exento
             10: 12,  # Total
-            11: 20,  # Clasificación
-            12: 14,  # Estado PDF
-            13: 14,  # Estado XML
+            11: 38,  # UUIDs relacionados
+            12: 15,  # Tipo
+            13: 14,  # Estado PDF
+            14: 14,  # Estado XML
         }
 
         for col_idx, width in column_widths.items():

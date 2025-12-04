@@ -1,18 +1,11 @@
 /**
  * FKMatchDetailsTable - Match Details Table Component
  *
- * DataGrid table displaying matched payment-declaration records with confidence scores,
+ * MUI Table displaying matched payment-declaration records with confidence scores,
  * amount/date differences, customer similarity, and action buttons. Supports sorting,
- * filtering, pagination, and row selection for bulk operations.
+ * pagination, and row selection for bulk operations.
  */
-import React, { useMemo } from 'react';
-import { DataGrid } from '@mui/x-data-grid';
-import type {
-  GridColDef,
-  GridRenderCellParams,
-  GridRowSelectionModel,
-  GridPaginationModel,
-} from '@mui/x-data-grid';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Chip,
@@ -20,6 +13,17 @@ import {
   LinearProgress,
   Tooltip,
   Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TablePagination,
+  TableSortLabel,
+  Paper,
+  Checkbox,
+  CircularProgress,
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
@@ -46,6 +50,8 @@ interface FKMatchDetailsTableProps {
   onSelectionChange?: (selectedIds: string[]) => void;
 }
 
+type Order = 'asc' | 'desc';
+
 const FKMatchDetailsTable: React.FC<FKMatchDetailsTableProps> = ({
   matches,
   loading = false,
@@ -54,12 +60,16 @@ const FKMatchDetailsTable: React.FC<FKMatchDetailsTableProps> = ({
   totalCount,
   onPageChange,
   onPageSizeChange,
+  onSortChange,
   onViewDetails,
   onOverride,
   onReject,
   selectedRows = [],
   onSelectionChange,
 }) => {
+  const [orderBy, setOrderBy] = useState<string>('payment_date');
+  const [order, setOrder] = useState<Order>('desc');
+
   console.log('[FKMatchDetailsTable] Rendering table', {
     matchesCount: matches.length,
     totalCount,
@@ -133,271 +143,349 @@ const FKMatchDetailsTable: React.FC<FKMatchDetailsTableProps> = ({
     }
   };
 
-  // Define columns
-  const columns: GridColDef[] = useMemo(
-    () => [
-      {
-        field: 'payment_date',
-        headerName: 'Payment Date',
-        width: 130,
-        renderCell: (params: GridRenderCellParams) => (
-          <Typography variant="body2">{params.value}</Typography>
-        ),
-      },
-      {
-        field: 'declaration_number',
-        headerName: 'Declaration Number',
-        width: 150,
-        renderCell: (params: GridRenderCellParams) => (
-          <Tooltip title="Click to view details">
-            <Typography
-              variant="body2"
-              sx={{
-                color: 'primary.main',
-                cursor: 'pointer',
-                '&:hover': { textDecoration: 'underline' },
-              }}
-              onClick={() => onViewDetails(params.row.id)}
-            >
-              {params.value}
-            </Typography>
-          </Tooltip>
-        ),
-      },
-      {
-        field: 'amount_difference',
-        headerName: 'Amount Difference',
-        width: 150,
-        renderCell: (params: GridRenderCellParams) => {
-          const difference = Math.abs(params.value as number);
-          const color = getAmountDifferenceColor(difference);
-          return (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              {difference === 0 && <CheckCircleIcon sx={{ fontSize: 16, color }} />}
-              {difference > 0 && difference <= 0.20 && <WarningIcon sx={{ fontSize: 16, color }} />}
-              {difference > 0.20 && <CloseIcon sx={{ fontSize: 16, color }} />}
-              <Typography variant="body2" sx={{ color, fontWeight: 600 }}>
-                {formatCurrency(difference)}
-              </Typography>
-            </Box>
-          );
-        },
-      },
-      {
-        field: 'date_difference_days',
-        headerName: 'Date Difference',
-        width: 140,
-        renderCell: (params: GridRenderCellParams) => {
-          const days = Math.abs(params.value as number);
-          const color = getDateDifferenceColor(days);
-          return (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              {days === 0 && <CheckCircleIcon sx={{ fontSize: 16, color }} />}
-              <Typography variant="body2" sx={{ color, fontWeight: 600 }}>
-                {days === 0 ? 'Same day' : `${days} day${days !== 1 ? 's' : ''}`}
-              </Typography>
-            </Box>
-          );
-        },
-      },
-      {
-        field: 'customer_name_similarity',
-        headerName: 'Customer Similarity',
-        width: 170,
-        renderCell: (params: GridRenderCellParams) => {
-          const similarity = params.value as number;
-          const percentage = (similarity * 100).toFixed(0);
-          const color = getCustomerSimilarityColor(similarity);
-          return (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-              <LinearProgress
-                variant="determinate"
-                value={similarity * 100}
-                sx={{
-                  flex: 1,
-                  height: 6,
-                  borderRadius: 1,
-                  backgroundColor: 'grey.200',
-                  '& .MuiLinearProgress-bar': {
-                    backgroundColor: color,
-                  },
-                }}
-              />
-              <Typography variant="caption" fontWeight={600} sx={{ color, minWidth: 35 }}>
-                {percentage}%
-              </Typography>
-            </Box>
-          );
-        },
-      },
-      {
-        field: 'confidence_score',
-        headerName: 'Confidence',
-        width: 150,
-        renderCell: (params: GridRenderCellParams) => {
-          const score = params.value as number;
-          const percentage = (score * 100).toFixed(0);
-          const color = getConfidenceColor(score);
-          return (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-              <LinearProgress
-                variant="determinate"
-                value={score * 100}
-                sx={{
-                  flex: 1,
-                  height: 6,
-                  borderRadius: 1,
-                  backgroundColor: 'grey.200',
-                  '& .MuiLinearProgress-bar': {
-                    backgroundColor: color,
-                  },
-                }}
-              />
-              <Typography variant="caption" fontWeight={600} sx={{ color, minWidth: 35 }}>
-                {percentage}%
-              </Typography>
-            </Box>
-          );
-        },
-      },
-      {
-        field: 'match_status',
-        headerName: 'Status',
-        width: 130,
-        renderCell: (params: GridRenderCellParams) => {
-          const status = params.value as 'approved' | 'pending_review' | 'rejected';
-          return (
-            <Chip
-              label={getMatchStatusLabel(status)}
-              color={getMatchStatusColor(status)}
-              size="small"
-              sx={{ fontWeight: 600 }}
-            />
-          );
-        },
-      },
-      {
-        field: 'is_manual_override',
-        headerName: 'Type',
-        width: 100,
-        renderCell: (params: GridRenderCellParams) => {
-          if (params.value) {
-            return (
-              <Tooltip title={params.row.override_reason || 'Manual override'}>
-                <Chip
-                  label="Manual"
-                  size="small"
-                  color="secondary"
-                  sx={{ fontWeight: 600 }}
-                />
-              </Tooltip>
-            );
-          }
-          return (
-            <Chip
-              label="Auto"
-              size="small"
-              variant="outlined"
-              sx={{ fontWeight: 600 }}
-            />
-          );
-        },
-      },
-      {
-        field: 'actions',
-        headerName: 'Actions',
-        width: 150,
-        sortable: false,
-        renderCell: (params: GridRenderCellParams) => (
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <Tooltip title="View Details">
-              <IconButton
-                size="small"
-                onClick={() => onViewDetails(params.row.id)}
-                sx={{ color: 'primary.main' }}
-              >
-                <VisibilityIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            {onOverride && (
-              <Tooltip title="Override Match">
-                <IconButton
-                  size="small"
-                  onClick={() => onOverride(params.row.id)}
-                  sx={{ color: 'info.main' }}
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
-            {onReject && params.row.match_status !== 'rejected' && (
-              <Tooltip title="Reject Match">
-                <IconButton
-                  size="small"
-                  onClick={() => onReject(params.row.id)}
-                  sx={{ color: 'error.main' }}
-                >
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
-          </Box>
-        ),
-      },
-    ],
-    [onViewDetails, onOverride, onReject]
-  );
-
-  // Handle selection change
-  const handleSelectionChange = (selectionModel: GridRowSelectionModel) => {
-    if (onSelectionChange) {
-      // In DataGrid v7, GridRowSelectionModel is an array of GridRowId
-      const selectedIds = selectionModel as string[];
-      onSelectionChange(selectedIds);
+  // Handle sort request
+  const handleRequestSort = (property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    const newOrder = isAsc ? 'desc' : 'asc';
+    setOrder(newOrder);
+    setOrderBy(property);
+    if (onSortChange) {
+      onSortChange(property, newOrder);
     }
   };
 
+  // Handle select all click
+  const handleSelectAllClick = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (onSelectionChange) {
+      if (event.target.checked) {
+        const newSelected = matches.map((m) => m.id);
+        onSelectionChange(newSelected);
+        return;
+      }
+      onSelectionChange([]);
+    }
+  };
+
+  // Handle click on row checkbox
+  const handleClick = (id: string) => {
+    if (!onSelectionChange) return;
+
+    const selectedIndex = selectedRows.indexOf(id);
+    let newSelected: string[] = [];
+
+    if (selectedIndex === -1) {
+      newSelected = newSelected.concat(selectedRows, id);
+    } else if (selectedIndex === 0) {
+      newSelected = newSelected.concat(selectedRows.slice(1));
+    } else if (selectedIndex === selectedRows.length - 1) {
+      newSelected = newSelected.concat(selectedRows.slice(0, -1));
+    } else if (selectedIndex > 0) {
+      newSelected = newSelected.concat(
+        selectedRows.slice(0, selectedIndex),
+        selectedRows.slice(selectedIndex + 1)
+      );
+    }
+
+    onSelectionChange(newSelected);
+  };
+
+  const isSelected = (id: string) => selectedRows.indexOf(id) !== -1;
+
+  // Sort data client-side for display
+  const sortedMatches = useMemo(() => {
+    return [...matches].sort((a, b) => {
+      const aValue = a[orderBy as keyof MatchDetail];
+      const bValue = b[orderBy as keyof MatchDetail];
+
+      if (aValue === null || aValue === undefined) return 1;
+      if (bValue === null || bValue === undefined) return -1;
+
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return order === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+
+      const aStr = String(aValue);
+      const bStr = String(bValue);
+      return order === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
+    });
+  }, [matches, orderBy, order]);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
-    <Box sx={{ width: '100%', height: 650 }}>
-      <DataGrid
-        rows={matches}
-        columns={columns}
-        loading={loading}
-        pagination
-        paginationMode="server"
-        rowCount={totalCount}
-        paginationModel={{
-          page: page - 1, // DataGrid uses 0-based indexing
-          pageSize: pageSize,
-        }}
-        onPaginationModelChange={(model: GridPaginationModel) => {
-          if (model.page !== page - 1) {
-            onPageChange(model.page + 1); // Convert back to 1-based
-          }
-          if (model.pageSize !== pageSize) {
-            onPageSizeChange(model.pageSize);
-          }
-        }}
-        pageSizeOptions={[10, 25, 50, 100]}
-        checkboxSelection={!!onSelectionChange}
-        rowSelectionModel={selectedRows}
-        onRowSelectionModelChange={handleSelectionChange}
-        disableRowSelectionOnClick
-        sx={{
-          border: 'none',
-          '& .MuiDataGrid-cell:focus': {
-            outline: 'none',
-          },
-          '& .MuiDataGrid-row:hover': {
-            backgroundColor: 'action.hover',
-          },
-          '& .MuiDataGrid-columnHeaders': {
-            backgroundColor: (theme) =>
-              theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
-            borderBottom: '2px solid',
-            borderColor: 'divider',
-          },
-        }}
+    <Box sx={{ width: '100%' }}>
+      <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 600 }}>
+        <Table stickyHeader size="small">
+          <TableHead>
+            <TableRow>
+              {onSelectionChange && (
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    indeterminate={selectedRows.length > 0 && selectedRows.length < matches.length}
+                    checked={matches.length > 0 && selectedRows.length === matches.length}
+                    onChange={handleSelectAllClick}
+                  />
+                </TableCell>
+              )}
+              <TableCell>
+                <TableSortLabel
+                  active={orderBy === 'payment_date'}
+                  direction={orderBy === 'payment_date' ? order : 'asc'}
+                  onClick={() => handleRequestSort('payment_date')}
+                >
+                  Payment Date
+                </TableSortLabel>
+              </TableCell>
+              <TableCell>
+                <TableSortLabel
+                  active={orderBy === 'declaration_number'}
+                  direction={orderBy === 'declaration_number' ? order : 'asc'}
+                  onClick={() => handleRequestSort('declaration_number')}
+                >
+                  Declaration Number
+                </TableSortLabel>
+              </TableCell>
+              <TableCell>
+                <TableSortLabel
+                  active={orderBy === 'amount_difference'}
+                  direction={orderBy === 'amount_difference' ? order : 'asc'}
+                  onClick={() => handleRequestSort('amount_difference')}
+                >
+                  Amount Difference
+                </TableSortLabel>
+              </TableCell>
+              <TableCell>
+                <TableSortLabel
+                  active={orderBy === 'date_difference_days'}
+                  direction={orderBy === 'date_difference_days' ? order : 'asc'}
+                  onClick={() => handleRequestSort('date_difference_days')}
+                >
+                  Date Difference
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ minWidth: 150 }}>Customer Similarity</TableCell>
+              <TableCell sx={{ minWidth: 130 }}>Confidence</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Type</TableCell>
+              <TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {sortedMatches.map((row) => {
+              const isItemSelected = isSelected(row.id);
+              return (
+                <TableRow
+                  hover
+                  key={row.id}
+                  selected={isItemSelected}
+                  sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                >
+                  {onSelectionChange && (
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={isItemSelected}
+                        onChange={() => handleClick(row.id)}
+                      />
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <Typography variant="body2">{row.payment_date}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Tooltip title="Click to view details">
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: 'primary.main',
+                          cursor: 'pointer',
+                          '&:hover': { textDecoration: 'underline' },
+                        }}
+                        onClick={() => onViewDetails(row.id)}
+                      >
+                        {row.declaration_number}
+                      </Typography>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const difference = Math.abs(row.amount_difference);
+                      const color = getAmountDifferenceColor(difference);
+                      return (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {difference === 0 && <CheckCircleIcon sx={{ fontSize: 16, color }} />}
+                          {difference > 0 && difference <= 0.20 && (
+                            <WarningIcon sx={{ fontSize: 16, color }} />
+                          )}
+                          {difference > 0.20 && <CloseIcon sx={{ fontSize: 16, color }} />}
+                          <Typography variant="body2" sx={{ color, fontWeight: 600 }}>
+                            {formatCurrency(difference)}
+                          </Typography>
+                        </Box>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const days = Math.abs(row.date_difference_days);
+                      const color = getDateDifferenceColor(days);
+                      return (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {days === 0 && <CheckCircleIcon sx={{ fontSize: 16, color }} />}
+                          <Typography variant="body2" sx={{ color, fontWeight: 600 }}>
+                            {days === 0 ? 'Same day' : `${days} day${days !== 1 ? 's' : ''}`}
+                          </Typography>
+                        </Box>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const similarity = row.customer_name_similarity;
+                      const percentage = (similarity * 100).toFixed(0);
+                      const color = getCustomerSimilarityColor(similarity);
+                      return (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                          <LinearProgress
+                            variant="determinate"
+                            value={similarity * 100}
+                            sx={{
+                              flex: 1,
+                              height: 6,
+                              borderRadius: 1,
+                              backgroundColor: 'grey.200',
+                              '& .MuiLinearProgress-bar': {
+                                backgroundColor: color,
+                              },
+                            }}
+                          />
+                          <Typography
+                            variant="caption"
+                            fontWeight={600}
+                            sx={{ color, minWidth: 35 }}
+                          >
+                            {percentage}%
+                          </Typography>
+                        </Box>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const score = row.confidence_score;
+                      const percentage = (score * 100).toFixed(0);
+                      const color = getConfidenceColor(score);
+                      return (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                          <LinearProgress
+                            variant="determinate"
+                            value={score * 100}
+                            sx={{
+                              flex: 1,
+                              height: 6,
+                              borderRadius: 1,
+                              backgroundColor: 'grey.200',
+                              '& .MuiLinearProgress-bar': {
+                                backgroundColor: color,
+                              },
+                            }}
+                          />
+                          <Typography
+                            variant="caption"
+                            fontWeight={600}
+                            sx={{ color, minWidth: 35 }}
+                          >
+                            {percentage}%
+                          </Typography>
+                        </Box>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={getMatchStatusLabel(row.match_status)}
+                      color={getMatchStatusColor(row.match_status)}
+                      size="small"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {row.is_manual_override ? (
+                      <Tooltip title={row.override_reason || 'Manual override'}>
+                        <Chip
+                          label="Manual"
+                          size="small"
+                          color="secondary"
+                          sx={{ fontWeight: 600 }}
+                        />
+                      </Tooltip>
+                    ) : (
+                      <Chip
+                        label="Auto"
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      <Tooltip title="View Details">
+                        <IconButton
+                          size="small"
+                          onClick={() => onViewDetails(row.id)}
+                          sx={{ color: 'primary.main' }}
+                        >
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {onOverride && (
+                        <Tooltip title="Override Match">
+                          <IconButton
+                            size="small"
+                            onClick={() => onOverride(row.id)}
+                            sx={{ color: 'info.main' }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {onReject && row.match_status !== 'rejected' && (
+                        <Tooltip title="Reject Match">
+                          <IconButton
+                            size="small"
+                            onClick={() => onReject(row.id)}
+                            sx={{ color: 'error.main' }}
+                          >
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      <TablePagination
+        rowsPerPageOptions={[10, 25, 50, 100]}
+        component="div"
+        count={totalCount}
+        rowsPerPage={pageSize}
+        page={page - 1}
+        onPageChange={(_, newPage) => onPageChange(newPage + 1)}
+        onRowsPerPageChange={(event) => onPageSizeChange(parseInt(event.target.value, 10))}
+        labelRowsPerPage="Rows per page:"
+        labelDisplayedRows={({ from, to, count }) =>
+          `${from}-${to} of ${count !== -1 ? count : `more than ${to}`}`
+        }
       />
     </Box>
   );

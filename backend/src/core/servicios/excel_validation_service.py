@@ -16,8 +16,7 @@ import uuid as uuid_lib
 from src.interface.finance_dtos import (
     InvoiceRecord,
     ExcelValidationError,
-    ExcelValidationResponse,
-    GastoClasificacion
+    ExcelValidationResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -44,6 +43,12 @@ class ExcelValidationService:
         'Total'
     ]
 
+    # Optional columns (read if present, but not required)
+    OPTIONAL_COLUMNS = [
+        'UUIDs relacionados',
+        'Tipo'
+    ]
+
     # Column name mappings (Excel column -> internal field)
     COLUMN_MAPPING = {
         'UUID': 'uuid',
@@ -55,16 +60,11 @@ class ExcelValidationService:
         'SubTotal': 'subtotal',
         'IVA Trasladado': 'iva_trasladado',
         'IVA Exento': 'iva_exento',
-        'Total': 'total'
+        'Total': 'total',
+        'UUIDs relacionados': 'uuid_relacionados',
+        'Tipo': 'tipo_comprobante'
     }
 
-    # Keywords for expense classification
-    CLASSIFICATION_KEYWORDS = {
-        GastoClasificacion.INTERESES_PRESTAMO: ['interés', 'intereses', 'préstamo', 'prestamo'],
-        GastoClasificacion.COMISIONES: ['comisión', 'comision', 'comisiones'],
-        GastoClasificacion.HONORARIOS: ['honorario', 'honorarios'],
-        GastoClasificacion.GASTOS_ADUANALES: ['aduana', 'aduanal', 'aduanales', 'importación', 'importacion']
-    }
 
     async def validate_excel(self, file: UploadFile) -> ExcelValidationResponse:
         """
@@ -355,8 +355,16 @@ class ExcelValidationService:
                 errors.extend(row_errors)
                 continue
 
-            # Classify expense based on conceptos
-            clasificacion = self._classify_expense(conceptos)
+            # Read optional columns
+            uuid_relacionados = None
+            uuid_rel_val = row.get('UUIDs relacionados', '')
+            if pd.notna(uuid_rel_val) and str(uuid_rel_val).strip().lower() != 'nan':
+                uuid_relacionados = str(uuid_rel_val).strip()
+
+            tipo_comprobante = None
+            tipo_comp_val = row.get('Tipo', '')
+            if pd.notna(tipo_comp_val) and str(tipo_comp_val).strip().lower() != 'nan':
+                tipo_comprobante = str(tipo_comp_val).strip()
 
             # Create valid record
             try:
@@ -371,7 +379,8 @@ class ExcelValidationService:
                     iva_trasladado=iva_trasladado,
                     iva_exento=iva_exento,
                     total=total,
-                    clasificacion_gasto=clasificacion
+                    uuid_relacionados=uuid_relacionados,
+                    tipo_comprobante=tipo_comprobante
                 )
                 valid_records.append(record)
             except Exception as e:
@@ -383,22 +392,3 @@ class ExcelValidationService:
                 ))
 
         return valid_records, errors
-
-    def _classify_expense(self, conceptos: str) -> GastoClasificacion:
-        """
-        Classify expense based on keywords in conceptos field.
-
-        Args:
-            conceptos: Description of the invoice items
-
-        Returns:
-            GastoClasificacion enum value
-        """
-        conceptos_lower = conceptos.lower()
-
-        for clasificacion, keywords in self.CLASSIFICATION_KEYWORDS.items():
-            for keyword in keywords:
-                if keyword in conceptos_lower:
-                    return clasificacion
-
-        return GastoClasificacion.OTROS

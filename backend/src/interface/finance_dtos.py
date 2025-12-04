@@ -19,15 +19,6 @@ class SearchType(str, Enum):
     FECHA = "fecha"
 
 
-class GastoClasificacion(str, Enum):
-    """Classification of expenses for invoices."""
-    INTERESES_PRESTAMO = "Intereses por Préstamo"
-    COMISIONES = "Comisiones"
-    HONORARIOS = "Honorarios"
-    GASTOS_ADUANALES = "Gastos Aduanales"
-    OTROS = "Otros"
-
-
 class ArchivoEstado(str, Enum):
     """Status of file availability in Google Drive."""
     DISPONIBLE = "Disponible"
@@ -50,7 +41,8 @@ class InvoiceRecord(BaseModel):
         iva_trasladado: Transferred VAT amount in USD
         iva_exento: Exempt VAT amount in USD
         total: Total amount in USD
-        clasificacion_gasto: Expense classification (inferred from conceptos)
+        uuid_relacionados: Related document UUIDs
+        tipo_comprobante: Fiscal document type
     """
     uuid: str = Field(..., min_length=1, max_length=100, description="UUID del documento fiscal")
     codigo_operacion: str = Field(..., min_length=1, max_length=50, description="Código de operación")
@@ -62,9 +54,15 @@ class InvoiceRecord(BaseModel):
     iva_trasladado: float = Field(default=0.0, ge=0, description="IVA Trasladado en USD")
     iva_exento: float = Field(default=0.0, ge=0, description="IVA Exento en USD")
     total: float = Field(..., description="Total en USD (puede ser negativo para egresos)")
-    clasificacion_gasto: Optional[GastoClasificacion] = Field(
+    uuid_relacionados: Optional[str] = Field(
         default=None,
-        description="Clasificación del gasto"
+        max_length=500,
+        description="UUIDs de documentos relacionados"
+    )
+    tipo_comprobante: Optional[str] = Field(
+        default=None,
+        max_length=50,
+        description="Tipo de comprobante fiscal"
     )
 
     @field_validator('rfc_receptor')

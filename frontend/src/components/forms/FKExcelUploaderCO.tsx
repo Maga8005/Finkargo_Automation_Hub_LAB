@@ -19,7 +19,6 @@ import {
   Alert,
   LinearProgress,
   Chip,
-  Grid,
   IconButton,
   Tooltip,
 } from '@mui/material';
@@ -39,12 +38,13 @@ export interface FileState {
 
 export interface FKExcelUploaderCOProps {
   onUploadSuccess?: (response: any) => void;
+  // onUploadError is optional and may be used by parent to handle errors
   onUploadError?: (error: string) => void;
 }
 
 const FKExcelUploaderCO: React.FC<FKExcelUploaderCOProps> = ({
   onUploadSuccess,
-  onUploadError,
+  onUploadError: _onUploadError,
 }) => {
   const [files, setFiles] = useState<FileState[]>([
     {
@@ -73,7 +73,7 @@ const FKExcelUploaderCO: React.FC<FKExcelUploaderCOProps> = ({
     },
   ]);
 
-  const [isUploading, setIsUploading] = useState(false);
+  const [isUploading, _setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -184,9 +184,15 @@ const FKExcelUploaderCO: React.FC<FKExcelUploaderCOProps> = ({
           {isUploading && <LinearProgress />}
 
           {/* File Upload Slots - 2 Columns Layout */}
-          <Grid container spacing={3}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+              gap: 3,
+            }}
+          >
             {/* Column 1: Facturas */}
-            <Grid item xs={12} md={6}>
+            <Box>
               <Box
                 sx={{
                   border: '2px solid',
@@ -291,10 +297,10 @@ const FKExcelUploaderCO: React.FC<FKExcelUploaderCOProps> = ({
                   })}
                 </Stack>
               </Box>
-            </Grid>
+            </Box>
 
             {/* Column 2: Notas de Crédito */}
-            <Grid item xs={12} md={6}>
+            <Box>
               <Box
                 sx={{
                   border: '2px solid',
@@ -399,8 +405,8 @@ const FKExcelUploaderCO: React.FC<FKExcelUploaderCOProps> = ({
                   })}
                 </Stack>
               </Box>
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
 
           {/* Upload Status Summary */}
           <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">

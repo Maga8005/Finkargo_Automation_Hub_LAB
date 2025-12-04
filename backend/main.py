@@ -1,8 +1,13 @@
 """
 Finkargo Automation Hub - FastAPI Backend Entry Point
+
+Optimizado con:
+- GZipMiddleware para compresión de respuestas JSON
+- CORS configurado para Vercel preview URLs
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from src.config.settings import get_settings
 from src.adapter.rest import legal_routes, operations_routes, auth_routes, finance_routes, tesoreria_routes
 import json
@@ -42,6 +47,10 @@ app.add_middleware(
     allow_headers=["*"],
     allow_origin_regex=r"https://.*\.vercel\.app"  # Support all Vercel preview URLs
 )
+
+# GZip middleware for compressing JSON responses
+# minimum_size=500 means only compress responses larger than 500 bytes
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Include routers AFTER middleware
 app.include_router(auth_routes.router, prefix="/api")

@@ -221,7 +221,8 @@ class InvoiceSearchService:
                 iva_trasladado=record.iva_trasladado,
                 iva_exento=record.iva_exento,
                 total=record.total,
-                clasificacion_gasto=record.clasificacion_gasto,
+                uuid_relacionados=record.uuid_relacionados,
+                tipo_comprobante=record.tipo_comprobante,
                 archivo_estado=ArchivoEstado.PENDIENTE
             )
             for record in results
