@@ -475,20 +475,45 @@ class PaymentTemplateService:
                         pass
             return 0.0
 
-        # Process simple concepts first (direct values)
-        simple_concepts = [
-            "CAPITAL", "4X1000", "FONDO_GARANTIAS", "IVA_FONDO_GARANTIAS",
-            "SEGUROS", "SERVICIO_ORIGINACION", "SERVICIO_GIRO", "COSTOS_ADICIONALES",
-            "COMISION_DESEMBOLSO", "COMISION_DISPOSICION", "COMISION_SWIFT",
-            "COMISION_ADMINISTRACION", "COMISION_APERTURA"
-        ]
+        # Process simple concepts based on country
+        # Colombia: Aggregates cost columns into COSTOS_FIJOS
+        # México: Processes each concept individually
+        if country.lower() == "colombia":
+            # Colombia simple concepts: CAPITAL and SEGUROS only
+            colombia_simple_concepts = ["CAPITAL", "SEGUROS"]
+            for concept_type in colombia_simple_concepts:
+                col_name = concept_columns.get(concept_type, "")
+                if col_name:
+                    value = get_numeric_value(col_name)
+                    if value != 0:
+                        concepts[concept_type] = value
 
-        for concept_type in simple_concepts:
-            col_name = concept_columns.get(concept_type, "")
-            if col_name:
-                value = get_numeric_value(col_name)
-                if value != 0:
-                    concepts[concept_type] = value
+            # Colombia: Aggregate cost columns into COSTOS_FIJOS
+            costos_fijos_components = [
+                "4X1000", "FONDO_GARANTIAS", "IVA_FONDO_GARANTIAS",
+                "SERVICIO_ORIGINACION", "SERVICIO_GIRO", "COSTOS_ADICIONALES"
+            ]
+            costos_fijos_total = 0.0
+            for component in costos_fijos_components:
+                col_name = concept_columns.get(component, "")
+                if col_name:
+                    costos_fijos_total += get_numeric_value(col_name)
+
+            if abs(costos_fijos_total) > 0.001:
+                concepts["COSTOS_FIJOS"] = costos_fijos_total
+        else:
+            # México: Process each concept individually (existing behavior)
+            mexico_simple_concepts = [
+                "CAPITAL", "SEGUROS", "COSTOS_ADICIONALES",
+                "COMISION_DESEMBOLSO", "COMISION_DISPOSICION", "COMISION_SWIFT",
+                "COMISION_ADMINISTRACION", "COMISION_APERTURA"
+            ]
+            for concept_type in mexico_simple_concepts:
+                col_name = concept_columns.get(concept_type, "")
+                if col_name:
+                    value = get_numeric_value(col_name)
+                    if value != 0:
+                        concepts[concept_type] = value
 
         # Calculate INTERESES (with adjustments)
         intereses_corrientes = get_numeric_value(
@@ -505,36 +530,42 @@ class PaymentTemplateService:
         if abs(intereses_final) > 0.001:
             concepts["INTERESES"] = intereses_final
 
-        # Calculate MORATORIOS (sum of PAR columns minus condonaciones)
-        mora_par_30 = get_numeric_value(
-            concept_columns.get("INTERESES_MORA_PAR_30", "")
+        # Calculate MORATORIOS (sum of PAR 60/61 columns minus condonaciones)
+        # Colombia uses: PAR 60/61 with Tasa corriente and Tasa restante de mora
+        mora_col_60 = concept_columns.get("INTERESES_MORA_TASA_CORRIENTE_PAR_60", "")
+        mora_tasa_corriente_60 = get_numeric_value(mora_col_60)
+
+        mora_col_60_rest = concept_columns.get("INTERESES_MORA_TASA_RESTANTE_PAR_60", "")
+        mora_tasa_restante_60 = get_numeric_value(mora_col_60_rest)
+
+        mora_col_61 = concept_columns.get("INTERESES_MORA_TASA_CORRIENTE_PAR_61", "")
+        mora_tasa_corriente_61 = get_numeric_value(mora_col_61)
+
+        mora_col_61_rest = concept_columns.get("INTERESES_MORA_TASA_RESTANTE_PAR_61", "")
+        mora_tasa_restante_61 = get_numeric_value(mora_col_61_rest)
+
+        cond_mora_tasa_corriente_60 = get_numeric_value(
+            concept_columns.get("CONDONACION_MORA_TASA_CORRIENTE_PAR_60", "")
         )
-        mora_par_60 = get_numeric_value(
-            concept_columns.get("INTERESES_MORA_PAR_60", "")
+        cond_mora_tasa_restante_60 = get_numeric_value(
+            concept_columns.get("CONDONACION_MORA_TASA_RESTANTE_PAR_60", "")
         )
-        mora_par_90 = get_numeric_value(
-            concept_columns.get("INTERESES_MORA_PAR_90", "")
+        cond_mora_tasa_corriente_61 = get_numeric_value(
+            concept_columns.get("CONDONACION_MORA_TASA_CORRIENTE_PAR_61", "")
         )
-        mora_par_120 = get_numeric_value(
-            concept_columns.get("INTERESES_MORA_PAR_120", "")
+        cond_mora_tasa_restante_61 = get_numeric_value(
+            concept_columns.get("CONDONACION_MORA_TASA_RESTANTE_PAR_61", "")
         )
 
-        cond_mora_30 = get_numeric_value(
-            concept_columns.get("CONDONACION_MORA_30", "")
-        )
-        cond_mora_60 = get_numeric_value(
-            concept_columns.get("CONDONACION_MORA_60", "")
-        )
-        cond_mora_90 = get_numeric_value(
-            concept_columns.get("CONDONACION_MORA_90", "")
-        )
-        cond_mora_120 = get_numeric_value(
-            concept_columns.get("CONDONACION_MORA_120", "")
-        )
-
-        total_mora = mora_par_30 + mora_par_60 + mora_par_90 + mora_par_120
-        total_cond_mora = cond_mora_30 + cond_mora_60 + cond_mora_90 + cond_mora_120
+        total_mora = (mora_tasa_corriente_60 + mora_tasa_restante_60 +
+                      mora_tasa_corriente_61 + mora_tasa_restante_61)
+        total_cond_mora = (cond_mora_tasa_corriente_60 + cond_mora_tasa_restante_60 +
+                          cond_mora_tasa_corriente_61 + cond_mora_tasa_restante_61)
         moratorios_final = total_mora - total_cond_mora
+
+        # Debug logging for first few rows
+        if total_mora > 0 or total_cond_mora > 0:
+            logger.info(f"MORATORIOS DEBUG: mora={total_mora}, cond={total_cond_mora}, final={moratorios_final}")
 
         if abs(moratorios_final) > 0.001:
             concepts["MORATORIOS"] = moratorios_final
