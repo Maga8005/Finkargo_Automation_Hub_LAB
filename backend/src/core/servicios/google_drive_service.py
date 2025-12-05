@@ -46,6 +46,13 @@ class GoogleDriveService:
         self.scopes = json.loads(settings.GOOGLE_DRIVE_SCOPES)
         self.service: Optional[Resource] = None
 
+        # Cache para folder IDs (evita búsquedas repetidas)
+        self._year_folder_cache: Dict[int, str] = {}
+        self._month_folder_cache: Dict[str, str] = {}  # key: "year_month"
+        # Cache de archivos por carpeta de mes (evita búsquedas repetidas)
+        # key: month_folder_id, value: {filename: file_id}
+        self._files_cache: Dict[str, Dict[str, str]] = {}
+
         # Log credential source
         if self.credentials_json:
             creds_length = len(self.credentials_json)
@@ -175,9 +182,65 @@ class GoogleDriveService:
             logger.error(f"Error al autenticar con Google Drive: {str(e)}")
             raise
 
+    def _get_year_folder_id(self, year: int, retries: int = 2) -> Optional[str]:
+        """
+        Obtiene el ID de la carpeta del año con cache y reintentos.
+
+        Args:
+            year: Año de la carpeta.
+            retries: Número de reintentos en caso de error.
+
+        Returns:
+            str: ID de la carpeta del año, o None si no se encuentra.
+        """
+        # Verificar cache primero
+        if year in self._year_folder_cache:
+            logger.debug(f"Usando cache para carpeta año {year}")
+            return self._year_folder_cache[year]
+
+        for attempt in range(retries + 1):
+            try:
+                service = self.authenticate()
+
+                year_query = (
+                    f"'{self.folder_id}' in parents and "
+                    f"name = '{year}' and "
+                    f"mimeType = 'application/vnd.google-apps.folder' and "
+                    f"trashed = false"
+                )
+
+                year_results = service.files().list(
+                    q=year_query,
+                    fields="files(id, name)",
+                    pageSize=1
+                ).execute()
+
+                year_files = year_results.get("files", [])
+                if not year_files:
+                    logger.warning(f"Carpeta del año {year} no encontrada")
+                    return None
+
+                year_folder_id = year_files[0]["id"]
+                # Guardar en cache
+                self._year_folder_cache[year] = year_folder_id
+                logger.info(f"Carpeta año {year} encontrada y cacheada: {year_folder_id}")
+                return year_folder_id
+
+            except Exception as e:
+                if attempt < retries:
+                    import time
+                    wait_time = (attempt + 1) * 2  # 2s, 4s
+                    logger.warning(f"Error al buscar carpeta año {year}, reintento {attempt + 1}/{retries} en {wait_time}s: {str(e)}")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Error al buscar carpeta del año después de {retries} reintentos: {str(e)}")
+                    return None
+
+        return None
+
     def get_month_folder_id(self, month: int, year: int = 2025) -> Optional[str]:
         """
-        Obtiene el ID de la carpeta del mes específico.
+        Obtiene el ID de la carpeta del mes específico con cache y reintentos.
 
         Args:
             month: Número del mes (1-12).
@@ -186,29 +249,19 @@ class GoogleDriveService:
         Returns:
             str: ID de la carpeta del mes, o None si no se encuentra.
         """
+        # Verificar cache primero
+        cache_key = f"{year}_{month}"
+        if cache_key in self._month_folder_cache:
+            logger.debug(f"Usando cache para carpeta {month}/{year}")
+            return self._month_folder_cache[cache_key]
+
         try:
-            service = self.authenticate()
-
-            # Buscar carpeta del año (ej: "2025")
-            year_query = (
-                f"'{self.folder_id}' in parents and "
-                f"name = '{year}' and "
-                f"mimeType = 'application/vnd.google-apps.folder' and "
-                f"trashed = false"
-            )
-
-            year_results = service.files().list(
-                q=year_query,
-                fields="files(id, name)",
-                pageSize=1
-            ).execute()
-
-            year_files = year_results.get("files", [])
-            if not year_files:
-                logger.warning(f"Carpeta del año {year} no encontrada")
+            # Obtener carpeta del año (con cache)
+            year_folder_id = self._get_year_folder_id(year)
+            if not year_folder_id:
                 return None
 
-            year_folder_id = year_files[0]["id"]
+            service = self.authenticate()
 
             # Buscar carpeta del mes dentro del año
             month_name = self.month_folders.get(month)
@@ -234,7 +287,11 @@ class GoogleDriveService:
                 logger.warning(f"Carpeta del mes {month_name} no encontrada")
                 return None
 
-            return month_files[0]["id"]
+            month_folder_id = month_files[0]["id"]
+            # Guardar en cache
+            self._month_folder_cache[cache_key] = month_folder_id
+            logger.debug(f"Carpeta {month_name} {year} cacheada: {month_folder_id}")
+            return month_folder_id
 
         except HttpError as e:
             logger.error(f"Error HTTP al buscar carpeta del mes: {str(e)}")
@@ -242,6 +299,50 @@ class GoogleDriveService:
         except Exception as e:
             logger.error(f"Error al buscar carpeta del mes: {str(e)}")
             return None
+
+    def _cache_folder_files(self, folder_id: str) -> Dict[str, str]:
+        """
+        Lista y cachea todos los archivos de una carpeta.
+
+        Esto evita hacer una búsqueda por cada archivo individual.
+
+        Args:
+            folder_id: ID de la carpeta en Google Drive.
+
+        Returns:
+            Dict[str, str]: Mapeo de nombre de archivo a file_id.
+        """
+        if folder_id in self._files_cache:
+            return self._files_cache[folder_id]
+
+        try:
+            service = self.authenticate()
+            files_map: Dict[str, str] = {}
+            page_token = None
+
+            while True:
+                query = f"'{folder_id}' in parents and trashed = false"
+                results = service.files().list(
+                    q=query,
+                    fields="nextPageToken, files(id, name)",
+                    pageSize=1000,  # Máximo permitido
+                    pageToken=page_token
+                ).execute()
+
+                for file_info in results.get("files", []):
+                    files_map[file_info["name"]] = file_info["id"]
+
+                page_token = results.get("nextPageToken")
+                if not page_token:
+                    break
+
+            self._files_cache[folder_id] = files_map
+            logger.info(f"Cacheados {len(files_map)} archivos de carpeta {folder_id[:10]}...")
+            return files_map
+
+        except Exception as e:
+            logger.error(f"Error al cachear archivos de carpeta {folder_id}: {str(e)}")
+            return {}
 
     def search_file_by_uuid(
         self,
@@ -251,6 +352,8 @@ class GoogleDriveService:
     ) -> Optional[Dict]:
         """
         Busca un archivo (PDF o XML) en Drive por UUID.
+
+        Optimizado: Usa cache de archivos por carpeta para evitar búsquedas individuales.
 
         Args:
             uuid: UUID del documento.
@@ -273,30 +376,16 @@ class GoogleDriveService:
                 )
                 return None
 
-            service = self.authenticate()
-
-            # Buscar archivo por nombre
+            # Usar cache de archivos de la carpeta
             filename = f"{uuid}.{extension}"
-            query = (
-                f"'{month_folder_id}' in parents and "
-                f"name = '{filename}' and "
-                f"trashed = false"
-            )
+            files_map = self._cache_folder_files(month_folder_id)
 
-            results = service.files().list(
-                q=query,
-                fields="files(id, name, mimeType, size)",
-                pageSize=1
-            ).execute()
-
-            files = results.get("files", [])
-
-            if files:
-                file_info = files[0]
-                logger.info(f"Archivo encontrado: {filename} (ID: {file_info['id']})")
-                return file_info
+            if filename in files_map:
+                file_id = files_map[filename]
+                logger.debug(f"Archivo encontrado en cache: {filename}")
+                return {"id": file_id, "name": filename}
             else:
-                logger.warning(f"Archivo no encontrado: {filename}")
+                logger.debug(f"Archivo no encontrado: {filename}")
                 return None
 
         except HttpError as e:

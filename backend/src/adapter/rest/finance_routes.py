@@ -6,8 +6,11 @@ automation feature including Excel upload, search, and ZIP generation.
 """
 
 import logging
+import uuid
+from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import StreamingResponse
+from typing import Optional, Dict
 import io
 
 from src.interface.finance_dtos import (
@@ -15,6 +18,19 @@ from src.interface.finance_dtos import (
     InvoiceSearchRequest,
     InvoiceSearchResponse,
     ZipGenerationRequest
+)
+from src.interface.finance_dtos_co import (
+    COProcessingResponse,
+    COProcessingStats,
+    COReportSheet,
+    COValidationError,
+    FileType,
+    SheetDestination,
+    COSTOS_FIJOS_COLUMNS,
+    MANDATO_COLUMNS,
+    COFilterRequest,
+    COFilterResponse,
+    CODistinctValuesResponse,
 )
 from src.core.servicios.excel_validation_service import ExcelValidationService
 from src.core.servicios.invoice_search_service import (
@@ -24,11 +40,48 @@ from src.core.servicios.invoice_search_service import (
 from src.core.servicios.zip_generator_service import get_zip_service
 from src.core.servicios.google_drive_service import get_drive_service
 from src.core.servicios.excel_merge_service import get_excel_merge_service
+from src.core.servicios.file_processor_co import get_co_file_processor
+from src.core.servicios.google_drive_service_co import (
+    get_drive_service_co,
+    ExcelValidationError as DriveExcelValidationError
+)
+from src.core.servicios.excel_merge_service_co import (
+    get_excel_merge_service_co,
+    MergeValidationError
+)
+from src.core.servicios.filter_service_co import get_filter_service_co
+from src.core.servicios.zip_generator_service_co import get_zip_service_co
+from src.core.servicios.filter_service_mx import get_filter_service_mx
+from src.interface.finance_dtos_mx import (
+    MXFilterRequest,
+    MXFilterResponse,
+    MXDistinctValuesResponse,
+)
 from src.adapter.rest.dependencies import get_current_user
+from src.interface.finance_history_dtos import (
+    FinanceReportCreate,
+    FinanceReportDetail,
+    FinanceReportSummary,
+    FinanceHistoryFilter,
+    FinanceReportStats,
+    FinanceHistoryResponse,
+    ReportCountry,
+    ReportType,
+    ReportStatus
+)
+from src.repositorio.finance_report_repository import (
+    FinanceReportRepository,
+    get_finance_report_repository
+)
+from src.config.supabase_config import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/finance", tags=["Finance - Facturación MX"])
+
+# Temporary session storage for CO reports (in-memory)
+# In production, use Redis or persistent storage
+_co_report_sessions: Dict[str, bytes] = {}
 
 
 def get_excel_validation_service() -> ExcelValidationService:
@@ -389,7 +442,8 @@ async def generate_zip(
                     "iva_trasladado": invoice.iva_trasladado,
                     "iva_exento": invoice.iva_exento,
                     "total": invoice.total,
-                    "clasificacion_gasto": invoice.clasificacion_gasto.value if invoice.clasificacion_gasto else None
+                    "uuid_relacionados": invoice.uuid_relacionados,
+                    "tipo_comprobante": invoice.tipo_comprobante
                 }
                 for invoice in filtered_invoices
             ]
@@ -411,7 +465,8 @@ async def generate_zip(
                     "iva_trasladado": r.iva_trasladado,
                     "iva_exento": r.iva_exento,
                     "total": r.total,
-                    "clasificacion_gasto": r.clasificacion_gasto.value if r.clasificacion_gasto else None
+                    "uuid_relacionados": r.uuid_relacionados,
+                    "tipo_comprobante": r.tipo_comprobante
                 }
                 for r in search_results.results
             ]
@@ -431,7 +486,8 @@ async def generate_zip(
                     "iva_trasladado": invoice.iva_trasladado,
                     "iva_exento": invoice.iva_exento,
                     "total": invoice.total,
-                    "clasificacion_gasto": invoice.clasificacion_gasto.value if invoice.clasificacion_gasto else None
+                    "uuid_relacionados": invoice.uuid_relacionados,
+                    "tipo_comprobante": invoice.tipo_comprobante
                 }
                 for invoice in session_data
             ]
@@ -476,3 +532,1856 @@ async def generate_zip(
             status_code=500,
             detail=f"Error al generar el paquete ZIP: {str(e)}"
         )
+
+
+# ============================================================================
+# Colombia (CO) Endpoints
+# ============================================================================
+
+@router.post(
+    "/co/process-files",
+    response_model=COProcessingResponse,
+    summary="Process Colombia Excel files (by pairs)",
+    description="""
+    Process Colombia invoicing files and generate consolidated report.
+
+    You can upload files in pairs:
+    - Pair 1: Netsuite Facturas + Noova Facturas
+    - Pair 2: Netsuite NC + Noova NC
+
+    At least ONE complete pair is required (both Netsuite and Noova from the same category).
+
+    The endpoint will:
+    1. Read and validate uploaded files
+    2. Consolidate data with LEFT JOIN by numero_factura
+    3. Classify by product code (146 codes) and keywords
+    4. Separate into 2 sheets (Costos Fijos and Mandato)
+    5. Generate Excel report
+
+    Returns processing statistics and download URL.
+    """,
+    tags=["Finance - Facturación CO"]
+)
+async def process_co_files(
+    netsuite: Optional[UploadFile] = File(None, description="Netsuite Facturas Excel file (optional)"),
+    netsuite_nc: Optional[UploadFile] = File(None, description="Netsuite NC Excel file (optional)"),
+    noova_facturas: Optional[UploadFile] = File(None, description="Noova Facturas Excel file (optional)"),
+    noova_nc: Optional[UploadFile] = File(None, description="Noova NC Excel file (optional)"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Process 4 Colombia Excel files and generate consolidated report.
+
+    Args:
+        netsuite: Netsuite facturas file
+        netsuite_nc: Netsuite notas de crédito file
+        noova_facturas: Noova facturas file
+        noova_nc: Noova notas de crédito file
+        current_user: Authenticated user
+
+    Returns:
+        COProcessingResponse with statistics and download URL
+
+    Raises:
+        HTTPException: If validation or processing fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    session_id = f"co_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+
+    logger.info(f"User {user_email} processing CO files - Session {session_id}")
+
+    try:
+        # Validate that at least one complete pair is present
+        facturas_pair_complete = netsuite and noova_facturas
+        nc_pair_complete = netsuite_nc and noova_nc
+
+        if not (facturas_pair_complete or nc_pair_complete):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Debe subir al menos una pareja completa de archivos:\n"
+                    "- Pareja 1: Netsuite Facturas + Noova Facturas\n"
+                    "- Pareja 2: Netsuite NC + Noova NC"
+                )
+            )
+
+        # Validate uploaded files are Excel
+        files_to_validate = [
+            ("Netsuite Facturas", netsuite),
+            ("Netsuite NC", netsuite_nc),
+            ("Noova Facturas", noova_facturas),
+            ("Noova NC", noova_nc)
+        ]
+
+        for file_label, file in files_to_validate:
+            if file:  # Only validate if file was uploaded
+                if not file.filename:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Nombre de archivo es requerido para {file_label}"
+                    )
+                if not file.filename.endswith(('.xlsx', '.xls')):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Formato inválido para {file_label}. Use .xlsx o .xls"
+                    )
+
+        # Initialize processor
+        processor = get_co_file_processor()
+
+        # Step 1: Read Netsuite files (if uploaded)
+        logger.info("Leyendo archivos Netsuite...")
+        netsuite_records = []
+        netsuite_errors = []
+        netsuite_nc_records = []
+        netsuite_nc_errors = []
+
+        if netsuite:
+            netsuite_records, netsuite_errors = await processor.read_excel_file(
+                netsuite, FileType.NETSUITE
+            )
+            logger.info(f"Netsuite Facturas: {len(netsuite_records)} registros")
+
+        if netsuite_nc:
+            netsuite_nc_records, netsuite_nc_errors = await processor.read_excel_file(
+                netsuite_nc, FileType.NETSUITE_NC
+            )
+            logger.info(f"Netsuite NC: {len(netsuite_nc_records)} registros")
+
+        all_netsuite = netsuite_records + netsuite_nc_records
+        logger.info(f"Total Netsuite records: {len(all_netsuite)}")
+
+        # Step 2: Read Noova files (if uploaded)
+        logger.info("Leyendo archivos Noova...")
+        noova_facturas_records = []
+        noova_f_errors = []
+        noova_nc_records = []
+        noova_nc_errors = []
+
+        if noova_facturas:
+            noova_facturas_records, noova_f_errors = await processor.read_excel_file(
+                noova_facturas, FileType.NOOVA_FACTURAS
+            )
+            logger.info(f"Noova Facturas: {len(noova_facturas_records)} registros")
+
+        if noova_nc:
+            noova_nc_records, noova_nc_errors = await processor.read_excel_file(
+                noova_nc, FileType.NOOVA_NC
+            )
+            logger.info(f"Noova NC: {len(noova_nc_records)} registros")
+
+        all_noova = noova_facturas_records + noova_nc_records
+        logger.info(f"Total Noova records: {len(all_noova)}")
+
+        # Collect all errors
+        all_errors = (
+            netsuite_errors + netsuite_nc_errors +
+            noova_f_errors + noova_nc_errors
+        )
+
+        if len(all_errors) > 100:
+            logger.warning(f"Demasiados errores de validación: {len(all_errors)}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Demasiados errores de validación: {len(all_errors)}. "
+                       f"Revise la estructura de los archivos."
+            )
+
+        # Step 3: Consolidate data (LEFT JOIN by numero_factura)
+        logger.info("Consolidando datos (LEFT JOIN)...")
+        consolidated = processor.consolidate_data(all_noova, all_netsuite)
+
+        # Step 4: Classify records
+        logger.info("Clasificando registros por código de producto...")
+        classified = processor.classify_records(consolidated)
+
+        # Step 5: Separate by destination sheet
+        logger.info("Separando por hoja de destino...")
+        costos_fijos, mandato = processor.separate_by_sheet(classified)
+
+        # Step 6: Merge with existing Drive master and upload
+        logger.info("Iniciando sincronización con Google Drive...")
+        drive_uploaded = False
+        drive_folder_id = None
+        merge_stats = None
+
+        try:
+            drive_service_co = get_drive_service_co()
+            merge_service_co = get_excel_merge_service_co()
+            drive_folder_id = drive_service_co.folder_id
+
+            # Convert records to dicts for merging
+            new_costos_dicts = merge_service_co.convert_records_to_dicts(costos_fijos, "costos_fijos")
+            new_mandato_dicts = merge_service_co.convert_records_to_dicts(mandato, "mandato")
+
+            logger.info(f"Nuevos registros: {len(new_costos_dicts)} Costos Fijos, {len(new_mandato_dicts)} Mandato")
+
+            # Download existing master from Drive
+            master_bytes = drive_service_co.download_master_excel()
+
+            if master_bytes:
+                # Master exists - merge with new data
+                logger.info("Master Excel encontrado - realizando merge...")
+                existing_data = merge_service_co.read_excel_from_bytes(master_bytes)
+                merged_data, merge_stats = merge_service_co.merge_excel_data(
+                    existing_data,
+                    new_costos_dicts,
+                    new_mandato_dicts
+                )
+                logger.info(f"Merge completado: {merge_stats}")
+            else:
+                # No master - new data becomes the master
+                logger.info("No existe master Excel - creando nuevo...")
+                merged_data = {
+                    merge_service_co.costos_fijos_sheet: new_costos_dicts,
+                    merge_service_co.mandato_sheet: new_mandato_dicts
+                }
+                merge_stats = {
+                    merge_service_co.costos_fijos_sheet: {"added": len(new_costos_dicts), "updated": 0},
+                    merge_service_co.mandato_sheet: {"added": len(new_mandato_dicts), "updated": 0}
+                }
+
+            # Write merged Excel (with validation to prevent empty files)
+            excel_bytes = merge_service_co.write_merged_excel(
+                merged_data,
+                existing_data=existing_data,
+                validate=True
+            )
+
+            # Upload to Drive (with validation and automatic backup)
+            upload_success = drive_service_co.upload_master_excel(
+                excel_bytes,
+                validate=True,
+                create_backup=True,
+                min_rows_per_sheet=0  # Allow adding first records
+            )
+            if upload_success:
+                drive_uploaded = True
+                logger.info("Master Excel CO actualizado en Google Drive (con backup)")
+            else:
+                logger.warning("No se pudo subir el master Excel a Drive")
+
+        except MergeValidationError as merge_error:
+            logger.error(f"Error de validación en merge: {merge_error}")
+            # Fallback: generate report without merge (don't upload invalid data)
+            logger.info("Generando reporte sin merge debido a error de validación...")
+            excel_bytes = processor.generate_excel_report(costos_fijos, mandato)
+
+        except DriveExcelValidationError as validation_error:
+            logger.error(f"Error de validación al subir a Drive: {validation_error}")
+            # The Excel failed validation - don't upload, use local report
+            logger.info("Reporte generado localmente (no se subió a Drive por validación fallida)")
+            excel_bytes = processor.generate_excel_report(costos_fijos, mandato)
+
+        except Exception as drive_error:
+            logger.error(f"Error en sincronización con Drive: {drive_error}", exc_info=True)
+            # Fallback: generate report without merge
+            logger.info("Generando reporte sin merge (fallback)...")
+            excel_bytes = processor.generate_excel_report(costos_fijos, mandato)
+
+        # Store in session for download
+        _co_report_sessions[session_id] = excel_bytes
+        logger.info(f"Reporte almacenado en sesión {session_id}")
+
+        # Calculate statistics
+        matched_count = sum(1 for r in consolidated if r.valor_netsuite is not None)
+        stats = COProcessingStats(
+            total_records_noova=len(all_noova),
+            total_records_netsuite=len(all_netsuite),
+            total_consolidated=len(consolidated),
+            matched_with_netsuite=matched_count,
+            unmatched_noova=len(consolidated) - matched_count,
+            costos_fijos_count=len(costos_fijos),
+            mandato_count=len(mandato),
+            errors=[f"{e.file_type}: {e.message}" for e in all_errors[:10]]  # First 10 errors
+        )
+
+        # Sheet information
+        sheets = [
+            COReportSheet(
+                sheet_name=SheetDestination.COSTOS_FIJOS,
+                column_count=len(COSTOS_FIJOS_COLUMNS),
+                row_count=len(costos_fijos),
+                columns=COSTOS_FIJOS_COLUMNS
+            ),
+            COReportSheet(
+                sheet_name=SheetDestination.MANDATO,
+                column_count=len(MANDATO_COLUMNS),
+                row_count=len(mandato),
+                columns=MANDATO_COLUMNS
+            )
+        ]
+
+        # Build message based on Drive upload status
+        if drive_uploaded:
+            message = "Procesamiento completado y reporte subido a Google Drive"
+        else:
+            message = "Procesamiento completado (reporte no subido a Drive)"
+
+        response = COProcessingResponse(
+            success=True,
+            session_id=session_id,
+            stats=stats,
+            sheets=sheets,
+            download_url=f"/api/finance/co/download/{session_id}",
+            drive_uploaded=drive_uploaded,
+            drive_url=f"https://drive.google.com/drive/folders/{drive_folder_id}" if drive_uploaded and drive_folder_id else None,
+            message=message
+        )
+
+        logger.info(f"Procesamiento CO completado: {stats.total_consolidated} registros")
+        return response
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Error de validación en procesamiento CO: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error inesperado en procesamiento CO: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al procesar archivos CO: {str(e)}"
+        )
+
+
+@router.get(
+    "/co/download/{session_id}",
+    summary="Download CO processed report",
+    description="Download the generated Excel report from a CO processing session.",
+    tags=["Finance - Facturación CO"]
+)
+async def download_co_report(
+    session_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Download generated CO report Excel file.
+
+    Args:
+        session_id: Session ID from processing request
+        current_user: Authenticated user
+
+    Returns:
+        StreamingResponse: Excel file download
+
+    Raises:
+        HTTPException: If session not found or download fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} downloading CO report: {session_id}")
+
+    # Check if session exists
+    if session_id not in _co_report_sessions:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Sesión no encontrada o expirada: {session_id}"
+        )
+
+    try:
+        excel_bytes = _co_report_sessions[session_id]
+
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Reporte_Facturacion_CO_{timestamp}.xlsx"
+
+        logger.info(f"Enviando reporte CO: {filename}, {len(excel_bytes)} bytes")
+
+        # Return as streaming response
+        return StreamingResponse(
+            io.BytesIO(excel_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "X-Session-ID": session_id
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error descargando reporte CO: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al descargar reporte: {str(e)}"
+        )
+
+
+@router.delete(
+    "/co/session/{session_id}",
+    summary="Clear CO session data",
+    description="Remove CO session data from cache to free memory.",
+    tags=["Finance - Facturación CO"]
+)
+async def clear_co_session(
+    session_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Clear CO session data from cache.
+
+    Args:
+        session_id: Session ID to clear
+        current_user: Authenticated user
+
+    Returns:
+        Success message
+    """
+    if session_id in _co_report_sessions:
+        del _co_report_sessions[session_id]
+        return {"message": f"Sesión CO {session_id} eliminada exitosamente"}
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Sesión no encontrada: {session_id}"
+        )
+
+
+# ============================================================================
+# Colombia (CO) Filter Endpoints
+# ============================================================================
+
+@router.post(
+    "/co/filter",
+    response_model=COFilterResponse,
+    summary="Filter CO master Excel data",
+    description="""
+    Query the CO master Excel file (Reporte_Facturacion_CO_2025.xlsx) from Google Drive
+    with filters.
+
+    **Supported filter combinations:**
+    - Operación(es) + rango de fecha
+    - NIT + rango de fecha
+    - NIT + operaciones + rango de fecha (combinación completa)
+
+    **Filter parameters:**
+    - `operaciones`: List of operation codes (codigo_operacion)
+    - `nit`: Client tax ID (supports partial match)
+    - `fecha_inicio`: Start date (YYYY-MM-DD format)
+    - `fecha_fin`: End date (YYYY-MM-DD format)
+    - `hoja`: Sheet to search ('costos_fijos', 'mandato', or both if not specified)
+
+    Returns matching records from the master Excel.
+    """,
+    tags=["Finance - Facturación CO - Filtros"]
+)
+async def filter_co_records(
+    request: COFilterRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Filter records from CO master Excel.
+
+    Args:
+        request: Filter criteria (operaciones, nit, fecha_inicio, fecha_fin)
+        current_user: Authenticated user
+
+    Returns:
+        COFilterResponse with matching records
+
+    Raises:
+        HTTPException: If Excel not found or query fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} filtering CO data: {request}")
+
+    try:
+        filter_service = get_filter_service_co()
+        response = filter_service.filter_records(request)
+
+        if not response.success:
+            raise HTTPException(
+                status_code=400,
+                detail=response.message
+            )
+
+        logger.info(f"Filter CO returned {response.total_records} records")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error filtering CO data: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al consultar datos: {str(e)}"
+        )
+
+
+@router.get(
+    "/co/distinct/{field}",
+    response_model=CODistinctValuesResponse,
+    summary="Get distinct values for a field",
+    description="""
+    Get unique values for a specific field from the CO master Excel.
+    Useful for populating filter dropdowns and autocomplete.
+
+    **Supported fields:**
+    - `nit`: Client tax IDs
+    - `operacion` or `codigo_operacion`: Operation codes
+
+    Returns up to 100 unique values by default.
+    """,
+    tags=["Finance - Facturación CO - Filtros"]
+)
+async def get_co_distinct_values(
+    field: str,
+    limit: int = 100,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get distinct values for autocomplete.
+
+    Args:
+        field: Field name ('nit', 'operacion')
+        limit: Maximum values to return (default 100)
+        current_user: Authenticated user
+
+    Returns:
+        CODistinctValuesResponse with unique values
+
+    Raises:
+        HTTPException: If field not supported or query fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} getting distinct values for: {field}")
+
+    try:
+        filter_service = get_filter_service_co()
+        response = filter_service.get_distinct_values(field, limit)
+
+        if not response.success:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Campo no soportado: {field}"
+            )
+
+        logger.info(f"Found {response.count} distinct values for {field}")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting distinct values: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener valores: {str(e)}"
+        )
+
+
+@router.post(
+    "/co/filter/download",
+    summary="Download filtered CO data as Excel",
+    description="""
+    Apply filters and download the matching records as an Excel file.
+    Same filters as /co/filter endpoint.
+    """,
+    tags=["Finance - Facturación CO - Filtros"]
+)
+async def download_filtered_co_data(
+    request: COFilterRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Download filtered records as Excel file.
+
+    Args:
+        request: Filter criteria
+        current_user: Authenticated user
+
+    Returns:
+        StreamingResponse: Excel file with filtered data
+
+    Raises:
+        HTTPException: If no records found or download fails
+    """
+    import pandas as pd
+    from io import BytesIO
+
+    user_email = getattr(current_user, 'email', 'unknown')
+    user_id = getattr(current_user, 'id', None)
+    logger.info(f"User {user_email} downloading filtered CO data")
+
+    try:
+        filter_service = get_filter_service_co()
+        response = filter_service.filter_records(request)
+
+        if not response.success:
+            raise HTTPException(
+                status_code=400,
+                detail=response.message
+            )
+
+        if response.total_records == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No se encontraron registros con los filtros especificados"
+            )
+
+        # Convert records to DataFrame with reorganized columns
+        records_data = []
+        for record in response.records:
+            # Determine tipo de factura based on hoja_origen
+            tipo_factura = "Costos Fijos" if record.hoja_origen and "Costos" in record.hoja_origen else "Mandato"
+
+            records_data.append({
+                "Tipo de Factura": tipo_factura,
+                "Codigo del Desembolso": record.codigo_operacion,
+                "Fecha Factura": record.fecha,
+                "# Factura": record.numero_factura,
+                "Moneda": record.moneda,
+                "Valor Costos Fijos": record.valor_costos_fijos,
+                "Seguro + IVA": record.seguro_iva,
+                "Int. Corriente": record.int_corriente,
+                "Int. Mora": record.int_mora,
+                "(-) Retención en la Fuente": record.retencion_fuente,
+                "Valor Neto Facturado": record.valor_neto,
+                "Otros Valor": record.otros_valor,
+                "NIT": record.nit,
+            })
+
+        df = pd.DataFrame(records_data)
+
+        # Generate Excel
+        excel_buffer = BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Datos Filtrados', index=False)
+
+        excel_buffer.seek(0)
+        excel_bytes = excel_buffer.read()
+
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Reporte_Filtrado_CO_{timestamp}.xlsx"
+
+        logger.info(f"Descarga filtrada: {filename}, {len(excel_bytes)} bytes, {response.total_records} registros")
+
+        # Record in history
+        await record_finance_report(
+            country="CO",
+            report_type="consulta",
+            stats={
+                "total_records": response.total_records,
+                "sheets_searched": response.sheets_searched,
+            },
+            user_id=user_id,
+            user_email=user_email,
+            filters_applied={
+                "nit": request.nit,
+                "operaciones": request.operaciones,
+                "fecha_inicio": request.fecha_inicio,
+                "fecha_fin": request.fecha_fin,
+                "hoja": request.hoja,
+            },
+            file_name=filename,
+            status="completed"
+        )
+
+        return StreamingResponse(
+            io.BytesIO(excel_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "X-Total-Records": str(response.total_records)
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading filtered data: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al generar descarga: {str(e)}"
+        )
+
+
+@router.get(
+    "/co/operations-by-nit/{nit}",
+    response_model=CODistinctValuesResponse,
+    summary="Get operations for a specific NIT",
+    description="""
+    Get distinct operation codes associated with a specific NIT (client tax ID).
+    Useful for populating the operations dropdown after the user selects a NIT.
+
+    **Parameters:**
+    - `nit`: Client tax ID to filter by
+    - `limit`: Maximum number of operations to return (default 100)
+
+    Returns operation codes found in both Costos Fijos and Mandato sheets
+    that are associated with the given NIT.
+    """,
+    tags=["Finance - Facturación CO - Filtros"]
+)
+async def get_co_operations_by_nit(
+    nit: str,
+    limit: int = 100,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get distinct operation codes for a specific NIT.
+
+    Args:
+        nit: Client NIT to filter by
+        limit: Maximum values to return (default 100)
+        current_user: Authenticated user
+
+    Returns:
+        CODistinctValuesResponse with unique operation codes for the NIT
+
+    Raises:
+        HTTPException: If query fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} getting operations for NIT: {nit}")
+
+    try:
+        filter_service = get_filter_service_co()
+        response = filter_service.get_operations_by_nit(nit, limit)
+
+        logger.info(f"Found {response.count} operations for NIT {nit}")
+        return response
+
+    except Exception as e:
+        logger.error(f"Error getting operations by NIT: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener operaciones: {str(e)}"
+        )
+
+
+@router.delete(
+    "/co/filter/cache",
+    summary="Clear filter cache",
+    description="Clear the cached Excel data to force a fresh download from Drive.",
+    tags=["Finance - Facturación CO - Filtros"]
+)
+async def clear_co_filter_cache(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Clear the filter service cache.
+
+    Args:
+        current_user: Authenticated user
+
+    Returns:
+        Success message
+    """
+    filter_service = get_filter_service_co()
+    filter_service.clear_cache()
+    return {"message": "Cache de filtros CO limpiado exitosamente"}
+
+
+@router.post(
+    "/co/filter/download-zip",
+    summary="Download filtered CO data with PDFs as ZIP",
+    description="""
+    Apply filters and download the matching records along with their PDF files as a ZIP package.
+
+    The ZIP will contain:
+    - Excel report with filtered data
+    - PDFs/ folder with invoice PDF files found in Google Drive
+    - PDFs_no_encontrados.txt listing any PDFs not found
+
+    Same filters as /co/filter endpoint.
+    """,
+    tags=["Finance - Facturación CO - Filtros"]
+)
+async def download_filtered_co_zip(
+    request: COFilterRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Download filtered records with PDFs as ZIP package.
+
+    Args:
+        request: Filter criteria
+        current_user: Authenticated user
+
+    Returns:
+        StreamingResponse: ZIP file with Excel report and PDFs
+
+    Raises:
+        HTTPException: If no records found or download fails
+    """
+    import pandas as pd
+    from io import BytesIO
+
+    user_email = getattr(current_user, 'email', 'unknown')
+    user_id = getattr(current_user, 'id', None)
+    logger.info(f"User {user_email} downloading filtered CO ZIP with PDFs")
+
+    try:
+        # 1. Get filtered records
+        filter_service = get_filter_service_co()
+        response = filter_service.filter_records(request)
+
+        if not response.success:
+            raise HTTPException(
+                status_code=400,
+                detail=response.message
+            )
+
+        if response.total_records == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No se encontraron registros con los filtros especificados"
+            )
+
+        # 2. Generate Excel content
+        records_data = []
+        records_for_pdf = []
+
+        for record in response.records:
+            # Determine tipo de factura based on hoja_origen
+            tipo_factura = "Costos Fijos" if record.hoja_origen and "Costos" in record.hoja_origen else "Mandato"
+
+            records_data.append({
+                "Tipo de Factura": tipo_factura,
+                "Codigo del Desembolso": record.codigo_operacion,
+                "Fecha Factura": record.fecha,
+                "# Factura": record.numero_factura,
+                "Moneda": record.moneda,
+                "Valor Costos Fijos": record.valor_costos_fijos,
+                "Seguro + IVA": record.seguro_iva,
+                "Int. Corriente": record.int_corriente,
+                "Int. Mora": record.int_mora,
+                "(-) Retención en la Fuente": record.retencion_fuente,
+                "Valor Neto Facturado": record.valor_neto,
+                "Otros Valor": record.otros_valor,
+                "NIT": record.nit,
+            })
+
+            # Prepare for PDF search
+            if record.numero_factura and record.fecha:
+                records_for_pdf.append({
+                    "numero_factura": record.numero_factura,
+                    "fecha": record.fecha
+                })
+
+        df = pd.DataFrame(records_data)
+
+        # Generate Excel bytes
+        excel_buffer = BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Datos Filtrados', index=False)
+        excel_buffer.seek(0)
+        excel_content = excel_buffer.read()
+
+        # 3. Generate ZIP with PDFs
+        zip_service = get_zip_service_co()
+
+        # Build metadata for naming
+        metadata = {}
+        if request.nit:
+            metadata["nit"] = request.nit
+        if request.operaciones:
+            metadata["operaciones"] = request.operaciones
+
+        zip_buffer = zip_service.generate_invoice_package(
+            records=records_for_pdf,
+            excel_content=excel_content,
+            metadata=metadata
+        )
+
+        # 4. Generate filename and return
+        zip_filename = zip_service.generate_zip_filename(metadata)
+
+        logger.info(
+            f"ZIP CO generado: {zip_filename}, "
+            f"{response.total_records} registros, "
+            f"{len(zip_buffer.getvalue())} bytes"
+        )
+
+        # Record in history
+        await record_finance_report(
+            country="CO",
+            report_type="zip_download",
+            stats={
+                "total_records": response.total_records,
+                "sheets_searched": response.sheets_searched,
+                "pdfs_included": len(records_for_pdf),
+            },
+            user_id=user_id,
+            user_email=user_email,
+            filters_applied={
+                "nit": request.nit,
+                "operaciones": request.operaciones,
+                "fecha_inicio": request.fecha_inicio,
+                "fecha_fin": request.fecha_fin,
+                "hoja": request.hoja,
+            },
+            file_name=zip_filename,
+            status="completed"
+        )
+
+        return StreamingResponse(
+            io.BytesIO(zip_buffer.getvalue()),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={zip_filename}",
+                "X-Total-Records": str(response.total_records)
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating ZIP CO: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al generar paquete ZIP: {str(e)}"
+        )
+
+
+# ============================================================================
+# FINANCE REPORT HISTORY ENDPOINTS
+# ============================================================================
+
+def get_report_repository() -> FinanceReportRepository:
+    """Dependency to get finance report repository."""
+    supabase = get_supabase_client()
+    # Use admin_client to access the actual Supabase Client with .table() and .rpc() methods
+    return get_finance_report_repository(supabase.admin_client)
+
+
+@router.get(
+    "/history",
+    response_model=FinanceHistoryResponse,
+    summary="Get finance report history",
+    description="Get paginated list of finance report generations with optional filters"
+)
+async def get_finance_history(
+    country: Optional[str] = None,
+    report_type: Optional[str] = None,
+    status: Optional[str] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get finance report history with optional filters.
+
+    Query Parameters:
+    - country: Filter by country (CO or MX)
+    - report_type: Filter by type (facturacion, consulta, zip_download)
+    - status: Filter by status (completed, failed, processing)
+    - date_from: Start date filter
+    - date_to: End date filter
+    - limit: Max records to return (default 50, max 100)
+    - offset: Records to skip for pagination
+    """
+    try:
+        repo = get_report_repository()
+
+        # Build filter object
+        filters = FinanceHistoryFilter(
+            country=ReportCountry(country) if country else None,
+            report_type=ReportType(report_type) if report_type else None,
+            status=ReportStatus(status) if status else None,
+            date_from=date_from,
+            date_to=date_to,
+            limit=min(limit, 100),
+            offset=offset
+        )
+
+        reports, total = await repo.get_history(filters)
+
+        # Transform to summary format
+        summaries = []
+        for report in reports:
+            # Create human-readable stats summary
+            stats = report.get('stats', {})
+            report_type = report.get('report_type', '')
+
+            # Try different field names based on report type
+            if report_type in ('consulta', 'zip_download'):
+                # Filter/query reports use total_records
+                total = stats.get('total_records', 0)
+                stats_summary = f"{total} registros"
+            elif report.get('country') == 'CO':
+                # CO facturacion reports
+                total = stats.get('total_consolidated', stats.get('total_records', 0))
+                stats_summary = f"{total} registros"
+            else:
+                # MX facturacion reports
+                total = stats.get('total_invoices', stats.get('total_records', 0))
+                stats_summary = f"{total} facturas"
+
+            summaries.append(FinanceReportSummary(
+                id=report['id'],
+                report_id=report['report_id'],
+                country=ReportCountry(report['country']),
+                report_type=ReportType(report['report_type']),
+                status=ReportStatus(report['status']),
+                generated_by_email=report.get('generated_by_email'),
+                generated_at=report['generated_at'],
+                stats_summary=stats_summary,
+                drive_uploaded=report.get('drive_uploaded', False)
+            ))
+
+        page = (offset // limit) + 1 if limit > 0 else 1
+        has_more = offset + limit < total
+
+        return FinanceHistoryResponse(
+            success=True,
+            total=total,
+            reports=summaries,
+            page=page,
+            page_size=limit,
+            has_more=has_more
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting finance history: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener historial: {str(e)}"
+        )
+
+
+@router.get(
+    "/history/stats",
+    response_model=FinanceReportStats,
+    summary="Get finance report statistics",
+    description="Get statistics about finance report generations"
+)
+async def get_finance_stats(
+    country: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get statistics for finance reports.
+
+    Query Parameters:
+    - country: Optional filter by country (CO or MX)
+    """
+    try:
+        repo = get_report_repository()
+        stats = await repo.get_stats(country)
+        return FinanceReportStats(**stats)
+
+    except Exception as e:
+        logger.error(f"Error getting finance stats: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener estadísticas: {str(e)}"
+        )
+
+
+@router.get(
+    "/history/export/csv",
+    summary="Export finance history to CSV",
+    description="Download finance report history as CSV file with optional filters"
+)
+async def export_finance_history_csv(
+    country: Optional[str] = None,
+    report_type: Optional[str] = None,
+    status: Optional[str] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Export finance report history to CSV.
+
+    Query Parameters:
+    - country: Filter by country (CO or MX)
+    - report_type: Filter by type (facturacion, consulta, zip_download)
+    - status: Filter by status (completed, failed, processing)
+    - date_from: Start date filter
+    - date_to: End date filter
+    """
+    import csv
+    from io import StringIO
+
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} exporting finance history to CSV")
+    logger.info(f"CSV export raw params - country: '{country}', report_type: '{report_type}', status: '{status}'")
+
+    try:
+        repo = get_report_repository()
+
+        # Normalize empty strings to None
+        country_val = country.strip() if country else None
+        report_type_val = report_type.strip() if report_type else None
+        status_val = status.strip() if status else None
+
+        logger.info(f"CSV export normalized - country_val: '{country_val}', report_type_val: '{report_type_val}', status_val: '{status_val}'")
+
+        # Convert to enums with explicit error handling
+        country_enum = None
+        report_type_enum = None
+        status_enum = None
+
+        if country_val:
+            try:
+                country_enum = ReportCountry(country_val)
+            except ValueError as e:
+                logger.error(f"Invalid country value '{country_val}': {e}")
+                raise ValueError(f"País inválido: '{country_val}'. Use 'CO' o 'MX'")
+
+        if report_type_val:
+            try:
+                report_type_enum = ReportType(report_type_val)
+            except ValueError as e:
+                logger.error(f"Invalid report_type value '{report_type_val}': {e}")
+                raise ValueError(f"Tipo inválido: '{report_type_val}'. Use 'facturacion', 'consulta' o 'zip_download'")
+
+        if status_val:
+            try:
+                status_enum = ReportStatus(status_val)
+            except ValueError as e:
+                logger.error(f"Invalid status value '{status_val}': {e}")
+                raise ValueError(f"Estado inválido: '{status_val}'. Use 'completed', 'failed' o 'processing'")
+
+        # Build filter object - get all records (large limit)
+        filters = FinanceHistoryFilter(
+            country=country_enum,
+            report_type=report_type_enum,
+            status=status_enum,
+            date_from=date_from,
+            date_to=date_to,
+            limit=10000,  # Large limit to get all records
+            offset=0
+        )
+
+        logger.info(f"CSV export filters built successfully: {filters}")
+
+        reports, total = await repo.get_history(filters)
+        logger.info(f"CSV export got {len(reports)} reports, total: {total}")
+
+        # Create CSV in memory
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Write header
+        writer.writerow([
+            'ID Reporte',
+            'País',
+            'Tipo',
+            'Estado',
+            'Registros',
+            'Usuario',
+            'Archivo',
+            'Drive',
+            'Filtros Aplicados',
+            'Fecha Generación',
+            'Fecha Creación'
+        ])
+
+        # Write data rows
+        for report in reports:
+            stats = report.get('stats', {})
+            row_report_type = report.get('report_type', '')
+
+            # Get record count based on report type
+            if row_report_type in ('consulta', 'zip_download'):
+                record_count = stats.get('total_records', 0)
+            elif report.get('country') == 'CO':
+                record_count = stats.get('total_consolidated', stats.get('total_records', 0))
+            else:
+                record_count = stats.get('total_invoices', stats.get('total_records', 0))
+
+            # Format filters applied
+            filters_applied = report.get('filters_applied', {})
+            filters_str = ''
+            if filters_applied:
+                filter_parts = []
+                if filters_applied.get('nit'):
+                    filter_parts.append(f"NIT: {filters_applied['nit']}")
+                if filters_applied.get('rfc'):
+                    filter_parts.append(f"RFC: {filters_applied['rfc']}")
+                if filters_applied.get('operaciones'):
+                    ops = filters_applied['operaciones']
+                    if isinstance(ops, list):
+                        filter_parts.append(f"Operaciones: {', '.join(ops)}")
+                    else:
+                        filter_parts.append(f"Operaciones: {ops}")
+                if filters_applied.get('fecha_inicio'):
+                    filter_parts.append(f"Desde: {filters_applied['fecha_inicio']}")
+                if filters_applied.get('fecha_fin'):
+                    filter_parts.append(f"Hasta: {filters_applied['fecha_fin']}")
+                if filters_applied.get('hoja'):
+                    filter_parts.append(f"Hoja: {filters_applied['hoja']}")
+                filters_str = '; '.join(filter_parts)
+
+            # Format report type for display
+            type_labels = {
+                'facturacion': 'Procesamiento',
+                'consulta': 'Consulta',
+                'zip_download': 'Descarga ZIP'
+            }
+
+            # Format status for display
+            status_labels = {
+                'processing': 'Procesando',
+                'completed': 'Completado',
+                'failed': 'Fallido',
+                'downloaded': 'Descargado'
+            }
+
+            # Format country
+            country_labels = {'CO': 'Colombia', 'MX': 'México'}
+
+            writer.writerow([
+                report.get('report_id', ''),
+                country_labels.get(report.get('country', ''), report.get('country', '')),
+                type_labels.get(report.get('report_type', ''), report.get('report_type', '')),
+                status_labels.get(report.get('status', ''), report.get('status', '')),
+                record_count,
+                report.get('generated_by_email', ''),
+                report.get('file_name', ''),
+                'Sí' if report.get('drive_uploaded') else 'No',
+                filters_str,
+                report.get('generated_at', ''),
+                report.get('created_at', '')
+            ])
+
+        # Get CSV content
+        csv_content = output.getvalue()
+        output.close()
+
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        country_suffix = f"_{country_val}" if country_val else ""
+        filename = f"Historial_Reportes{country_suffix}_{timestamp}.csv"
+
+        logger.info(f"CSV exported: {filename}, {total} records")
+
+        return StreamingResponse(
+            io.BytesIO(csv_content.encode('utf-8-sig')),  # utf-8-sig for Excel compatibility
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "X-Total-Records": str(total)
+            }
+        )
+
+    except ValueError as e:
+        logger.warning(f"Invalid filter value for CSV export: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Valor de filtro inválido: {str(e)}. Valores permitidos - país: CO, MX; tipo: facturacion, consulta, zip_download; estado: completed, failed, processing"
+        )
+    except Exception as e:
+        logger.error(f"Error exporting finance history to CSV: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al exportar historial: {str(e)}"
+        )
+
+
+@router.get(
+    "/history/{report_id}",
+    response_model=FinanceReportDetail,
+    summary="Get finance report details",
+    description="Get detailed information about a specific finance report"
+)
+async def get_finance_report_detail(
+    report_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get detailed information about a specific finance report.
+
+    Path Parameters:
+    - report_id: Report UUID or business ID (FIN-CO-2025-0001)
+    """
+    try:
+        repo = get_report_repository()
+
+        # Try to get by UUID first, then by business ID
+        report = await repo.get_by_id(report_id)
+        if not report:
+            report = await repo.get_by_report_id(report_id)
+
+        if not report:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Reporte no encontrado: {report_id}"
+            )
+
+        return FinanceReportDetail(
+            id=report['id'],
+            report_id=report['report_id'],
+            country=ReportCountry(report['country']),
+            report_type=ReportType(report['report_type']),
+            status=ReportStatus(report['status']),
+            generated_by=report.get('generated_by'),
+            generated_by_email=report.get('generated_by_email'),
+            generated_at=report['generated_at'],
+            stats=report.get('stats', {}),
+            filters_applied=report.get('filters_applied'),
+            file_name=report.get('file_name'),
+            file_size_bytes=report.get('file_size_bytes'),
+            drive_uploaded=report.get('drive_uploaded', False),
+            drive_url=report.get('drive_url'),
+            error_message=report.get('error_message'),
+            created_at=report['created_at'],
+            updated_at=report['updated_at']
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting report detail: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener detalle del reporte: {str(e)}"
+        )
+
+
+async def record_finance_report(
+    country: str,
+    report_type: str,
+    stats: dict,
+    user_id: Optional[str] = None,
+    user_email: Optional[str] = None,
+    filters_applied: Optional[dict] = None,
+    file_name: Optional[str] = None,
+    drive_uploaded: bool = False,
+    drive_url: Optional[str] = None,
+    session_id: Optional[str] = None,
+    status: str = "completed",
+    error_message: Optional[str] = None
+) -> Optional[dict]:
+    """
+    Helper function to record a finance report in history.
+
+    This should be called after processing reports to track them.
+
+    Args:
+        country: Country code (CO or MX)
+        report_type: Type of report (facturacion, consulta, zip_download)
+        stats: Report statistics dict
+        user_id: User who generated the report
+        user_email: Email of user who generated the report
+        filters_applied: Filters used (for consulta reports)
+        file_name: Generated file name
+        drive_uploaded: Whether file was uploaded to Drive
+        drive_url: URL to file in Drive
+        session_id: Session ID for download
+        status: Report status
+        error_message: Error message if failed
+
+    Returns:
+        Created report record or None if failed
+    """
+    try:
+        repo = get_report_repository()
+
+        report_data = {
+            "country": country,
+            "report_type": report_type,
+            "status": status,
+            "generated_by": user_id,
+            "generated_by_email": user_email,
+            "stats": stats,
+            "filters_applied": filters_applied,
+            "file_name": file_name,
+            "drive_uploaded": drive_uploaded,
+            "drive_url": drive_url,
+            "session_id": session_id,
+            "error_message": error_message
+        }
+
+        return await repo.create(report_data)
+
+    except Exception as e:
+        logger.error(f"Error recording finance report: {e}")
+        return None
+
+
+# ============================================================================
+# Mexico (MX) Filter Endpoints
+# ============================================================================
+
+@router.post(
+    "/mx/filter",
+    response_model=MXFilterResponse,
+    summary="Filter MX master Excel data",
+    description="""
+    Query the MX master Excel file (Facturación MX 2025.xlsx) from Google Drive
+    with filters.
+
+    **Supported filter combinations:**
+    - Código(s) de operación + rango de fecha
+    - RFC + rango de fecha
+    - RFC + operaciones + rango de fecha (combinación completa)
+
+    **Filter parameters:**
+    - `operaciones`: List of operation codes
+    - `rfc`: RFC receptor (supports partial match)
+    - `fecha_inicio`: Start date (YYYY-MM-DD format)
+    - `fecha_fin`: End date (YYYY-MM-DD format)
+
+    Returns matching records from the master Excel.
+    """,
+    tags=["Finance - Facturación MX - Filtros"]
+)
+async def filter_mx_records(
+    request: MXFilterRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Filter records from MX master Excel.
+
+    Args:
+        request: Filter criteria (operaciones, rfc, fecha_inicio, fecha_fin)
+        current_user: Authenticated user
+
+    Returns:
+        MXFilterResponse with matching records
+
+    Raises:
+        HTTPException: If Excel not found or query fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} filtering MX data: {request}")
+
+    try:
+        filter_service = get_filter_service_mx()
+        response = filter_service.filter_records(request)
+
+        if not response.success:
+            raise HTTPException(
+                status_code=400,
+                detail=response.message
+            )
+
+        logger.info(f"Filter MX returned {response.total_records} records")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error filtering MX data: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al consultar datos: {str(e)}"
+        )
+
+
+@router.get(
+    "/mx/distinct/{field}",
+    response_model=MXDistinctValuesResponse,
+    summary="Get distinct values for a field (MX)",
+    description="""
+    Get unique values for a specific field from the MX master Excel.
+    Useful for populating filter dropdowns and autocomplete.
+
+    **Supported fields:**
+    - `rfc`: RFC receptors
+    - `operacion` or `codigo_operacion`: Operation codes
+
+    Returns up to 100 unique values by default.
+    """,
+    tags=["Finance - Facturación MX - Filtros"]
+)
+async def get_mx_distinct_values(
+    field: str,
+    limit: int = 100,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get distinct values for autocomplete.
+
+    Args:
+        field: Field name ('rfc', 'operacion')
+        limit: Maximum values to return (default 100)
+        current_user: Authenticated user
+
+    Returns:
+        MXDistinctValuesResponse with unique values
+
+    Raises:
+        HTTPException: If field not supported or query fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} getting distinct values for MX: {field}")
+
+    try:
+        filter_service = get_filter_service_mx()
+        response = filter_service.get_distinct_values(field, limit)
+
+        if not response.success:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Campo no soportado: {field}"
+            )
+
+        logger.info(f"Found {response.count} distinct values for {field} (MX)")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting distinct values MX: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener valores: {str(e)}"
+        )
+
+
+@router.get(
+    "/mx/operations-by-rfc/{rfc}",
+    response_model=MXDistinctValuesResponse,
+    summary="Get operations for a specific RFC (MX)",
+    description="""
+    Get distinct operation codes associated with a specific RFC.
+    Useful for populating the operations dropdown after the user selects an RFC.
+
+    **Parameters:**
+    - `rfc`: RFC to filter by
+    - `limit`: Maximum number of operations to return (default 100)
+
+    Returns operation codes associated with the given RFC.
+    """,
+    tags=["Finance - Facturación MX - Filtros"]
+)
+async def get_mx_operations_by_rfc(
+    rfc: str,
+    limit: int = 100,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get distinct operation codes for a specific RFC.
+
+    Args:
+        rfc: RFC to filter by
+        limit: Maximum values to return (default 100)
+        current_user: Authenticated user
+
+    Returns:
+        MXDistinctValuesResponse with unique operation codes for the RFC
+
+    Raises:
+        HTTPException: If query fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} getting operations for RFC MX: {rfc}")
+
+    try:
+        filter_service = get_filter_service_mx()
+        response = filter_service.get_operations_by_rfc(rfc, limit)
+
+        logger.info(f"Found {response.count} operations for RFC {rfc} (MX)")
+        return response
+
+    except Exception as e:
+        logger.error(f"Error getting operations by RFC MX: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener operaciones: {str(e)}"
+        )
+
+
+@router.post(
+    "/mx/filter/download",
+    summary="Download filtered MX data as Excel",
+    description="""
+    Apply filters and download the matching records as an Excel file.
+    Same filters as /mx/filter endpoint.
+    """,
+    tags=["Finance - Facturación MX - Filtros"]
+)
+async def download_filtered_mx_data(
+    request: MXFilterRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Download filtered records as Excel file.
+
+    Args:
+        request: Filter criteria
+        current_user: Authenticated user
+
+    Returns:
+        StreamingResponse: Excel file with filtered data
+
+    Raises:
+        HTTPException: If no records found or download fails
+    """
+    import pandas as pd
+    from io import BytesIO
+
+    user_email = getattr(current_user, 'email', 'unknown')
+    user_id = getattr(current_user, 'id', None)
+    logger.info(f"User {user_email} downloading filtered MX data")
+
+    try:
+        filter_service = get_filter_service_mx()
+        response = filter_service.filter_records(request)
+
+        if not response.success:
+            raise HTTPException(
+                status_code=400,
+                detail=response.message
+            )
+
+        if response.total_records == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No se encontraron registros con los filtros especificados"
+            )
+
+        # Convert records to DataFrame
+        records_data = []
+        for record in response.records:
+            records_data.append({
+                "UUID": record.uuid,
+                "Código Operación": record.codigo_operacion,
+                "Conceptos": record.conceptos,
+                "Fecha Emisión": record.fecha_emision,
+                "RFC Receptor": record.rfc_receptor,
+                "Razón Social": record.razon_receptor,
+                "SubTotal": record.subtotal,
+                "IVA Trasladado": record.iva_trasladado,
+                "IVA Exento": record.iva_exento,
+                "Total": record.total,
+                "UUIDs relacionados": record.uuid_relacionados,
+                "Tipo": record.tipo_comprobante,
+            })
+
+        df = pd.DataFrame(records_data)
+
+        # Generate Excel
+        excel_buffer = BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Datos Filtrados', index=False)
+
+        excel_buffer.seek(0)
+        excel_bytes = excel_buffer.read()
+
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Reporte_Filtrado_MX_{timestamp}.xlsx"
+
+        logger.info(f"Descarga filtrada MX: {filename}, {len(excel_bytes)} bytes, {response.total_records} registros")
+
+        # Record in history
+        await record_finance_report(
+            country="MX",
+            report_type="consulta",
+            stats={
+                "total_records": response.total_records,
+                "total_amount": response.total_amount,
+                "total_subtotal": response.total_subtotal,
+                "total_iva": response.total_iva,
+            },
+            user_id=user_id,
+            user_email=user_email,
+            filters_applied={
+                "rfc": request.rfc,
+                "operaciones": request.operaciones,
+                "fecha_inicio": request.fecha_inicio,
+                "fecha_fin": request.fecha_fin,
+            },
+            file_name=filename,
+            status="completed"
+        )
+
+        return StreamingResponse(
+            io.BytesIO(excel_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "X-Total-Records": str(response.total_records)
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading filtered data MX: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al generar descarga: {str(e)}"
+        )
+
+
+@router.post(
+    "/mx/filter/download-zip",
+    summary="Download filtered MX data with PDFs/XMLs as ZIP",
+    description="""
+    Apply filters and download the matching records along with their PDF and XML files as a ZIP package.
+
+    The ZIP will contain:
+    - Excel report with filtered data
+    - PDFs/ folder with invoice PDF files found in Google Drive
+    - XMLs/ folder with XML files found in Google Drive
+    - missing_files.txt listing any files not found
+
+    Same filters as /mx/filter endpoint.
+    """,
+    tags=["Finance - Facturación MX - Filtros"]
+)
+async def download_filtered_mx_zip(
+    request: MXFilterRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Download filtered records with PDFs/XMLs as ZIP package.
+
+    Args:
+        request: Filter criteria
+        current_user: Authenticated user
+
+    Returns:
+        StreamingResponse: ZIP file with Excel report and PDFs/XMLs
+
+    Raises:
+        HTTPException: If no records found or download fails
+    """
+    import pandas as pd
+    from io import BytesIO
+
+    user_email = getattr(current_user, 'email', 'unknown')
+    user_id = getattr(current_user, 'id', None)
+    logger.info(f"User {user_email} downloading filtered MX ZIP with PDFs/XMLs")
+
+    try:
+        # 1. Get filtered records
+        filter_service = get_filter_service_mx()
+        response = filter_service.filter_records(request)
+
+        if not response.success:
+            raise HTTPException(
+                status_code=400,
+                detail=response.message
+            )
+
+        if response.total_records == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No se encontraron registros con los filtros especificados"
+            )
+
+        # 2. Generate Excel content
+        records_data = []
+        invoices_for_zip = []
+
+        for record in response.records:
+            records_data.append({
+                "UUID": record.uuid,
+                "Código Operación": record.codigo_operacion,
+                "Conceptos": record.conceptos,
+                "Fecha Emisión": record.fecha_emision,
+                "RFC Receptor": record.rfc_receptor,
+                "Razón Social": record.razon_receptor,
+                "SubTotal": record.subtotal,
+                "IVA Trasladado": record.iva_trasladado,
+                "IVA Exento": record.iva_exento,
+                "Total": record.total,
+                "UUIDs relacionados": record.uuid_relacionados,
+                "Tipo": record.tipo_comprobante,
+            })
+
+            # Prepare for PDF/XML search
+            if record.uuid and record.fecha_emision:
+                invoices_for_zip.append({
+                    "uuid": record.uuid,
+                    "codigo_operacion": record.codigo_operacion,
+                    "conceptos": record.conceptos,
+                    "fecha_emision": record.fecha_emision,
+                    "rfc_receptor": record.rfc_receptor,
+                    "razon_receptor": record.razon_receptor,
+                    "subtotal": record.subtotal,
+                    "iva_trasladado": record.iva_trasladado,
+                    "iva_exento": record.iva_exento,
+                    "total": record.total,
+                    "uuid_relacionados": record.uuid_relacionados,
+                    "tipo_comprobante": record.tipo_comprobante,
+                })
+
+        # 3. Generate ZIP with PDFs/XMLs
+        zip_service = get_zip_service()
+
+        # Build metadata for naming
+        metadata = {}
+        if request.rfc:
+            metadata["rfc"] = request.rfc
+        if request.operaciones:
+            metadata["codigo_operacion"] = request.operaciones[0] if len(request.operaciones) == 1 else "multiple"
+
+        zip_buffer = zip_service.generate_invoice_package(
+            invoices=invoices_for_zip,
+            metadata=metadata
+        )
+
+        # 4. Generate filename and return
+        zip_filename = zip_service.generate_zip_filename(metadata=metadata)
+
+        logger.info(
+            f"ZIP MX generado: {zip_filename}, "
+            f"{response.total_records} registros, "
+            f"{len(zip_buffer.getvalue())} bytes"
+        )
+
+        # Record in history
+        await record_finance_report(
+            country="MX",
+            report_type="zip_download",
+            stats={
+                "total_records": response.total_records,
+                "total_amount": response.total_amount,
+                "total_subtotal": response.total_subtotal,
+                "total_iva": response.total_iva,
+                "invoices_for_zip": len(invoices_for_zip),
+            },
+            user_id=user_id,
+            user_email=user_email,
+            filters_applied={
+                "rfc": request.rfc,
+                "operaciones": request.operaciones,
+                "fecha_inicio": request.fecha_inicio,
+                "fecha_fin": request.fecha_fin,
+            },
+            file_name=zip_filename,
+            status="completed"
+        )
+
+        return StreamingResponse(
+            io.BytesIO(zip_buffer.getvalue()),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={zip_filename}",
+                "X-Total-Records": str(response.total_records)
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating ZIP MX: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al generar paquete ZIP: {str(e)}"
+        )
+
+
+@router.delete(
+    "/mx/filter/cache",
+    summary="Clear MX filter cache",
+    description="Clear the cached Excel data to force a fresh download from Drive.",
+    tags=["Finance - Facturación MX - Filtros"]
+)
+async def clear_mx_filter_cache(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Clear the filter service cache.
+
+    Args:
+        current_user: Authenticated user
+
+    Returns:
+        Success message
+    """
+    filter_service = get_filter_service_mx()
+    filter_service.clear_cache()
+    return {"message": "Cache de filtros MX limpiado exitosamente"}

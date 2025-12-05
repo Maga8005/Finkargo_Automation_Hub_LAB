@@ -1,0 +1,155 @@
+{
+  "clasificacion_productos": {
+    "101": {
+      "categoria": "intereses_corriente",
+      "descripcion": "Interes corriente"
+    },
+    "102": {
+      "categoria": "intereses_mora",
+      "descripcion": "Interes mora"
+    },
+    "103": {
+      "categoria": "costos_fijos",
+      "descripcion": "Costos Fijos"
+    },
+    "106": {
+      "categoria": "intereses_corriente",
+      "descripcion": "Interes corriente"
+    },
+    "107": {
+      "categoria": "intereses_mora",
+      "descripcion": "Interes mora"
+    },
+    "108": {
+      "categoria": "intereses_corriente",
+      "descripcion": "Interes corriente"
+    },
+    "109": {
+      "categoria": "intereses_mora",
+      "descripcion": "Interes mora"
+    },
+    "110": {
+      "categoria": "intereses_corriente",
+      "descripcion": "Interes corriente"
+    },
+    "112": {
+      "categoria": "intereses_corriente",
+      "descripcion": "Interes corriente"
+    },
+    "201": {
+      "categoria": "intereses_corriente",
+      "descripcion": "Interes corriente"
+    },
+    "202": {
+      "categoria": "intereses_mora",
+      "descripcion": "Interes mora"
+    },
+    "203": {
+      "categoria": "costos_fijos",
+      "descripcion": "Costos Fijos"
+    },
+    "204": {
+      "categoria": "intereses_corriente",
+      "descripcion": "Interes corriente"
+    },
+    "205": {
+      "categoria": "intereses_mora",
+      "descripcion": "Interes mora"
+    },
+    "206": {
+      "categoria": "intereses_corriente",
+      "descripcion": "Interes corriente"
+    },
+    "207": {
+      "categoria": "intereses_mora",
+      "descripcion": "Interes mora"
+    },
+    "208": {
+      "categoria": "intereses_corriente",
+      "descripcion": "Interes corriente"
+    },
+    "301": {
+      "categoria": "costos_fijos",
+      "descripcion": "Costos Fijos"
+    },
+    "302": {
+      "categoria": "otros",
+      "descripcion": "Otros"
+    },
+    "303": {
+      "categoria": "otros",
+      "descripcion": "Otros"
+    },
+    "307": {
+      "categoria": "otros",
+      "descripcion": "Reintegro seguro medico"
+    },
+    "308": {
+      "categoria": "otros",
+      "descripcion": "Otros"
+    },
+    "309": {
+      "categoria": "seguro_iva",
+      "descripcion": "Seguro + Iva"
+    },
+    "310": {
+      "categoria": "otros",
+      "descripcion": "Otros"
+    },
+    "311": {
+      "categoria": "otros",
+      "descripcion": "Otros"
+    },
+    "312": {
+      "categoria": "otros",
+      "descripcion": "Analiza"
+    },
+    "313": {
+      "categoria": "otros",
+      "descripcion": "Verifica"
+    },
+    "314": {
+      "categoria": "costos_fijos",
+      "descripcion": "Costos Fijos"
+    },
+    "315": {
+      "categoria": "otros",
+      "descripcion": "Analiza sin iva"
+    },
+    "316": {
+      "categoria": "costos_fijos",
+      "descripcion": "Costos Fijos"
+    },
+    "317": {
+      "categoria": "costos_fijos",
+      "descripcion": "Costos Fijos"
+    },
+    "318": {
+      "categoria": "costos_fijos",
+      "descripcion": "Costos Fijos"
+    },
+    "401": {
+      "categoria": "otros",
+      "descripcion": "Activo fijos"
+    },
+    "403": {
+      "categoria": "otros",
+      "descripcion": "Servicio intercompañias"
+    },
+    "406": {
+      "categoria": "otros",
+      "descripcion": "Servicio intercompañias Grav"
+    },
+    "500": {
+      "categoria": "otros",
+      "descripcion": "Otros"
+    }
+  },
+  "mapeo_categoria_columna": {
+    "costos_fijos": "Valor Costos Fijos",
+    "seguro_iva": "Seguro + Iva",
+    "intereses_corriente": "Int. Corriente Facturado FK",
+    "intereses_mora": "Int. Mora Facturado FK",
+    "otros": "Otros Valor"
+  }
+}

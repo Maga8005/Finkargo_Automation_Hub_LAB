@@ -1,0 +1,28 @@
+{
+  "tipo_factura_por_prefijo": {
+    "FE": {
+      "tipo": "Finkargo",
+      "hoja_destino": "Relacion facturas Costos Fijos"
+    },
+    "NCFE": {
+      "tipo": "Nota Crédito Finkargo",
+      "hoja_destino": "Relacion facturas Costos Fijos"
+    },
+    "ITPA": {
+      "tipo": "Mandato",
+      "hoja_destino": "Relación facturas mandato"
+    },
+    "ITGC": {
+      "tipo": "Interés GC",
+      "hoja_destino": "Relacion facturas Costos Fijos"
+    },
+    "GL": {
+      "tipo": "GL",
+      "hoja_destino": "Relacion facturas Costos Fijos"
+    },
+    "NCIT": {
+      "tipo": "Mandato",
+      "hoja_destino": "Relación facturas mandato"
+    }
+  }
+}

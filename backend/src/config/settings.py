@@ -34,14 +34,20 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10485760
     SUPPORTED_FILE_TYPES: str = '[".pdf",".jpg",".jpeg",".png",".xlsx",".xls"]'
 
-    # Google Drive Configuration (for Facturación MX)
+    # Google Drive Configuration (shared credentials)
     # For production (Render): Use GOOGLE_DRIVE_CREDENTIALS_JSON with base64-encoded or raw JSON
     # For local dev: Use GOOGLE_DRIVE_CREDENTIALS_PATH with path to JSON file
     GOOGLE_DRIVE_CREDENTIALS_JSON: str = ""  # Base64-encoded or raw JSON service account credentials
     GOOGLE_DRIVE_CREDENTIALS_PATH: str = "./credentials/drive-service-account.json"
-    GOOGLE_DRIVE_FOLDER_ID: str = ""
     GOOGLE_DRIVE_SCOPES: str = '["https://www.googleapis.com/auth/drive"]'
+
+    # Google Drive Configuration - Mexico (MX)
+    GOOGLE_DRIVE_FOLDER_ID: str = ""  # MX folder ID
     GOOGLE_DRIVE_MASTER_EXCEL_NAME: str = "Facturación MX 2025.xlsx"
+
+    # Google Drive Configuration - Colombia (CO)
+    GOOGLE_DRIVE_CO_FOLDER_ID: str = "1l3zOaD7Qt-KOHz97FLib4HwSEQqwjN2y"  # CO folder ID
+    GOOGLE_DRIVE_CO_MASTER_EXCEL_NAME: str = "Reporte_Facturacion_CO_2025.xlsx"
 
     # Session Cache Configuration
     SESSION_CACHE_TTL_MINUTES: int = 30
