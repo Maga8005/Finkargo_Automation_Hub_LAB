@@ -127,18 +127,18 @@ COLOMBIA_CONCEPT_COLUMNS: Dict[str, str] = {
     "SERVICIO_GIRO": "Servicio de giro + IVA",
     "COSTOS_ADICIONALES": "Costos adicionales",
     "INTERESES_CORRIENTES": "Intereses Corrientes",
-    # Interest adjustment columns
-    "INTERESES_MORA_PAR_30": "Intereses de Mora PAR 30",
-    "INTERESES_MORA_PAR_60": "Intereses de Mora PAR 60",
-    "INTERESES_MORA_PAR_90": "Intereses de Mora PAR 90",
-    "INTERESES_MORA_PAR_120": "Intereses de Mora PAR 120+",
+    # Interest mora columns - PAR 60/61 with Tasa corriente/Tasa restante
+    "INTERESES_MORA_TASA_CORRIENTE_PAR_60": "Intereses de Mora (Tasa corriente) PAR 60",
+    "INTERESES_MORA_TASA_RESTANTE_PAR_60": "Intereses de Mora (Tasa restante de mora) PAR 60",
+    "INTERESES_MORA_TASA_CORRIENTE_PAR_61": "Intereses de Mora (Tasa corriente) PAR 61",
+    "INTERESES_MORA_TASA_RESTANTE_PAR_61": "Intereses de Mora (Tasa restante de mora) PAR 61",
     # Discount and forgiveness columns
     "DESCUENTO_APLICADO": "Descuento aplicado",
     "CONDONACION_INTERESES_CORRIENTES": "Condonación intereses corrientes",
-    "CONDONACION_MORA_30": "Condonación Mora 30",
-    "CONDONACION_MORA_60": "Condonación Mora 60",
-    "CONDONACION_MORA_90": "Condonación Mora 90",
-    "CONDONACION_MORA_120": "Condonación Mora 120+",
+    "CONDONACION_MORA_TASA_CORRIENTE_PAR_60": "Condonación intereses de mora (Tasa corriente) Par 60",
+    "CONDONACION_MORA_TASA_RESTANTE_PAR_60": "Condonación intereses de mora (Tasa restante de mora) Par 60",
+    "CONDONACION_MORA_TASA_CORRIENTE_PAR_61": "Condonación intereses de mora (Tasa corriente) Par 61",
+    "CONDONACION_MORA_TASA_RESTANTE_PAR_61": "Condonación intereses de mora (Tasa restante de mora) Par 61",
 }
 
 # Required columns for México Historial de Pagos

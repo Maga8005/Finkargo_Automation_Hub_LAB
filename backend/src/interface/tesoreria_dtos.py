@@ -31,6 +31,7 @@ class ConceptType(str, Enum):
     COSTOS_ADICIONALES = "COSTOS_ADICIONALES"
 
     # Colombia-specific concepts
+    COSTOS_FIJOS = "COSTOS_FIJOS"  # Aggregates: 4X1000, Fondo, IVA Fondo, Servicio Orig, Servicio Giro, Costos Adicionales
     CUATRO_POR_MIL = "4X1000"
     FONDO_GARANTIAS = "FONDO_GARANTIAS"
     IVA_FONDO_GARANTIAS = "IVA_FONDO_GARANTIAS"
