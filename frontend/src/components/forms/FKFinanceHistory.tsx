@@ -153,15 +153,6 @@ const FKFinanceHistory: React.FC<FKFinanceHistoryProps> = ({
     fetchData();
   };
 
-  const handleClearFilters = () => {
-    setFilterCountry(country || '');
-    setFilterType('');
-    setFilterStatus('');
-    setDateFrom('');
-    setDateTo('');
-    setPage(0);
-  };
-
   // Export to CSV
   const handleExportCSV = async () => {
     setExporting(true);
