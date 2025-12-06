@@ -370,6 +370,11 @@ class ContractService:
         if not contract:
             raise ValueError(f"Contract {contract_id} not found")
 
+        # Log contract data for debugging template selection
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Contract data for document generation - contract_type: {contract.get('contract_type')}, contract_id: {contract.get('contract_id')}")
+
         # Generate document using DocumentService
         docx_bytes = self.document_service.generate_contract_document(contract)
 
