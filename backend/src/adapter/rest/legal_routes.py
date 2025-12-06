@@ -110,24 +110,28 @@ async def search_clients(
         logger.info(f"Found {len(clients_data)} clients from database")
 
         # Explicitly convert dictionaries to ClientResponse models with validation
+        # Use lenient validation: skip invalid clients instead of failing the entire search
         validated_clients = []
+        skipped_clients = []
         for i, client_dict in enumerate(clients_data):
             try:
                 logger.debug(f"Validating client {i+1}/{len(clients_data)}: {client_dict.get('nit', 'unknown')}")
                 client_model = ClientResponse(**client_dict)
                 validated_clients.append(client_model)
             except ValidationError as ve:
-                logger.error(f"Validation error for client {i+1} (NIT: {client_dict.get('nit', 'unknown')}): {ve}")
-                logger.error(f"Client data that failed validation: {client_dict}")
-                # Log field-level errors
+                # Log warning but continue processing other clients (lenient mode)
+                client_nit = client_dict.get('nit', 'unknown')
+                logger.warning(f"Skipping invalid client {i+1} (NIT: {client_nit}): {ve}")
+                logger.debug(f"Client data that failed validation: {client_dict}")
+                # Log field-level errors at debug level
                 for error in ve.errors():
-                    logger.error(f"  Field '{error['loc']}': {error['msg']} (type: {error['type']})")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Data validation error for client {client_dict.get('nit', 'unknown')}: {str(ve)}"
-                )
+                    logger.debug(f"  Field '{error['loc']}': {error['msg']} (type: {error['type']})")
+                skipped_clients.append(client_nit)
+                continue  # Skip this client instead of failing
 
-        logger.info(f"Successfully validated {len(validated_clients)} clients")
+        if skipped_clients:
+            logger.warning(f"Skipped {len(skipped_clients)} clients with invalid data: {skipped_clients}")
+        logger.info(f"Successfully validated {len(validated_clients)} clients (skipped {len(skipped_clients)})")
         return validated_clients
 
     except ValidationError as ve:
