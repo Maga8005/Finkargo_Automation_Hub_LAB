@@ -235,16 +235,22 @@ BEGIN
         WHEN 'minuta_compraventa' THEN prefix := 'MIN';
 
         -- Paga Local Colombia - Credito contracts (Account-Level)
-        -- PLCR = Paga Local CRedito
-        WHEN 'pl_co_credito_no_aval' THEN prefix := 'PLCR';
-        WHEN 'pl_co_credito_aval_pj' THEN prefix := 'PLCR';
-        WHEN 'pl_co_credito_aval_pn' THEN prefix := 'PLCR';
+        -- Each aval type has a unique prefix to prevent duplicate IDs
+        -- PLCRJ = Paga Local CRédito Jurídica (Aval Persona Jurídica)
+        WHEN 'pl_co_credito_aval_pj' THEN prefix := 'PLCRJ';
+        -- PLCRN = Paga Local CRédito Natural (Aval Persona Natural)
+        WHEN 'pl_co_credito_aval_pn' THEN prefix := 'PLCRN';
+        -- PLCRS = Paga Local CRédito Sin aval (No Aval)
+        WHEN 'pl_co_credito_no_aval' THEN prefix := 'PLCRS';
 
         -- Paga Local Colombia - Mandato contracts (Account-Level)
-        -- PLCM = Paga Local Cuenta Mandato
-        WHEN 'pl_co_mandato_no_aval' THEN prefix := 'PLCM';
-        WHEN 'pl_co_mandato_pj' THEN prefix := 'PLCM';
-        WHEN 'pl_co_mandato_pn' THEN prefix := 'PLCM';
+        -- Each aval type has a unique prefix to prevent duplicate IDs
+        -- PLCMJ = Paga Local Cuenta Mandato Jurídica (Aval Persona Jurídica)
+        WHEN 'pl_co_mandato_pj' THEN prefix := 'PLCMJ';
+        -- PLCMN = Paga Local Cuenta Mandato Natural (Aval Persona Natural)
+        WHEN 'pl_co_mandato_pn' THEN prefix := 'PLCMN';
+        -- PLCMS = Paga Local Cuenta Mandato Sin aval (No Aval)
+        WHEN 'pl_co_mandato_no_aval' THEN prefix := 'PLCMS';
 
         -- Paga Local Colombia - Documentos Operacion (Operation-Level)
         -- PLMI = Paga Local Mandato Importacion
