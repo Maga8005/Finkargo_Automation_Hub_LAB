@@ -198,22 +198,25 @@ const FKApprovedContracts: React.FC = () => {
   };
 
   const getContractTypeBadge = (contractType: string) => {
-    if (contractType === 'otrosi') {
-      return {
-        label: 'Otrosí No. 1',
-        color: 'warning' as const,
-      };
-    }
-    if (contractType === 'inventario_bodega') {
-      return {
-        label: 'Inventario Bodega 3ro',
-        color: 'success' as const,
-      };
-    }
-    return {
-      label: 'Activos',
-      color: 'info' as const,
+    const typeLabels: Record<string, { label: string; color: 'primary' | 'secondary' | 'success' | 'warning' | 'info' | 'error' }> = {
+      // Original contract types
+      activos: { label: 'Activos', color: 'info' },
+      otrosi: { label: 'Otrosí No. 1', color: 'warning' },
+      inventario_bodega: { label: 'Inventario Bodega 3ro', color: 'success' },
+      // Paga Local Colombia - Cuenta Cliente
+      pl_co_credito_aval_pj: { label: 'PL Crédito Aval PJ', color: 'primary' },
+      pl_co_mandato_pj: { label: 'PL Mandato PJ', color: 'primary' },
+      pl_co_credito_aval_pn: { label: 'PL Crédito Aval PN', color: 'secondary' },
+      pl_co_mandato_pn: { label: 'PL Mandato PN', color: 'secondary' },
+      pl_co_credito_no_aval: { label: 'PL Crédito No Aval', color: 'warning' },
+      pl_co_mandato_no_aval: { label: 'PL Mandato No Aval', color: 'warning' },
+      // Paga Local Colombia - Documentos Operación
+      pl_co_mandato_im: { label: 'PL Mandato (IM)', color: 'info' },
+      pl_co_solicitud_desembolso: { label: 'PL Solicitud Desembolso', color: 'success' },
+      pl_co_dian_mandato_im: { label: 'PL DIAN Mandato (IM)', color: 'error' },
     };
+
+    return typeLabels[contractType] || { label: contractType, color: 'info' as const };
   };
 
   if (loading) {
