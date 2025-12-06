@@ -47,7 +47,18 @@ class DocumentService:
             bytes: Generated DOCX file content
         """
         # Route to appropriate method based on contract type
-        contract_type = contract_data.get('contract_type', 'activos')
+        # Enhanced logging and defensive handling for contract_type
+        contract_type = contract_data.get('contract_type')
+        logger.debug(f"Full contract_data keys: {list(contract_data.keys())}")
+        logger.debug(f"Raw contract_type value: {repr(contract_type)}")
+
+        # Defensive handling: fall back to data_snapshot if top-level is None/empty
+        if not contract_type:
+            logger.warning(f"contract_type is None or empty at top level, checking data_snapshot")
+            data_snapshot = contract_data.get('data_snapshot', {})
+            contract_type = data_snapshot.get('contract_type', 'activos')
+            logger.info(f"Using contract_type from data_snapshot: {contract_type}")
+
         logger.info(f"Generating document for contract type: {contract_type}")
 
         if contract_type == 'otrosi':
