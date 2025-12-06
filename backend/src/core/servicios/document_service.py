@@ -69,6 +69,12 @@ class DocumentService:
             return self.generate_paga_local_credito_no_aval_document(contract_data)
         elif contract_type == 'pl_co_mandato_no_aval':
             return self.generate_paga_local_mandato_no_aval_document(contract_data)
+        elif contract_type == 'pl_co_mandato_pj':
+            # Mandato PJ uses the same template as Mandato No Aval
+            return self.generate_paga_local_mandato_no_aval_document(contract_data)
+        elif contract_type == 'pl_co_mandato_pn':
+            # Mandato PN uses the same template as Mandato No Aval
+            return self.generate_paga_local_mandato_no_aval_document(contract_data)
         elif contract_type == 'pl_co_credito_aval_pj':
             return self.generate_paga_local_credito_aval_pj_document(contract_data)
         elif contract_type == 'pl_co_credito_aval_pn':
