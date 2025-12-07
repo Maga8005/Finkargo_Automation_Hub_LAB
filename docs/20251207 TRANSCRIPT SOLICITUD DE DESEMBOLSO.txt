@@ -1,0 +1,99 @@
+04:02
+Sofía Tobón
+Viene entonces ya les voy a mostrar una cotización, normalmente están en HubSpot, yo la puedo descargar y ponerla en cualquier lado donde me digan que la tengo que poner supongamos que esta, entonces si ven aquí está la cotización. 
+
+04:25
+Oscar Alejandro Ardila Novoa
+Y. 
+
+04:25
+Sofía Tobón
+Esta cotización acá va a tener todos los valores que se van a necesitar aquí está la fecha del contrato, si ven que es 30 de octubre, está la fecha de la cotización desembolso que pues es hoy, porque esta operación salió hoy, acá está la fecha, el número como de. 
+
+04:43
+Sofía Tobón
+El número de cotización desembolso, acá está el monto, aquí está el monto, aquí también está el monto y ya básicamente y bueno los datos del representante legal también están acá y está este anexo 1 que se va a tener que copy pastear en el otro documento, pero pues eso lo puedo hacer yo a mano y el acreedor de gastos nacionales, que en este caso es la DIAN, a veces pueden ser agencias de aduanas y demás si quieren ahorita pensamos bien cómo podemos automatizar lo del acreedor de gastos nacionales porque eso sí es otro documento aparte ya con esta información yo vengo acá a mis documentos, esta es la solicitud desembolso y empiezo literalmente a copy pastear lo que dice, entonces número de solicitud desembolso, entonces me voy acá, que siempre va a ser este copy paste, lo pego fecha pues 20 de noviembre de 2025 el consecutivo del contrato de crédito pues siempre va a ser igual a esto, tiene una variación pero en teoría siempre debería ser casi que igual, pero eso lo podemos dejar ya prescrito. 
+
+06:05
+Sofía Tobón
+Entonces normalmente esto va un, creo que aquí es de DM y aquí siempre dice DOM, Siempre va a ser el NIT, siempre es el NIT, siempre es el, a veces es el 1 dependiendo del contrato en el que vayas, el 2 pues eso ya lo puedo ajustar yo a mano dado el caso y siempre es DM, DOM al final y aquí pues la fecha en la que se firmó el contrato de crédito, pero esa fecha siempre está acá en esta cotización, aquí está 30 de octubre, entonces lo mismo se copy pastea el acreedor de gastos nacionales, en este caso fue la DIAN, entonces pues tributos aduaneros. 
+
+06:50
+Daniel Restrepo
+Eso de vale la pena, doble clic, entonces cuando la dejan tributos aduaneros, cuál es la condicional para cada uno de los demás. 
+
+07:07
+Sofía Tobón
+Dependiendo de lo que necesiten, normalmente en el grupo de paga local nos dicen, entonces por ejemplo aquí dicen si están viendo la pantalla, pago a la DIAN, ayer fue pago anticipo, agencia de aduanas. 
+
+07:20
+Daniel Restrepo
+Entonces cuando es agencia de la cotización potencialmente o dónde vendría el dato, sí. 
+
+07:26
+Sofía Tobón
+Eso también está en la cotización, mira está acá abajo en el anexo, te va a decir DIAN, si no dice agencia de aduanas, si no dice creo que es cargo, agencia de carga o agencia logística y así sucesivamente, esa regla. 
+
+07:44
+Daniel Restrepo
+Toca dejarla clara para poderlo automatizar, si el documento cotización dice DIAN, entonces tal cosa, si dice aquello entonces y así. 
+
+07:53
+Sofía Tobón
+Eso yo te lo puedo poner, si quieres te mando los documentos y te pongo un comment como en cada uno, como qué regla o qué palabra clave iría para doble chequear el espacio y a veces pueden ir múltiples, o sea puede en una sola operación, o sea en una sola, en la operación número 2 puede existir que se vaya a pagar a la DIAN, entonces clic y puede existir que se vaya a pagar a un agente de carga, entonces gastos logísticos, OK, o a veces también son lo mismo, es un agente de carga y pueden ser gastos de transporte, igual va a decir, pero pueden ir varias en la misma, listo, la cotización, la solicitud desembolso, este numerito de acá o este asterisco de acá es exactamente este mismo número que se coge ya de la cotización, acaba el monto que está también en la cotización, entonces copy paste literal del monto y los días también está acá, creo que son normalmente 120 días, no lo encuentro, pero normalmente son 120 días, entonces acá 120 días. 
+
+09:11
+Daniel Restrepo
+Pregunta Sofía, esa cotización que estás usando, ese formato que tanto varía de caso en caso, en qué sentido, o sea número de páginas, no siempre es idéntico. 
+
+09:26
+Sofía Tobón
+Siempre es idéntico, lo único que varía son estos datos, o sea, pues si la fecha no es 20 de noviembre, pues es 21 o 19, obviamente el número de cotización desembolso pues también va a variar porque no todos los clientes tienen el mismo NIT ni el mismo 4 código, o sea, los números que hay que rellenar o que yo acabo de copy pastear son los que van a variar, pero en sí esto siempre va a ser igual, siempre aquí todo va a estar igual, estas fechas varían obviamente porque pues depende cuando pongas la operación, pues esto va a variar. Sin embargo, esto no lo necesitamos para nada, o sea, ya todo lo que está acá abajo no necesitamos para nada, siempre se va a mantener igual y yo no lo uso para llenar lo. 
+
+10:07
+Daniel Restrepo
+Que tengo que llenar, ¿Vale? 
+
+10:10
+Sofía Tobón
+Y ya, literalmente eso es. 
+
+10:14
+Daniel Restrepo
+¿Tiene una pregunta? 
+
+10:15
+Sofía Tobón
+Dale Male, dime Male, es que no estoy viendo la pantalla, o sea. 
+
+10:22
+Maria Alejandra Gaitán
+Sí, perdóname. Yo quería saber si abajo en los anexos se podían sacar estas reglas, o sea, donde tú dijiste DIAN y todo eso, habría una lista, ¿No? En la cotización habría una lista que dice DIAN, no solamente haría de la DIAN sino de los otros y se podría hacer una regla DIAN, entonces cuando dice DIAN, entonces hazle clic en la tributaria o cuando diga no sé cómo, haz clic en el otro. 
+
+10:51
+Sofía Tobón
+O sea, así como las reglas. OK, eso era, o sea, aquí por ejemplo dice DIAN, pero en algún momento puede ser dos de la DIAN, dos para la DIAN y estos últimos tres pueden decidir agente de carga, entonces ya uno sabe que cuando dice agente de carga, pues aquí normalmente son cargos logísticos y son, perdón, acá cuando dice agente de carga normalmente son gastos logísticos y gastos de transporte y ya, eso es básicamente. 
+
+11:22
+Daniel Restrepo
+Esa tabla última tú dices que tú la anexarías manual. 
+
+11:26
+Sofía Tobón
+Sí, es decir, esta tabla que ves acá, esta tabla que les estoy resaltando aquí, es exactamente esta misma tabla, es la misma, o sea, entonces yo lo que hago es que desarmo este PDF y este coso este anexo 1, pues cuando ya tengo este documento final, pues se lo agrego. 
+
+11:45
+Daniel Restrepo
+¿Ok, y me queda algo, reemplazar esa página, no sé si no la hecho, reemplazar una hoja con otra, pero. 
+
+11:54
+Sofía Tobón
+Igual eso lo puedo hacer yo, pues eso sí es reemplazar una hoja con otra y quedaría algo así, queda así final, si ven aquí queda el número de cotización, el monto y el anexo 1 queda aquí, así que es el mismo, exactamente el mismo que está en la cotización que ya me da Tatiana, o sea, no cambia, yo solamente le hundo acá en anexar archivo y lo. 
+
+12:19
+Daniel Restrepo
+Meto y listo, OK? 
+
+12:24
+Sofía Tobón
+Y ya, eso es básicamente
