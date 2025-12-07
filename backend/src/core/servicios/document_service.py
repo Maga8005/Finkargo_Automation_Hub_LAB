@@ -54,7 +54,7 @@ class DocumentService:
 
         # Defensive handling: fall back to data_snapshot if top-level is None/empty
         if not contract_type:
-            logger.warning(f"contract_type is None or empty at top level, checking data_snapshot")
+            logger.warning("contract_type is None or empty at top level, checking data_snapshot")
             data_snapshot = contract_data.get('data_snapshot', {})
             contract_type = data_snapshot.get('contract_type', 'activos')
             logger.info(f"Using contract_type from data_snapshot: {contract_type}")
@@ -1223,8 +1223,6 @@ class DocumentService:
         Returns:
             Dictionary mapping placeholders to values
         """
-        from decimal import Decimal
-
         # Format fecha_solicitud (today's date in Spanish)
         fecha_solicitud = datetime.utcnow()
         fecha_solicitud_str = self._format_spanish_date(fecha_solicitud)
@@ -1239,7 +1237,7 @@ class DocumentService:
             try:
                 fecha_contrato_dt = datetime.fromisoformat(fecha_contrato_str.replace('Z', '+00:00'))
                 fecha_contrato_formatted = self._format_spanish_date(fecha_contrato_dt)
-            except:
+            except (ValueError, TypeError):
                 fecha_contrato_formatted = fecha_contrato_str
         else:
             fecha_contrato_formatted = ''
@@ -1318,7 +1316,7 @@ class DocumentService:
         try:
             amount_float = float(amount)
             return f"${amount_float:,.2f} COP"
-        except:
+        except (ValueError, TypeError):
             return f"${amount} COP"
 
     def _format_spanish_date(self, date_obj: datetime) -> str:

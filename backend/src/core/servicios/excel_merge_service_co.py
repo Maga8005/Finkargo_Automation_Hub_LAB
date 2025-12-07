@@ -8,7 +8,6 @@ Prevents duplicates by using numero_factura as unique key.
 import logging
 import io
 from typing import List, Dict, Tuple, Optional
-from datetime import datetime
 import openpyxl
 from openpyxl import Workbook
 
@@ -204,8 +203,6 @@ class ExcelMergeServiceCO:
             List of dictionaries matching Excel column structure
         """
         from src.interface.finance_dtos_co import (
-            COSTOS_FIJOS_COLUMNS,
-            MANDATO_COLUMNS,
             ProductCategory
         )
 

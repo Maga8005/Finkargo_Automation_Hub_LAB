@@ -13,7 +13,7 @@ Soporta filtros por:
 import io
 import logging
 from datetime import date, datetime
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Any
 import pandas as pd
 
 from src.core.servicios.google_drive_service_co import get_drive_service_co
@@ -22,7 +22,6 @@ from src.interface.finance_dtos_co import (
     COFilterResponse,
     COFilteredRecord,
     CODistinctValuesResponse,
-    SheetDestination,
 )
 
 logger = logging.getLogger(__name__)

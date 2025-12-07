@@ -32,7 +32,7 @@ import {
 } from '@mui/icons-material';
 import { legalService } from '../../services/legalService';
 import { operationsService } from '../../services/operationsService';
-import type { Client, ContractGeneration, AnexoItem, CotizacionData } from '../../types/legal';
+import type { Client, ContractGeneration, AnexoItem, CotizacionData, SolicitudDesembolsoRequest } from '../../types/legal';
 
 const FKSolicitudDesembolsoRequest: React.FC = () => {
   // Client search state
@@ -189,7 +189,7 @@ const FKSolicitudDesembolsoRequest: React.FC = () => {
         monto: item.monto,
       }));
 
-      const request: any = {
+      const request: SolicitudDesembolsoRequest = {
         client_nit: selectedClient.nit,
         numero_cotizacion_desembolso: numeroCotizacion,
         fecha_contrato_credito: fechaContrato,

@@ -1,0 +1,7 @@
+/resolve_failed_test {
+  "test_name": "backend_linting",
+  "passed": false,
+  "execution_command": "cd backend && ./venv/bin/ruff check src/",
+  "test_purpose": "Validates Python code quality, identifies unused imports, style violations, and potential bugs",
+  "error": "Found 27 errors: unused imports (F401), f-string without placeholders (F541), bare except clauses (E722), unused local variables (F841). Key files affected: finance_routes.py, document_service.py, excel_merge_service_co.py, file_processor_co.py, filter_service_co.py, finance_report_repository.py"
+}

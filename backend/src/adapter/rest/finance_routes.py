@@ -23,7 +23,6 @@ from src.interface.finance_dtos_co import (
     COProcessingResponse,
     COProcessingStats,
     COReportSheet,
-    COValidationError,
     FileType,
     SheetDestination,
     COSTOS_FIJOS_COLUMNS,
@@ -59,7 +58,6 @@ from src.interface.finance_dtos_mx import (
 )
 from src.adapter.rest.dependencies import get_current_user
 from src.interface.finance_history_dtos import (
-    FinanceReportCreate,
     FinanceReportDetail,
     FinanceReportSummary,
     FinanceHistoryFilter,
@@ -2237,9 +2235,6 @@ async def download_filtered_mx_zip(
     Raises:
         HTTPException: If no records found or download fails
     """
-    import pandas as pd
-    from io import BytesIO
-
     user_email = getattr(current_user, 'email', 'unknown')
     user_id = getattr(current_user, 'id', None)
     logger.info(f"User {user_email} downloading filtered MX ZIP with PDFs/XMLs")

@@ -5,16 +5,13 @@ Handles CRUD operations for the finance_reports table tracking all
 report generations for Colombia (CO) and Mexico (MX) operations.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from supabase import Client
 from datetime import datetime, timedelta
 import logging
 
 from src.interface.finance_history_dtos import (
     FinanceHistoryFilter,
-    ReportCountry,
-    ReportType,
-    ReportStatus
 )
 
 logger = logging.getLogger(__name__)

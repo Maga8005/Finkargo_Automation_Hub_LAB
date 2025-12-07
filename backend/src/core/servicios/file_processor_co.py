@@ -10,7 +10,7 @@ import json
 import io
 import re
 from typing import List, Dict, Tuple, Optional
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 import openpyxl
 from openpyxl import Workbook
@@ -18,11 +18,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from fastapi import UploadFile
 
 from src.interface.finance_dtos_co import (
-    NetsuiteRecord,
-    NoovaRecord,
     ConsolidatedRecord,
-    COProcessingStats,
-    COReportSheet,
     FileType,
     SheetDestination,
     ProductCategory,
@@ -137,7 +133,7 @@ class COFileProcessor:
                                 elif isinstance(value, str):
                                     try:
                                         value = datetime.strptime(value, "%Y-%m-%d").date()
-                                    except:
+                                    except ValueError:
                                         pass
                             elif std_field == "valor":
                                 value = float(value) if value else 0.0
@@ -320,7 +316,6 @@ class COFileProcessor:
         logger.info(f"Clasificando {len(records)} registros")
 
         product_map = self.product_classification.get("clasificacion_productos", {})
-        category_column_map = self.product_classification.get("mapeo_categoria_columna", {})
         prefix_rules = self.classification_rules.get("tipo_factura_por_prefijo", {})
         concept_keywords = self.classification_rules.get("clasificacion_conceptos", {})
 
@@ -599,9 +594,6 @@ class COFileProcessor:
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
 
-        # Column mapping
-        category_column_map = self.product_classification.get("mapeo_categoria_columna", {})
-
         # Write data rows
         # Debug: track how many records have values assigned
         records_with_netsuite = 0
@@ -711,9 +703,6 @@ class COFileProcessor:
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
-
-        # Column mapping
-        category_column_map = self.product_classification.get("mapeo_categoria_columna", {})
 
         # Meses en español
         meses = {
