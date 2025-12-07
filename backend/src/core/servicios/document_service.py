@@ -79,6 +79,8 @@ class DocumentService:
             return self.generate_paga_local_credito_aval_pj_document(contract_data)
         elif contract_type == 'pl_co_credito_aval_pn':
             return self.generate_paga_local_credito_aval_pn_document(contract_data)
+        elif contract_type == 'pl_co_solicitud_desembolso':
+            return self.generate_solicitud_desembolso_document(contract_data)
         else:
             return self.generate_activos_document(contract_data, template_name)
 
@@ -1150,3 +1152,183 @@ class DocumentService:
         except Exception as e:
             logger.error(f"Error uploading to storage: {e}")
             raise RuntimeError(f"Failed to upload contract to storage: {str(e)}")
+
+    def generate_solicitud_desembolso_document(self, contract_data: Dict[str, Any]) -> bytes:
+        """
+        Generate Solicitud de Desembolso contract document from template and data
+
+        Args:
+            contract_data: Dictionary containing contract data with data_snapshot including:
+                - Client data (nit, nombre_importador, etc.)
+                - numero_cotizacion_desembolso
+                - fecha_contrato_credito
+                - monto
+                - dias_plazo
+                - anexo_items (list of dict with acreedor, numero_instrumento, monto)
+
+        Returns:
+            bytes: Generated DOCX file content
+        """
+        template_name = "FK COL - Fin. COP - Solicitud de Desembolso.docx"
+        template_path = self.template_dir / template_name
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"Template not found: {template_path}")
+
+        # Load template
+        doc = Document(str(template_path))
+
+        # Extract data from data_snapshot
+        data = contract_data.get('data_snapshot', contract_data)
+
+        # Prepare replacements
+        replacements = self._prepare_solicitud_desembolso_replacements(data)
+
+        # Replace placeholders in paragraphs
+        for paragraph in doc.paragraphs:
+            for placeholder, value in replacements.items():
+                if placeholder in paragraph.text:
+                    paragraph.text = paragraph.text.replace(placeholder, str(value))
+
+        # Replace placeholders in tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        for placeholder, value in replacements.items():
+                            if placeholder in paragraph.text:
+                                paragraph.text = paragraph.text.replace(placeholder, str(value))
+
+        # Populate Anexo I table
+        anexo_items = data.get('anexo_items', [])
+        if anexo_items:
+            self._populate_anexo_table(doc, anexo_items)
+
+        # Save to bytes
+        import io
+        file_stream = io.BytesIO()
+        doc.save(file_stream)
+        file_stream.seek(0)
+
+        logger.info(f"Generated Solicitud de Desembolso document for contract {data.get('contract_id', 'unknown')}")
+        return file_stream.read()
+
+    def _prepare_solicitud_desembolso_replacements(self, data: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Prepare placeholder replacements for Solicitud de Desembolso template
+
+        Args:
+            data: Contract data snapshot
+
+        Returns:
+            Dictionary mapping placeholders to values
+        """
+        from decimal import Decimal
+
+        # Format fecha_solicitud (today's date in Spanish)
+        fecha_solicitud = datetime.utcnow()
+        fecha_solicitud_str = self._format_spanish_date(fecha_solicitud)
+
+        # Generate consecutivo: CO:{NIT}:1:D:M:DOM
+        nit = data.get('nit', '')
+        consecutivo = f"CO:{nit}:1:D:M:DOM"
+
+        # Format fecha_contrato_credito in Spanish
+        fecha_contrato_str = data.get('fecha_contrato_credito', '')
+        if fecha_contrato_str:
+            try:
+                fecha_contrato_dt = datetime.fromisoformat(fecha_contrato_str.replace('Z', '+00:00'))
+                fecha_contrato_formatted = self._format_spanish_date(fecha_contrato_dt)
+            except:
+                fecha_contrato_formatted = fecha_contrato_str
+        else:
+            fecha_contrato_formatted = ''
+
+        # Format monto
+        monto = data.get('monto', 0)
+        monto_formatted = self._format_currency_cop(monto)
+
+        # Dias plazo
+        dias_plazo = str(data.get('dias_plazo', 120))
+
+        replacements = {
+            '[NUMERO_COTIZACION_DESEMBOLSO]': data.get('numero_cotizacion_desembolso', ''),
+            '[FECHA_SOLICITUD]': fecha_solicitud_str,
+            '[CONSECUTIVO_CONTRATO_CREDITO]': consecutivo,
+            '[FECHA_CONTRATO_CREDITO]': fecha_contrato_formatted,
+            '[MONTO]': monto_formatted,
+            '[DIAS_PLAZO]': dias_plazo,
+            '[NIT]': nit,
+            '[NOMBRE_IMPORTADOR]': data.get('nombre_importador', ''),
+            '[REPRESENTANTE_LEGAL]': data.get('representante_legal', ''),
+            '[CEDULA_REPRESENTANTE]': data.get('cedula_representante', ''),
+            '[CIUDAD_DOMICILIO]': data.get('ciudad_domicilio', ''),
+        }
+
+        return replacements
+
+    def _populate_anexo_table(self, doc: Document, anexo_items: list) -> None:
+        """
+        Populate Anexo I table with dynamic rows
+
+        Args:
+            doc: Document object
+            anexo_items: List of anexo items (dict with acreedor, numero_instrumento, monto)
+        """
+        # Find Anexo I table by searching for "Anexo I" text in document
+        anexo_table = None
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if 'Anexo I' in cell.text or 'ANEXO I' in cell.text:
+                        anexo_table = table
+                        break
+                if anexo_table:
+                    break
+            if anexo_table:
+                break
+
+        if not anexo_table:
+            logger.warning("Could not find Anexo I table in document")
+            return
+
+        # Assume table has header row, then data rows
+        # Add rows for each anexo item
+        total_monto = 0
+        for item in anexo_items:
+            row_cells = anexo_table.add_row().cells
+            if len(row_cells) >= 3:
+                row_cells[0].text = str(item.get('acreedor', ''))
+                row_cells[1].text = str(item.get('numero_instrumento', ''))
+                monto = item.get('monto', 0)
+                row_cells[2].text = self._format_currency_cop(monto)
+                total_monto += float(monto) if monto else 0
+
+        # Add total row
+        total_row_cells = anexo_table.add_row().cells
+        if len(total_row_cells) >= 3:
+            total_row_cells[0].text = "TOTAL"
+            total_row_cells[1].text = ""
+            total_row_cells[2].text = self._format_currency_cop(total_monto)
+
+        logger.info(f"Populated Anexo I table with {len(anexo_items)} items, total: {self._format_currency_cop(total_monto)}")
+
+    def _format_currency_cop(self, amount: float) -> str:
+        """Format amount as Colombian pesos"""
+        try:
+            amount_float = float(amount)
+            return f"${amount_float:,.2f} COP"
+        except:
+            return f"${amount} COP"
+
+    def _format_spanish_date(self, date_obj: datetime) -> str:
+        """Format date in Spanish format: '6 de noviembre de 2025'"""
+        spanish_months = {
+            1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril',
+            5: 'mayo', 6: 'junio', 7: 'julio', 8: 'agosto',
+            9: 'septiembre', 10: 'octubre', 11: 'noviembre', 12: 'diciembre'
+        }
+        day = date_obj.day
+        month = spanish_months.get(date_obj.month, '')
+        year = date_obj.year
+        return f"{day} de {month} de {year}"

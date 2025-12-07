@@ -18,6 +18,7 @@ import {
   AccountBalance as AccountBalanceIcon,
 } from '@mui/icons-material';
 import FKPagaLocalCOContractRequest from './FKPagaLocalCOContractRequest';
+import FKSolicitudDesembolsoRequest from './FKSolicitudDesembolsoRequest';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -126,11 +127,15 @@ const FKPagaLocalCODocumentosOperacion: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Contract Request Form */}
-          <FKPagaLocalCOContractRequest
-            contractType={config.type}
-            contractLabel={config.label}
-          />
+          {/* Contract Request Form - Use specialized form for Solicitud de Desembolso */}
+          {config.type === 'pl_co_solicitud_desembolso' ? (
+            <FKSolicitudDesembolsoRequest />
+          ) : (
+            <FKPagaLocalCOContractRequest
+              contractType={config.type}
+              contractLabel={config.label}
+            />
+          )}
         </TabPanel>
       ))}
     </Box>
