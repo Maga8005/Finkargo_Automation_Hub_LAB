@@ -6,6 +6,8 @@
 - **Path:** `backend/templates/FK COL - Fin. COP - Mandato (IM).docx`
 - **Contract Type Enum:** `pl_co_mandato_im` (already exists in `ContractType`)
 
+> **Scope:** This implementation covers **non-DIAN creditors only** (requiring Bank Certificate PDF). DIAN payments (`pl_co_dian_mandato_im`) will be implemented separately with a dedicated template.
+
 ### Document Structure
 
 The template consists of a single table with 7 rows and 2 columns (content duplicated in both columns):
@@ -102,7 +104,9 @@ Located in Row 3, Cell 0 of the main table:
 - `CotizacionParserService` exists and can be reused
 - No Bank Certificate parser exists
 
-**Goal:** Enable users to generate Instruccion de Mandato documents by uploading a Cotizacion PDF and optionally a Bank Certificate PDF (for non-DIAN creditors).
+**Goal:** Enable users to generate Instruccion de Mandato documents for non-DIAN creditors by uploading a Cotizacion PDF and Bank Certificate PDF(s).
+
+> **Note:** Bank Certificate PDF is REQUIRED for this implementation. DIAN payments will be handled separately.
 
 ---
 
@@ -282,7 +286,7 @@ export interface AcreedorGastosNacionales {
   razon_social: string;
   nit?: string;
   banco: string;
-  tipo_cuenta: 'Ahorros' | 'Corriente' | 'PCE';
+  tipo_cuenta: 'Ahorros' | 'Corriente';  // PCE removed - DIAN handled separately
   numero_cuenta: string;
 }
 
@@ -291,13 +295,12 @@ export interface InstruccionMandatoRequest {
   numero_cotizacion_desembolso: string;
   fecha_contrato_mandato: string;
   monto: number;
-  acreedores: AcreedorGastosNacionales[];
+  acreedores: AcreedorGastosNacionales[];  // At least 1 required
 }
 
 export interface InstruccionMandatoFormData {
   cotizacionFile: File | null;
-  bankCertificateFiles: File[];
-  isDianOnly: boolean;
+  bankCertificateFiles: File[];  // Required - at least 1 for each creditor
   manualAcreedores: AcreedorGastosNacionales[];
 }
 ```
@@ -310,24 +313,23 @@ export interface InstruccionMandatoFormData {
 1. **Step 1 - Upload Cotizacion:** File upload for Cotizacion PDF
    - Parse on upload to extract numero_cotizacion, fecha_contrato, monto
    - Display extracted data for user confirmation
-   - Detect creditor types from Anexo I (DIAN vs other)
 
-2. **Step 2 - Creditor Information:**
-   - If DIAN detected: Show pre-filled DIAN information (read-only)
-   - If non-DIAN detected: Allow Bank Certificate upload
+2. **Step 2 - Upload Bank Certificate(s):** File upload for Bank Certificate PDF(s)
+   - Parse each certificate to extract creditor bank information
+   - Display extracted data for each creditor
    - Support adding multiple creditors (up to 3)
    - Manual entry fallback for creditor data
 
 3. **Step 3 - Review & Generate:**
    - Display all extracted/entered data
    - Client information from search
+   - Validate at least 1 creditor with bank info
    - Generate button to create document
 
 **Key UI Elements:**
-- `<FKFileUpload>` for PDF uploads
+- `<FKFileUpload>` for PDF uploads (Cotizacion + Bank Certificates)
 - `<FKAcreedorCard>` for displaying/editing creditor info
-- Switch for DIAN-only mode
-- Add/Remove creditor buttons (max 3)
+- Add/Remove creditor buttons (max 3, min 1)
 
 #### 3. Add Service Methods
 
@@ -378,29 +380,7 @@ export const legalService = {
 
 ---
 
-### DIAN Static Values Configuration
-
-Create a constants file for DIAN information:
-
-**File:** `backend/src/core/servicios/constants.py`
-
-```python
-DIAN_CREDITOR_INFO = {
-    'razon_social': 'DIAN - Direccion de Impuestos y Aduanas Nacionales',
-    'nit': '800.197.268-4',
-    'banco': 'PSE/Recaudo Electronico',
-    'tipo_cuenta': 'PCE',
-    'numero_cuenta': 'N/A - Pago Electronico'
-}
-
-DIAN_KEYWORDS = [
-    'dian',
-    'entidad de pago de impuestos',
-    'tributo',
-    'aduanero',
-    'impuesto'
-]
-```
+> **Note:** DIAN Static Values Configuration is out of scope for this implementation. DIAN payments (`pl_co_dian_mandato_im`) will be implemented separately with a dedicated template and constants.
 
 ---
 
@@ -416,10 +396,9 @@ DIAN_KEYWORDS = [
          |                                        |
          |    Parse with CotizacionParserService  |
          |<---------------------------------------|
-         |    Return: numero, fecha, monto,       |
-         |            creditors (from Anexo I)    |
+         |    Return: numero, fecha, monto        |
          |                                        |
-         | 2. (Optional) Upload Bank Certificate  |
+         | 2. Upload Bank Certificate(s) [REQ]    |
          |--------------------------------------->|
          |                                        |
          |    Parse with BankCertParserService    |
@@ -450,19 +429,18 @@ DIAN_KEYWORDS = [
 - [ ] `generate_instruccion_mandato_document()` fills all placeholders correctly
 - [ ] Nested creditor table populated with 1-3 creditors
 - [ ] Amount displayed in both numbers and words (Spanish)
-- [ ] DIAN detection works based on Anexo I creditor names
 - [ ] API endpoints return proper error messages for invalid files
+- [ ] Validation: Reject requests without at least 1 creditor with bank info
 
 ### Frontend
 - [ ] Form successfully parses and displays Cotizacion data
-- [ ] Bank Certificate upload and parsing works
-- [ ] DIAN-only mode shows pre-filled static values
-- [ ] Multiple creditors can be added/removed (max 3)
-- [ ] Form validation prevents submission with missing required fields
+- [ ] Bank Certificate upload and parsing works (required step)
+- [ ] Multiple creditors can be added/removed (max 3, min 1)
+- [ ] Form validation prevents submission without Bank Certificate
 - [ ] Generated document downloads correctly
 
 ### Integration
-- [ ] End-to-end flow: Upload Cotizacion -> Parse -> Add Creditors -> Generate -> Download
+- [ ] End-to-end flow: Upload Cotizacion -> Upload Bank Certificate(s) -> Add Creditors -> Generate -> Download
 - [ ] Generated document matches expected format from template
 
 ---
@@ -472,7 +450,6 @@ DIAN_KEYWORDS = [
 | File | Description |
 |------|-------------|
 | `backend/src/core/servicios/bank_certificate_parser_service.py` | Bank certificate PDF parser |
-| `backend/src/core/servicios/constants.py` | DIAN and other constants |
 | `frontend/src/components/forms/FKInstruccionMandatoForm.tsx` | Main form component |
 | `frontend/src/components/ui/FKAcreedorCard.tsx` | Creditor info display card |
 | `frontend/src/pages/legal/InstruccionMandatoPage.tsx` | Page component |
