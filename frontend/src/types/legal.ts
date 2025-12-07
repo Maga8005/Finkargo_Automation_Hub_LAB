@@ -163,3 +163,30 @@ export interface OperationsFilterParams {
   cupo_min?: number;
   cupo_max?: number;
 }
+
+// Solicitud de Desembolso Types
+export interface AnexoItem {
+  acreedor: string;
+  numero_instrumento: string;
+  monto: number;
+}
+
+export interface CotizacionData {
+  numero_cotizacion: string;
+  fecha_cotizacion?: string;
+  fecha_contrato_credito?: string;
+  representante_legal?: string;
+  tipo_id_representante?: string;
+  numero_id_representante?: string;
+  anexo_items: AnexoItem[];
+  monto_total: number;
+}
+
+export interface SolicitudDesembolsoRequest {
+  client_nit: string;
+  numero_cotizacion_desembolso: string;
+  fecha_contrato_credito: string; // ISO date string
+  monto: number;
+  dias_plazo: number;
+  anexo_items: AnexoItem[];
+}

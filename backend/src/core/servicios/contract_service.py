@@ -41,7 +41,8 @@ class ContractService:
     async def generate_contract(
         self,
         request: ContractGenerationRequest,
-        user_id: str
+        user_id: str,
+        custom_data_snapshot: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Generate a new contract (Activos or Otrosí)
@@ -49,6 +50,7 @@ class ContractService:
         Args:
             request: Contract generation request with contract_type
             user_id: ID of user generating contract
+            custom_data_snapshot: Optional custom data snapshot (used for Solicitud de Desembolso and similar contracts)
 
         Returns:
             Dict[str, Any]: Generated contract data
@@ -82,38 +84,48 @@ class ContractService:
 
         # 4. Create data snapshot
         generation_date = datetime.utcnow().strftime('%Y-%m-%d')
-        data_snapshot = {
-            'nit': client['nit'],
-            'nombre_importador': client['nombre_importador'],
-            'representante_legal': client['representante_legal'],
-            'cedula_representante': client['cedula_representante'],
-            'ciudad_domicilio': client['ciudad_domicilio'],
-            'cupo_plataforma': float(client['cupo_plataforma']),
-            'contract_id': contract_id,
-            'contract_type': contract_type,
-            'generation_date': generation_date,
-            # New fields for complete contract template population
-            'direccion_comercial': client.get('direccion_comercial'),
-            'tipo_identificacion_representante': client.get('tipo_identificacion_representante', 'CC'),
-            'nombre_contrato_marco': client.get('nombre_contrato_marco', 'Compra de Cartera'),
-            'kam_nombre': client.get('kam_nombre'),
-            'kam_email': client.get('kam_email'),
-            'destinatario_nombre': client.get('destinatario_nombre'),
-            'destinatario_email': client.get('destinatario_email'),
-        }
 
-        # Add custodian data for Inventario Bodega contracts
-        if request.custodian_data:
-            data_snapshot.update({
-                'nombre_operador_custodio': request.custodian_data.nombre_operador_custodio,
-                'ciudad_domicilio_custodio': request.custodian_data.ciudad_domicilio_custodio,
-                'nit_operador_custodio': request.custodian_data.nit_operador_custodio,
-                'nombre_representante_legal_custodio': request.custodian_data.nombre_representante_legal_custodio,
-                'email_operador_custodio': request.custodian_data.email_operador_custodio,
-                'cc_representante_legal_custodio': request.custodian_data.cc_representante_legal_custodio,
-                'tipo_identificacion_representante_legal_custodio': request.custodian_data.tipo_identificacion_representante_legal_custodio,
-            })
-            logger.info(f"Added custodian data to contract snapshot: {request.custodian_data.nombre_operador_custodio}")
+        # Use custom data snapshot if provided (for Solicitud de Desembolso and similar contracts)
+        if custom_data_snapshot:
+            data_snapshot = custom_data_snapshot.copy()
+            data_snapshot['contract_id'] = contract_id
+            data_snapshot['contract_type'] = contract_type
+            data_snapshot['generation_date'] = generation_date
+            logger.info(f"Using custom data snapshot for contract type: {contract_type}")
+        else:
+            # Standard data snapshot from client data
+            data_snapshot = {
+                'nit': client['nit'],
+                'nombre_importador': client['nombre_importador'],
+                'representante_legal': client['representante_legal'],
+                'cedula_representante': client['cedula_representante'],
+                'ciudad_domicilio': client['ciudad_domicilio'],
+                'cupo_plataforma': float(client['cupo_plataforma']),
+                'contract_id': contract_id,
+                'contract_type': contract_type,
+                'generation_date': generation_date,
+                # New fields for complete contract template population
+                'direccion_comercial': client.get('direccion_comercial'),
+                'tipo_identificacion_representante': client.get('tipo_identificacion_representante', 'CC'),
+                'nombre_contrato_marco': client.get('nombre_contrato_marco', 'Compra de Cartera'),
+                'kam_nombre': client.get('kam_nombre'),
+                'kam_email': client.get('kam_email'),
+                'destinatario_nombre': client.get('destinatario_nombre'),
+                'destinatario_email': client.get('destinatario_email'),
+            }
+
+            # Add custodian data for Inventario Bodega contracts
+            if request.custodian_data:
+                data_snapshot.update({
+                    'nombre_operador_custodio': request.custodian_data.nombre_operador_custodio,
+                    'ciudad_domicilio_custodio': request.custodian_data.ciudad_domicilio_custodio,
+                    'nit_operador_custodio': request.custodian_data.nit_operador_custodio,
+                    'nombre_representante_legal_custodio': request.custodian_data.nombre_representante_legal_custodio,
+                    'email_operador_custodio': request.custodian_data.email_operador_custodio,
+                    'cc_representante_legal_custodio': request.custodian_data.cc_representante_legal_custodio,
+                    'tipo_identificacion_representante_legal_custodio': request.custodian_data.tipo_identificacion_representante_legal_custodio,
+                })
+                logger.info(f"Added custodian data to contract snapshot: {request.custodian_data.nombre_operador_custodio}")
 
         # 5. Create contract generation record
         contract_data = {

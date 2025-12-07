@@ -61,7 +61,7 @@ def print_warning(text: str):
     print(f"{Colors.YELLOW}[WARNING] {text}{Colors.RESET}")
 
 
-def test_authentication():
+def check_authentication():
     """Test 1: Authentication with Google Drive."""
     print_header("TEST 1: Autenticación con Google Drive")
 
@@ -81,7 +81,7 @@ def test_authentication():
         return None
 
 
-def test_root_folder_access(service: GoogleDriveService):
+def check_root_folder_access(service: GoogleDriveService):
     """Test 2: Access to root folder."""
     print_header("TEST 2: Acceso a Carpeta Raíz de Facturación MX")
 
@@ -124,7 +124,7 @@ def test_root_folder_access(service: GoogleDriveService):
         return None
 
 
-def test_year_folder_navigation(service: GoogleDriveService, year_folder_id: str):
+def check_year_folder_navigation(service: GoogleDriveService, year_folder_id: str):
     """Test 3: Navigate into 2025 folder."""
     print_header("TEST 3: Navegación a Carpetas de Meses (2025)")
 
@@ -158,7 +158,7 @@ def test_year_folder_navigation(service: GoogleDriveService, year_folder_id: str
         return None
 
 
-def test_month_folder_files(service: GoogleDriveService, month_folder):
+def check_month_folder_files(service: GoogleDriveService, month_folder):
     """Test 4: List files in a month folder."""
     print_header(f"TEST 4: Archivos en Carpeta '{month_folder['name']}'")
 
@@ -200,7 +200,7 @@ def test_month_folder_files(service: GoogleDriveService, month_folder):
         return None
 
 
-def test_search_by_uuid(service: GoogleDriveService):
+def check_search_by_uuid(service: GoogleDriveService):
     """Test 5: Search file by UUID."""
     print_header("TEST 5: Búsqueda de Archivo por UUID")
 
@@ -241,7 +241,7 @@ def test_search_by_uuid(service: GoogleDriveService):
         return None, None
 
 
-def test_download_file(service: GoogleDriveService, file_info):
+def check_download_file(service: GoogleDriveService, file_info):
     """Test 6: Download a file."""
     print_header("TEST 6: Descarga de Archivo")
 
@@ -281,7 +281,7 @@ def test_download_file(service: GoogleDriveService, file_info):
         return False
 
 
-def test_batch_download(service: GoogleDriveService):
+def check_batch_download(service: GoogleDriveService):
     """Test 7: Batch download multiple invoices."""
     print_header("TEST 7: Descarga en Lote")
 
@@ -331,13 +331,13 @@ def run_all_tests():
     print_info(f"Fecha de ejecución: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     # Test 1: Authentication
-    service = test_authentication()
+    service = check_authentication()
     if not service:
         print_error("\n[ABORTED] TESTS ABORTADOS: No se pudo autenticar con Google Drive")
         return
 
     # Test 2: Root folder access
-    year_folder_id = test_root_folder_access(service)
+    year_folder_id = check_root_folder_access(service)
     if not year_folder_id:
         print_error("\n[ABORTED] TESTS ABORTADOS: No se pudo acceder a la carpeta raíz")
         print_warning("\n[ACTION REQUIRED]:")
@@ -346,27 +346,27 @@ def run_all_tests():
         return
 
     # Test 3: Year folder navigation
-    month_folder = test_year_folder_navigation(service, year_folder_id)
+    month_folder = check_year_folder_navigation(service, year_folder_id)
     if not month_folder:
         print_warning("\n[WARNING] No se encontraron carpetas de meses, continuando con otros tests...")
 
     # Test 4: Month folder files
     if month_folder:
-        sample_file = test_month_folder_files(service, month_folder)
+        sample_file = check_month_folder_files(service, month_folder)
     else:
         sample_file = None
 
     # Test 5: Search by UUID
-    pdf_file, xml_file = test_search_by_uuid(service)
+    pdf_file, xml_file = check_search_by_uuid(service)
 
     # Test 6: Download file
     if pdf_file:
-        test_download_file(service, pdf_file)
+        check_download_file(service, pdf_file)
     elif sample_file:
-        test_download_file(service, sample_file)
+        check_download_file(service, sample_file)
 
     # Test 7: Batch download
-    test_batch_download(service)
+    check_batch_download(service)
 
     # Final summary
     print_header("RESUMEN DE TESTS")

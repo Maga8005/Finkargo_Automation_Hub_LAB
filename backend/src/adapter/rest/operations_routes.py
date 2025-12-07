@@ -16,12 +16,15 @@ from src.repositorio.template_repository import TemplateRepository
 from src.core.servicios.contract_service import ContractService
 from src.core.servicios.document_service import DocumentService
 from src.core.servicios.rut_parser_service import RUTParserService
+from src.core.servicios.cotizacion_parser_service import CotizacionParserService
 from src.adapter.rest.rbac_dependencies import require_operations_role
 from src.interface.legal_dtos import (
     ContractGenerationRequest,
     ContractGenerationResponse,
     ContractGenerationDetail,
     ContractType,
+    CotizacionData,
+    SolicitudDesembolsoRequest,
 )
 
 router = APIRouter(prefix="/api/operations", tags=["Operations"])
@@ -157,6 +160,169 @@ async def request_contract_generation(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error generating contract for NIT {client_nit}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Solicitud de Desembolso Endpoints ====================
+
+@router.post("/contracts/solicitud-desembolso/parse-cotizacion", response_model=CotizacionData)
+async def parse_cotizacion_pdf(
+    file: UploadFile = File(..., description="Cotización PDF document"),
+    current_user: dict = Depends(require_operations_role)
+):
+    """
+    Parse Cotización PDF and extract disbursement request data (Operations role or Admin required)
+
+    This endpoint extracts structured data from Cotización PDFs including:
+    - Quote number (numero_cotizacion)
+    - Credit contract date
+    - Legal representative information
+    - Anexo I table items with amounts
+    - Total amount
+
+    Returns extracted data for form pre-population
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Cotización PDF parse request - File: {file.filename}, User: {current_user.get('email', current_user.get('id'))}")
+
+    try:
+        # Validate file type
+        if file.content_type != 'application/pdf':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type: {file.content_type}. Only PDF files are allowed"
+            )
+
+        # Validate file size (5MB limit)
+        pdf_bytes = await file.read()
+        if len(pdf_bytes) > 5 * 1024 * 1024:
+            raise HTTPException(
+                status_code=400,
+                detail="PDF file size exceeds 5MB limit"
+            )
+
+        # Parse Cotización document
+        logger.info(f"Parsing Cotización document: {file.filename}")
+        parser = CotizacionParserService()
+
+        try:
+            cotizacion_data = parser.parse_cotizacion(pdf_bytes)
+            logger.info(f"Cotización parsed successfully - Quote: {cotizacion_data.numero_cotizacion}, Items: {len(cotizacion_data.anexo_items)}")
+            return cotizacion_data
+        except ValueError as e:
+            logger.error(f"Cotización parsing failed: {e}")
+            raise HTTPException(
+                status_code=422,
+                detail=f"Error parsing Cotización document: {str(e)}"
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error parsing Cotización: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=422,
+                detail=f"Failed to parse Cotización document: {str(e)}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing Cotización PDF: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/contracts/solicitud-desembolso/generate", response_model=ContractGenerationResponse, status_code=status.HTTP_201_CREATED)
+async def generate_solicitud_desembolso(
+    request: SolicitudDesembolsoRequest,
+    service: ContractService = Depends(get_contract_service),
+    client_repo: ClientRepository = Depends(get_client_repo),
+    current_user: dict = Depends(require_operations_role)
+):
+    """
+    Generate Solicitud de Desembolso contract (Operations role or Admin required)
+
+    This creates a Solicitud de Desembolso contract in UNDER_REVIEW status for Legal approval.
+
+    The request must include:
+    - client_nit: Client NIT for database lookup
+    - numero_cotizacion_desembolso: Quote number
+    - fecha_contrato_credito: Credit contract date (ISO format)
+    - monto: Total disbursement amount
+    - dias_plazo: Term in days (30-180)
+    - anexo_items: List of Anexo I table items
+
+    Returns the created contract with ID format: PLSD-YYYY-XXX
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Solicitud de Desembolso generation request - NIT: {request.client_nit}, Quote: {request.numero_cotizacion_desembolso}, User: {current_user.get('email', current_user.get('id'))}")
+
+    try:
+        # Get user_id from authenticated user
+        user_id = current_user['id']
+
+        # Validate client exists
+        client = await client_repo.get_by_nit(request.client_nit)
+        if not client:
+            logger.error(f"Client not found with NIT: {request.client_nit}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Client with NIT {request.client_nit} not found"
+            )
+
+        # Build data snapshot combining client data + solicitud data
+        from decimal import Decimal
+        cupo = client.get('cupo_plataforma')
+        data_snapshot = {
+            # Client data (client is a dict from repository)
+            "nit": client['nit'],
+            "nombre_importador": client['nombre_importador'],
+            "representante_legal": client['representante_legal'],
+            "cedula_representante": client['cedula_representante'],
+            "ciudad_domicilio": client['ciudad_domicilio'],
+            "cupo_plataforma": float(cupo) if cupo is not None and isinstance(cupo, (Decimal, int, float, str)) else cupo,
+            "direccion_comercial": client.get('direccion_comercial'),
+            "tipo_identificacion_representante": client.get('tipo_identificacion_representante'),
+            # Solicitud de Desembolso specific data
+            "numero_cotizacion_desembolso": request.numero_cotizacion_desembolso,
+            "fecha_contrato_credito": request.fecha_contrato_credito,
+            "monto": float(request.monto),
+            "dias_plazo": request.dias_plazo,
+            "anexo_items": [
+                {
+                    "acreedor": item.acreedor,
+                    "numero_instrumento": item.numero_instrumento,
+                    "monto": float(item.monto)
+                }
+                for item in request.anexo_items
+            ]
+        }
+
+        # Create contract generation request
+        contract_request = ContractGenerationRequest(
+            client_nit=request.client_nit,
+            contract_type=ContractType.PL_CO_SOLICITUD_DESEMBOLSO,
+            custodian_data=None  # Not needed for Solicitud de Desembolso
+        )
+
+        # Generate contract with custom data snapshot
+        contract = await service.generate_contract(
+            request=contract_request,
+            user_id=user_id,
+            custom_data_snapshot=data_snapshot
+        )
+
+        contract_id = contract.contract_id if hasattr(contract, 'contract_id') else contract.get('contract_id', 'unknown')
+        logger.info(f"Solicitud de Desembolso generated successfully - Contract ID: {contract_id}, NIT: {request.client_nit}, Quote: {request.numero_cotizacion_desembolso}")
+        return contract
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Validation error for NIT {request.client_nit}: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error generating Solicitud de Desembolso for NIT {request.client_nit}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -6,6 +6,8 @@ import type {
   ContractGenerationRequest,
   ContractGeneration,
   OperationsFilterParams,
+  CotizacionData,
+  SolicitudDesembolsoRequest,
 } from '../types/legal';
 
 const BASE_URL = '/operations';
@@ -200,5 +202,37 @@ export const operationsService = {
       sortBy,
       sortOrder
     );
+  },
+
+  /**
+   * Parse Cotización PDF and extract data for Solicitud de Desembolso
+   */
+  async parseCotizacionPdf(file: File): Promise<CotizacionData> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<CotizacionData>(
+      `${BASE_URL}/contracts/solicitud-desembolso/parse-cotizacion`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  /**
+   * Generate Solicitud de Desembolso contract
+   */
+  async generateSolicitudDesembolso(
+    request: SolicitudDesembolsoRequest
+  ): Promise<ContractGeneration> {
+    const response = await apiClient.post<ContractGeneration>(
+      `${BASE_URL}/contracts/solicitud-desembolso/generate`,
+      request
+    );
+    return response.data;
   },
 };

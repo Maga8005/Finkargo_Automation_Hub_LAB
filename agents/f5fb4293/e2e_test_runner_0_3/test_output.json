@@ -1,0 +1,141 @@
+{
+  "test_name": "Paga Local Colombia - K Credito (Aval PJ) Template Validation",
+  "test_file": ".claude/commands/e2e/test_paga_local_aval_pj_template.md",
+  "status": "failed",
+  "execution_date": "2025-12-07T10:23:00.000Z",
+  "duration_seconds": 420,
+  "summary": "The K Credito (Aval PJ) contract for Paga Local Colombia is using the WRONG template. The system generates documents using the Activos template (FK COL - GM - Activos.docx) instead of the correct Paga Local template (FK COL paga local - Fin. COP - K Credito (Aval PJ).docx).",
+  "bug_validated": {
+    "bug_description": "pl_co_credito_aval_pj using wrong template (FK COL - GM - Activos.docx)",
+    "bug_confirmed": true,
+    "evidence": {
+      "document_contains_garantia_mobiliaria": true,
+      "document_contains_paga_local": false,
+      "expected_template": "FK COL paga local - Fin. COP - K Credito (Aval PJ).docx",
+      "actual_template_indicators": "Contains 'Garantía Mobiliaria' and 'Contrato de Garantía Mobiliaria' - Activos template markers"
+    }
+  },
+  "test_steps": {
+    "part_1_contract_request": {
+      "status": "passed",
+      "steps_completed": [
+        "Logged in as Admin user",
+        "Navigated to /operations/paga-local-colombia",
+        "Verified dashboard loads with correct tabs",
+        "Clicked on Aval Persona Juridica subtab",
+        "Verified K Credito (Aval PJ) and K Mandato PJ options visible",
+        "Clicked Solicitar for K Credito (Aval PJ)",
+        "Searched for client by NIT (900)",
+        "Selected client: 3G SINTETICOS S A S (NIT: 900723680)",
+        "Submitted contract request",
+        "Received success message with contract ID: PLCRJ-2025-019"
+      ],
+      "contract_id": "PLCRJ-2025-019",
+      "client": {
+        "name": "3G SINTETICOS S A S",
+        "nit": "900723680",
+        "cupo": "$240,000",
+        "representante_legal": "HEIDY MARGELY BENÍTEZ ORTIZ",
+        "ciudad": "BOGOTA"
+      }
+    },
+    "part_2_legal_review": {
+      "status": "passed",
+      "steps_completed": [
+        "Logged out from Operations session",
+        "Logged in as Admin user (with legal access)",
+        "Navigated to /department/legal",
+        "Verified Legal dashboard loads",
+        "Found contract PLCRJ-2025-019 in pending review queue",
+        "Verified contract type shows 'PL Crédito Aval PJ'",
+        "Downloaded DOCX file successfully"
+      ],
+      "contract_status": "under_review"
+    },
+    "part_3_template_validation": {
+      "status": "failed",
+      "steps_completed": [
+        "Downloaded DOCX file: PLCRJ-2025-019.docx",
+        "Analyzed document content",
+        "Checked for correct template indicators",
+        "Checked for wrong template indicators"
+      ],
+      "validation_results": {
+        "contains_paga_local": false,
+        "contains_credito": true,
+        "contains_aval": true,
+        "contains_garantia_mobiliaria": true,
+        "contains_gm_activos": false,
+        "verdict": "FAIL - Wrong Activos template is being used"
+      },
+      "document_evidence": {
+        "title": "CONTRATO DE CRÉDITO EN PESOS N° CO:900723680:1:D:M:DOM",
+        "problematic_content": [
+          "Line 70: Contrato de Garantía sobre Mercancía significa un contrato de garantía mobiliaria...",
+          "Line 71: Contrato de Garantía sobre Inventario significa un contrato de garantía mobiliaria...",
+          "Line 72: Contratos de Garantía significa, indistinta o conjuntamente, el Contrato de Garantía Mobiliaria...",
+          "Line 234: Pagaré y Aval; Garantía Mobiliaria"
+        ],
+        "missing_content": [
+          "No 'Paga Local' references found",
+          "No 'K Crédito' specific references found"
+        ]
+      }
+    }
+  },
+  "screenshots": [
+    {
+      "name": "01_paga_local_colombia_dashboard.png",
+      "description": "Paga Local Colombia dashboard showing tabs"
+    },
+    {
+      "name": "02_aval_persona_juridica_contract_options.png",
+      "description": "Aval Persona Juridica subtab with K Credito and K Mandato options"
+    },
+    {
+      "name": "03_contract_request_form_empty.png",
+      "description": "Empty contract request form with client search"
+    },
+    {
+      "name": "04_form_with_selected_client.png",
+      "description": "Form showing client search results"
+    },
+    {
+      "name": "05_client_details_and_submit_button.png",
+      "description": "Client details panel with selected client info"
+    },
+    {
+      "name": "06_page_bottom.png",
+      "description": "Page bottom showing submit button"
+    },
+    {
+      "name": "07_success_message_contract_created.png",
+      "description": "Success message showing contract ID PLCRJ-2025-019"
+    },
+    {
+      "name": "08_legal_review_queue_with_contract.png",
+      "description": "Legal department review queue showing contract PLCRJ-2025-019"
+    },
+    {
+      "name": "09_docx_download_confirmation.png",
+      "description": "Download confirmation for DOCX file"
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "PLCRJ-2025-019.docx",
+      "description": "Downloaded contract document showing wrong template usage"
+    }
+  ],
+  "success_criteria_results": {
+    "dashboard_loads_correctly": true,
+    "aval_pj_subtab_shows_correct_options": true,
+    "contract_requested_successfully": true,
+    "contract_id_follows_paga_local_format": true,
+    "contract_appears_in_legal_queue": true,
+    "docx_uses_correct_template": false,
+    "document_does_not_use_activos_template": false,
+    "screenshots_captured": true
+  },
+  "recommendation": "The bug is CONFIRMED. The backend template selection logic for contract type 'pl_co_credito_aval_pj' needs to be fixed to use the correct template 'FK COL paga local - Fin. COP - K Credito (Aval PJ).docx' instead of the Activos template."
+}

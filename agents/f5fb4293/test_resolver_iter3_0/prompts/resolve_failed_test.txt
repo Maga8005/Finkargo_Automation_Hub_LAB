@@ -1,0 +1,7 @@
+/resolve_failed_test {
+  "test_name": "frontend_linting",
+  "passed": false,
+  "execution_command": "cd frontend && npm run lint",
+  "test_purpose": "Validates frontend code quality with ESLint, catching style issues and potential bugs",
+  "error": "/Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKExcelUploaderCO.tsx:40:32 - Unexpected any. Specify a different type; 47:18 - '_onUploadError' is defined but never used; 76:23 - '_setIsUploading' is assigned a value but never used; /Users/danielrestrepo/Finkargo_Automation_Hub/frontend/src/components/forms/FKSolicitudDesembolsoRequest.tsx:192:22 - Unexpected any. Specify a different type"
+}

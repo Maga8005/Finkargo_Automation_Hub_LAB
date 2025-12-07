@@ -37,14 +37,12 @@ export interface FileState {
 }
 
 export interface FKExcelUploaderCOProps {
-  onUploadSuccess?: (response: any) => void;
-  // onUploadError is optional and may be used by parent to handle errors
+  onUploadSuccess?: (response: Record<string, File>) => void;
   onUploadError?: (error: string) => void;
 }
 
 const FKExcelUploaderCO: React.FC<FKExcelUploaderCOProps> = ({
   onUploadSuccess,
-  onUploadError: _onUploadError,
 }) => {
   const [files, setFiles] = useState<FileState[]>([
     {
@@ -73,7 +71,7 @@ const FKExcelUploaderCO: React.FC<FKExcelUploaderCOProps> = ({
     },
   ]);
 
-  const [isUploading, _setIsUploading] = useState(false);
+  const [isUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /**

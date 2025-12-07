@@ -1,0 +1,7 @@
+/resolve_failed_e2e_test {
+  "test_name": "test_paga_local_aval_pj_template",
+  "status": "failed",
+  "test_path": ".claude/commands/e2e/test_paga_local_aval_pj_template.md",
+  "screenshots": [],
+  "error": "Result parsing error: Failed to parse JSON: Expecting value: line 1 column 1 (char 0). Text was: ## E2E Test Complete: Paga Local Colombia - K Credito (Aval PJ) Template Validation\n\n### Test Result: **FAILED** \n\nThe bug has been **CONFIRMED** - the K Credito (Aval PJ) contract for Paga Local Colo..."
+}

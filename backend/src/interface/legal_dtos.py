@@ -314,3 +314,62 @@ class ContractStats(BaseModel):
     generated_today: int
     generated_this_week: int
     generated_this_month: int
+
+
+# ==================== Solicitud de Desembolso DTOs ====================
+
+class AnexoItem(BaseModel):
+    """Single row item in Anexo I table for Solicitud de Desembolso"""
+    acreedor: str = Field(..., min_length=1, max_length=255, description="Creditor name")
+    numero_instrumento: str = Field(..., min_length=1, max_length=100, description="Instrument number")
+    monto: Decimal = Field(..., description="Amount in COP")
+
+    @validator('monto')
+    def validate_monto(cls, v):
+        """Validate that monto is positive"""
+        if v <= 0:
+            raise ValueError('monto must be greater than 0')
+        return v
+
+
+class CotizacionData(BaseModel):
+    """Data extracted from Cotización PDF document"""
+    numero_cotizacion: str = Field(..., description="Quote number (format: CO:NIT:seq:type:DOM)")
+    fecha_cotizacion: Optional[str] = Field(None, description="Quote date from PDF")
+    fecha_contrato_credito: Optional[str] = Field(None, description="Credit contract date from PDF")
+    representante_legal: Optional[str] = Field(None, description="Legal representative name")
+    tipo_id_representante: Optional[str] = Field(None, description="ID type (e.g., CC, CE)")
+    numero_id_representante: Optional[str] = Field(None, description="ID number")
+    anexo_items: list[AnexoItem] = Field(default_factory=list, description="List of Anexo I table items")
+    monto_total: Decimal = Field(..., description="Total amount calculated from anexo items")
+
+    @validator('monto_total')
+    def validate_monto_total(cls, v):
+        """Validate that total is positive"""
+        if v <= 0:
+            raise ValueError('monto_total must be greater than 0')
+        return v
+
+
+class SolicitudDesembolsoRequest(BaseModel):
+    """Request to generate Solicitud de Desembolso contract"""
+    client_nit: str = Field(..., min_length=5, max_length=20, description="Client NIT")
+    numero_cotizacion_desembolso: str = Field(..., min_length=1, max_length=100, description="Disbursement quote number")
+    fecha_contrato_credito: str = Field(..., description="Credit contract date (ISO format)")
+    monto: Decimal = Field(..., description="Total disbursement amount in COP")
+    dias_plazo: int = Field(default=120, ge=30, le=180, description="Term in days (30-180)")
+    anexo_items: list[AnexoItem] = Field(..., min_items=1, description="At least one Anexo I item required")
+
+    @validator('client_nit')
+    def validate_client_nit(cls, v):
+        """Validate NIT is not empty"""
+        if not v or not v.strip():
+            raise ValueError('client_nit cannot be empty')
+        return v.strip()
+
+    @validator('monto')
+    def validate_monto(cls, v):
+        """Validate that monto is positive"""
+        if v <= 0:
+            raise ValueError('monto must be greater than 0')
+        return v

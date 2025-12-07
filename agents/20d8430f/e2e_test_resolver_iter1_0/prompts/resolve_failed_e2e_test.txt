@@ -1,0 +1,7 @@
+/resolve_failed_e2e_test {
+  "test_name": "test_export_approved_contracts_excel",
+  "status": "failed",
+  "test_path": ".claude/commands/e2e/test_export_approved_contracts_excel.md",
+  "screenshots": [],
+  "error": "Result parsing error: Failed to parse JSON: Expecting value: line 1 column 1 (char 0). Text was: ..."
+}

@@ -14,6 +14,25 @@ import fitz  # PyMuPDF
 
 logger = logging.getLogger(__name__)
 
+# Keyword mappings for Gastos Nacionales de Importación checkboxes
+# Maps category keys to lists of keywords that indicate that category
+GASTOS_CATEGORY_KEYWORDS = {
+    'tributos_aduaneros': ['tributo', 'arancel', 'dian', 'aduanero', 'aduana'],
+    'servicios_aduanales': ['impuesto', 'entidad de pago', 'pago de impuestos', 'servicio aduanal'],
+    'logisticos': ['logístic', 'logistic', 'operador logístico'],
+    'transporte': ['transporte', 'transportador', 'flete', 'envío', 'envio', 'carga'],
+    'almacenamiento': ['almacén', 'almacen', 'almacenamiento', 'bodega', 'storage', 'depósito', 'deposito'],
+}
+
+# Index mapping for checkbox cells in nested table (Table 0, Row 3, Cell 0, Nested Table Row 0)
+GASTOS_CHECKBOX_INDICES = {
+    'tributos_aduaneros': 0,
+    'servicios_aduanales': 1,
+    'logisticos': 2,
+    'transporte': 3,
+    'almacenamiento': 4,
+}
+
 
 class DocumentService:
     """Service for generating contract documents from templates"""
@@ -54,7 +73,7 @@ class DocumentService:
 
         # Defensive handling: fall back to data_snapshot if top-level is None/empty
         if not contract_type:
-            logger.warning(f"contract_type is None or empty at top level, checking data_snapshot")
+            logger.warning("contract_type is None or empty at top level, checking data_snapshot")
             data_snapshot = contract_data.get('data_snapshot', {})
             contract_type = data_snapshot.get('contract_type', 'activos')
             logger.info(f"Using contract_type from data_snapshot: {contract_type}")
@@ -79,6 +98,8 @@ class DocumentService:
             return self.generate_paga_local_credito_aval_pj_document(contract_data)
         elif contract_type == 'pl_co_credito_aval_pn':
             return self.generate_paga_local_credito_aval_pn_document(contract_data)
+        elif contract_type == 'pl_co_solicitud_desembolso':
+            return self.generate_solicitud_desembolso_document(contract_data)
         else:
             return self.generate_activos_document(contract_data, template_name)
 
@@ -1150,3 +1171,347 @@ class DocumentService:
         except Exception as e:
             logger.error(f"Error uploading to storage: {e}")
             raise RuntimeError(f"Failed to upload contract to storage: {str(e)}")
+
+    def generate_solicitud_desembolso_document(self, contract_data: Dict[str, Any]) -> bytes:
+        """
+        Generate Solicitud de Desembolso contract document from template and data
+
+        Args:
+            contract_data: Dictionary containing contract data with data_snapshot including:
+                - Client data (nit, nombre_importador, etc.)
+                - numero_cotizacion_desembolso
+                - fecha_contrato_credito
+                - monto
+                - dias_plazo
+                - anexo_items (list of dict with acreedor, numero_instrumento, monto)
+
+        Returns:
+            bytes: Generated DOCX file content
+        """
+        template_name = "FK COL - Fin. COP - Solicitud de Desembolso.docx"
+        template_path = self.template_dir / template_name
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"Template not found: {template_path}")
+
+        logger.info(f"Loading Solicitud de Desembolso template from: {template_path}")
+
+        # Load template
+        doc = Document(str(template_path))
+
+        # Extract data from data_snapshot
+        data = contract_data.get('data_snapshot', contract_data)
+        logger.debug(f"Data snapshot keys: {list(data.keys())}")
+        logger.debug(f"numero_cotizacion_desembolso: {data.get('numero_cotizacion_desembolso')}")
+        logger.debug(f"fecha_contrato_credito: {data.get('fecha_contrato_credito')}")
+        logger.debug(f"monto: {data.get('monto')}")
+        logger.debug(f"dias_plazo: {data.get('dias_plazo')}")
+        logger.debug(f"anexo_items count: {len(data.get('anexo_items', []))}")
+
+        # Prepare replacements
+        replacements = self._prepare_solicitud_desembolso_replacements(data)
+        logger.info(f"Prepared {len(replacements)} placeholder replacements")
+        for placeholder, value in replacements.items():
+            logger.debug(f"  {placeholder} -> {value}")
+
+        # Populate Anexo I table FIRST (before general replacements)
+        # This ensures the table rows are filled before [•] placeholders are replaced
+        anexo_items = data.get('anexo_items', [])
+        if anexo_items:
+            self._populate_anexo_table(doc, anexo_items)
+
+            # Populate Gastos Nacionales checkboxes based on anexo items
+            gastos_categories = self._determine_gastos_categories(anexo_items)
+            self._populate_gastos_checkboxes(doc, gastos_categories)
+
+        # Replace placeholders in paragraphs
+        para_replacements = 0
+        for paragraph in doc.paragraphs:
+            for placeholder, value in replacements.items():
+                if placeholder in paragraph.text:
+                    paragraph.text = paragraph.text.replace(placeholder, str(value))
+                    para_replacements += 1
+
+        # Replace placeholders in tables
+        table_replacements = 0
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        for placeholder, value in replacements.items():
+                            if placeholder in paragraph.text:
+                                paragraph.text = paragraph.text.replace(placeholder, str(value))
+                                table_replacements += 1
+
+        logger.info(f"Replacements made: {para_replacements} in paragraphs, {table_replacements} in tables")
+
+        # Save to bytes
+        import io
+        file_stream = io.BytesIO()
+        doc.save(file_stream)
+        file_stream.seek(0)
+
+        logger.info(f"Generated Solicitud de Desembolso document for contract {data.get('contract_id', 'unknown')}")
+        return file_stream.read()
+
+    def _prepare_solicitud_desembolso_replacements(self, data: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Prepare placeholder replacements for Solicitud de Desembolso template
+
+        Template placeholders (exact match required):
+        - [Número de cotización de desembolso]
+        - [NIT] (client tax identification number)
+        - [día], [mes], [•] (for current date - 202[•] format)
+        - [día de firma del contrato de crédito], [mes de firma del contrato de crédito], [ año de firma del contrato de crédito]
+        - [monto]
+        - [número de días de plazo]
+
+        Args:
+            data: Contract data snapshot
+
+        Returns:
+            Dictionary mapping placeholders to values
+        """
+        # Current date for fecha_solicitud
+        fecha_solicitud = datetime.utcnow()
+
+        # Parse fecha_contrato_credito into datetime for component extraction
+        fecha_contrato_str = data.get('fecha_contrato_credito', '')
+        fecha_contrato_dt = None
+        if fecha_contrato_str:
+            try:
+                # Handle ISO format: 2025-11-06 or 2025-11-06T00:00:00Z
+                fecha_contrato_dt = datetime.fromisoformat(fecha_contrato_str.replace('Z', '+00:00').split('+')[0])
+                logger.debug(f"Parsed fecha_contrato_credito: {fecha_contrato_dt}")
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Could not parse fecha_contrato_credito '{fecha_contrato_str}': {e}")
+
+        # Format monto - remove "COP" suffix for template since template has COP$ prefix
+        monto = data.get('monto', 0)
+        try:
+            monto_float = float(monto)
+            # Format: 739,860.00 (Colombian format uses comma for thousands, period for decimals)
+            monto_formatted = f"{monto_float:,.2f}"
+        except (ValueError, TypeError):
+            monto_formatted = str(monto)
+
+        # Dias plazo
+        dias_plazo = str(data.get('dias_plazo', 120))
+
+        # Build replacements with EXACT placeholder keys matching the template
+        replacements = {
+            # Numero de cotizacion de desembolso
+            '[Número de cotización de desembolso]': data.get('numero_cotizacion_desembolso', ''),
+
+            # Client identification
+            '[NIT]': data.get('nit', ''),
+
+            # Fecha de la Solicitud de Desembolso (current date) - split into components
+            # Template format: "[día] de [mes] de 202[•]"
+            '[día]': str(fecha_solicitud.day),
+            '[mes]': self._get_month_name_spanish(fecha_solicitud.month),
+            '[•]': str(fecha_solicitud.year)[-1],  # Last digit of year for 202[•]
+
+            # Fecha de firma del contrato de crédito - split into components
+            # Template format: "[día de firma del contrato de crédito] de [mes de firma del contrato de crédito] de [ año de firma del contrato de crédito]"
+            '[día de firma del contrato de crédito]': str(fecha_contrato_dt.day) if fecha_contrato_dt else '',
+            '[mes de firma del contrato de crédito]': self._get_month_name_spanish(fecha_contrato_dt.month) if fecha_contrato_dt else '',
+            '[ año de firma del contrato de crédito]': str(fecha_contrato_dt.year) if fecha_contrato_dt else '',
+
+            # Financial fields
+            # Template has "COP$[monto]" so we just provide the number
+            '[monto]': monto_formatted,
+
+            # Dias de plazo
+            '[número de días de plazo]': dias_plazo,
+        }
+
+        return replacements
+
+    def _populate_anexo_table(self, doc: Document, anexo_items: list) -> None:
+        """
+        Populate Anexo I table by filling existing placeholder rows
+
+        The template has Table 1 (index 1) with structure:
+        - Row 0: Header "ANEXO I LISTADO DE INSTRUMENTOS DE PAGO"
+        - Row 1: Column headers (Acreedor, No. Instrumento, Monto)
+        - Rows 2-11: Data rows with [•] placeholders
+        - Row 12: TOTAL row with $[•] placeholder
+
+        This method fills the existing [•] placeholder rows with actual data
+        instead of adding new rows.
+
+        Args:
+            doc: Document object
+            anexo_items: List of anexo items (dict with acreedor, numero_instrumento, monto)
+        """
+        # Find Anexo I table - it's Table 1 (second table) in the document
+        if len(doc.tables) < 2:
+            logger.warning("Could not find Anexo I table - document has fewer than 2 tables")
+            return
+
+        anexo_table = doc.tables[1]  # Table 1 is the Anexo I table
+        logger.info(f"Found Anexo I table with {len(anexo_table.rows)} rows")
+
+        # Calculate total for the TOTAL row
+        total_monto = 0.0
+        for item in anexo_items:
+            try:
+                monto = float(item.get('monto', 0))
+                total_monto += monto
+            except (ValueError, TypeError):
+                pass
+
+        # Fill data rows (rows 2-11 have [•] placeholders)
+        # Row indices: 0=header, 1=column headers, 2-11=data rows, 12=total row
+        data_row_start = 2
+        data_row_end = 12  # exclusive (rows 2-11 = 10 data rows)
+
+        for i, item in enumerate(anexo_items):
+            row_index = data_row_start + i
+            if row_index >= data_row_end:
+                logger.warning(f"More anexo items ({len(anexo_items)}) than available rows (10). Extra items will be truncated.")
+                break
+
+            row = anexo_table.rows[row_index]
+            if len(row.cells) >= 3:
+                # Fill acreedor
+                row.cells[0].text = str(item.get('acreedor', ''))
+                # Fill numero_instrumento
+                row.cells[1].text = str(item.get('numero_instrumento', ''))
+                # Fill monto with $ prefix
+                try:
+                    monto = float(item.get('monto', 0))
+                    row.cells[2].text = f"${monto:,.2f}"
+                except (ValueError, TypeError):
+                    row.cells[2].text = f"${item.get('monto', 0)}"
+
+                logger.debug(f"Filled row {row_index}: {item.get('acreedor')} | {item.get('numero_instrumento')} | {item.get('monto')}")
+
+        # Clear remaining unused data rows (replace [•] with empty)
+        for row_index in range(data_row_start + len(anexo_items), data_row_end):
+            row = anexo_table.rows[row_index]
+            if len(row.cells) >= 3:
+                row.cells[0].text = ''
+                row.cells[1].text = ''
+                row.cells[2].text = ''
+
+        # Fill TOTAL row (row 12)
+        if len(anexo_table.rows) > 12:
+            total_row = anexo_table.rows[12]
+            if len(total_row.cells) >= 3:
+                # Keep "TOTAL" in first cell (or set it)
+                if 'TOTAL' not in total_row.cells[0].text:
+                    total_row.cells[0].text = 'TOTAL'
+                # Second cell stays empty
+                total_row.cells[1].text = ''
+                # Third cell gets the total amount
+                total_row.cells[2].text = f"${total_monto:,.2f}"
+
+        logger.info(f"Populated Anexo I table with {len(anexo_items)} items, total: ${total_monto:,.2f}")
+
+    def _determine_gastos_categories(self, anexo_items: list) -> set:
+        """
+        Analyze anexo items to determine which expense categories should be checked.
+
+        Based on the acreedor field content, determines which Gastos Nacionales
+        de Importación checkbox categories should be marked as checked.
+
+        Args:
+            anexo_items: List of anexo items with 'acreedor' field
+
+        Returns:
+            Set of category keys that should be checked (e.g., {'servicios_aduanales', 'transporte'})
+        """
+        categories = set()
+
+        for item in anexo_items:
+            acreedor = item.get('acreedor', '').lower()
+
+            for category, keywords in GASTOS_CATEGORY_KEYWORDS.items():
+                for keyword in keywords:
+                    if keyword.lower() in acreedor:
+                        categories.add(category)
+                        logger.debug(f"Matched keyword '{keyword}' in acreedor '{item.get('acreedor')}' -> category '{category}'")
+                        break  # Found match for this category, move to next category
+
+        logger.info(f"Determined gastos categories from {len(anexo_items)} items: {categories}")
+        return categories
+
+    def _populate_gastos_checkboxes(self, doc: Document, categories: set) -> None:
+        """
+        Populate the Gastos Nacionales de Importación checkbox table.
+
+        The nested table is located at: Table 0 → Row 3 → Cell 0 → Nested Table → Row 0
+        Each cell (0-4) contains a checkbox SDT (Structured Document Tag) that needs
+        to be checked/unchecked based on the categories set.
+
+        Checkbox structure uses Word 2010 extensions (w14 namespace):
+        - w14:checked w14:val="0" = unchecked
+        - w14:checked w14:val="1" = checked
+
+        Args:
+            doc: Document object
+            categories: Set of category keys to check (e.g., {'servicios_aduanales'})
+        """
+        # Define namespace for w14 (Word 2010 extensions)
+        W14_NS = 'http://schemas.microsoft.com/office/word/2010/wordml'
+
+        if len(doc.tables) < 1:
+            logger.warning("Document has no tables - cannot populate gastos checkboxes")
+            return
+
+        main_table = doc.tables[0]
+        if len(main_table.rows) < 4:
+            logger.warning("Main table has fewer than 4 rows - cannot find gastos row")
+            return
+
+        gastos_cell = main_table.rows[3].cells[0]
+
+        if not gastos_cell.tables:
+            logger.warning("No nested table found in gastos cell")
+            return
+
+        nested_table = gastos_cell.tables[0]
+        checkbox_row = nested_table.rows[0]
+
+        checked_count = 0
+        for category, cell_index in GASTOS_CHECKBOX_INDICES.items():
+            if cell_index >= len(checkbox_row.cells):
+                logger.warning(f"Cell index {cell_index} out of range for category {category}")
+                continue
+
+            cell = checkbox_row.cells[cell_index]
+            should_check = category in categories
+
+            # Access the cell's XML and find/modify the checkbox
+            cell_xml = cell._tc
+
+            # Find w14:checked element and update its value
+            for checked_elem in cell_xml.iter('{%s}checked' % W14_NS):
+                checked_elem.set('{%s}val' % W14_NS, '1' if should_check else '0')
+                if should_check:
+                    checked_count += 1
+                logger.debug(f"Set checkbox '{category}' to {'checked' if should_check else 'unchecked'}")
+
+        logger.info(f"Populated gastos checkboxes: {checked_count} checked out of {len(GASTOS_CHECKBOX_INDICES)} categories")
+
+    def _format_currency_cop(self, amount: float) -> str:
+        """Format amount as Colombian pesos"""
+        try:
+            amount_float = float(amount)
+            return f"${amount_float:,.2f} COP"
+        except (ValueError, TypeError):
+            return f"${amount} COP"
+
+    def _format_spanish_date(self, date_obj: datetime) -> str:
+        """Format date in Spanish format: '6 de noviembre de 2025'"""
+        spanish_months = {
+            1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril',
+            5: 'mayo', 6: 'junio', 7: 'julio', 8: 'agosto',
+            9: 'septiembre', 10: 'octubre', 11: 'noviembre', 12: 'diciembre'
+        }
+        day = date_obj.day
+        month = spanish_months.get(date_obj.month, '')
+        year = date_obj.year
+        return f"{day} de {month} de {year}"
