@@ -1,0 +1,349 @@
+. Aquí está el otro documento que es la instrucción de mandato, lo mismo, el número desembolso es exactamente el mismo código que vimos, entonces yo lo que hago es copy pastear y pego este aquí. La fecha, la fecha del contrato marco de mandato siempre es la misma fecha del contrato de crédito, siempre va a ser la misma fecha porque los dos se mandan al mismo tiempo. Entonces esta no fue, creo que fue 30 de octubre. Entonces tal cual, lo mismo el monto tiene que ir en letras y en números, pero se saca de la cotización que envía Tatiana que está acá, que está acá, que este monto siete millones ochocientos y piquito, lo. 
+
+13:10
+Oscar Alejandro Ardila Novoa
+Mismo, cotización aceptada esto, Perdón Sofía, pero no está. No, copy pes, copy pe. 
+
+13:21
+Sofía Tobón
+No está. Es importante, pero si de pronto por alguna razón no se puede escribir el monto en letras con la automatización puedo revisar con María a ver si lo podemos quitar la parte de letras. 
+
+13:38
+Oscar Alejandro Ardila Novoa
+Y. 
+
+13:38
+Sofía Tobón
+Solo dejar, pues puedo revisarlo. Normalmente en legal nos gusta tener letras y números para evitar confusiones, pero pues por revisar, pero si, yo lo escribo normalmente. 
+
+13:51
+Daniel Restrepo
+Sigamos, ese lo hemos automatizado creo que para uno de los de activos, si. 
+
+13:57
+Sofía Tobón
+Nuestros contratos de los que están saliendo de inventario de activos salen con el monto escrito. Y ahora si viene, bueno y acá abajo va normalmente el nombre del representante legal y pues su cédula, que esto también literalmente se saca de aquí, aquí mismo está igualito y si no, pues se puede sacar de plataforma. Y ahora sí es la parte complicada, que esto sí no sé, no tengo ni idea si se puede hacer o no, que es la información del acreedor de gastos nacionales. ¿Por qué? Porque ya esta información no está en la cotización, sino que esta información se saca dependiendo de quién sea el acreedor de gastos nacionales. 
+
+14:38
+Sofía Tobón
+Entonces normalmente lo que hace el equipo comercial es que a HubSpot ellos suben la certificación bancaria y a veces suben el RUT o el certificado de cámara y con esa información yo ya lleno este pedacito. 
+
+14:55
+Daniel Restrepo
+¿Y cuál es el más común? 
+
+14:57
+Sofía Tobón
+Normalmente suben la certificación bancaria y está todo. 
+
+15:02
+Daniel Restrepo
+OK. Dice la DIAN. 
+
+15:07
+Sofía Tobón
+Si, es la DIAN. Ya hay un formato predispuesto, porque para la DIAN, me acuerdo. Si, este fue la DIAN. Para la DIAN se paga como por PCE. Entonces ya te muestro cómo queda el de la DIAN. El de la DIAN se ve una cosa así, mira, El de la DIAN siempre va a tener este cuadro así, nunca va a cambiar. Ya, Pero para los otros acreedores de gastos nacionales sí varía porque pues tienen un tipo de cuenta diferente, tienen un banco diferente y eso lo sacamos de la certificación bancaria. 
+
+15:42
+Daniel Restrepo
+¿Digamos, para este, tu origen de información es la cotilación y la certificación bancaria, De acuerdo? Es la cotización. 
+
+15:51
+Oscar Alejandro Ardila Novoa
+Y esas dos cosas las saca del HubSpot. 
+
+15:54
+Sofía Tobón
+Sí, esto está acá en HubSpot debería. Cuando son muy juiciosos lo suben pues en este caso no lo subieron porque es la DIAN. Entonces acá dice DIAN, pero normalmente aquí. 
+
+16:06
+Oscar Alejandro Ardila Novoa
+Está la información y la cotización y todo. Más que eso con la integración con el TAC Dani, se puede alar. 
+
+16:20
+Sofía Tobón
+Y también es importante que tengamos en cuenta que a veces pueden ser varios acreedores de gastos nacionales. Entonces esto puede ser la DIAN, pero este otro puede ser un agente de carga. 
+
+16:33
+Daniel Restrepo
+OK. Está más complejita. Pero básicamente el primero es muy parecido al proceso que ya usas hoy para el de bodega de terceros o como se llame, que es subir. En este subirías la cotización en la instrucción. 
+
+16:52
+Sofía Tobón
+¿De acuerdo? 
+
+16:53
+Daniel Restrepo
+Ese es el primerito que vimos. 
+
+16:56
+Sofía Tobón
+Es que estoy buscando, Mira, así se ve cuando es otro acreedor. ¿Si ven? Dice agencia de aduanas NIT, Bancolombia Corriente. 
+
+17:08
+Daniel Restrepo
+¿Tienes por un ejemplo del documento que usas para llevar esto certificado? 
+
+17:18
+Sofía Tobón
+No, no tengo en la cabeza uno, me tocaría buscarlo, pero pues es un certificado bancario normal como el de Bancolombia común y corriente. 
+
+17:28
+Daniel Restrepo
+OK. Lo que pasa es que puede que varie de banco en banco, no varía. 
+
+17:33
+Sofía Tobón
+De banco en banco. De acuerdo. Y sí o sí lo tienen que adjuntar porque Mesa de Control no libera si no está ese certificado bancario. 
+
+17:41
+Daniel Restrepo
+¿Y generalmente que es Bancolombia? 
+
+17:44
+Sofía Tobón
+Normalmente es Bancolombia. 
+
+17:45
+Daniel Restrepo
+Sí. OK. Pero si necesitamos un ejemplo de certificados que hayas. 
+
+17:51
+Sofía Tobón
+Listo, sí lo puedo buscar, lo puedo. 
+
+17:53
+Daniel Restrepo
+Buscar de Bancolombia, del otro más común. 
+
+17:58
+Sofía Tobón
+A veces es Bancolombia, los que he visto la mayoría, a veces BVA también veo bastante. Bueno. Y también a veces es que es fantástico, a veces también no suben, o sea, suben el certificado bancario pero también suben como la factura, entonces normalmente en la factura está como por favor, si va a pagar, pague a esta cuenta Bancolombia, cuenta BBVA, cuenta banco, lo que sea. 
+
+18:24
+Daniel Restrepo
+¿Pero generalmente usas el certificado bancario? 
+
+18:28
+Sofía Tobón
+La verdad uso el primero que encuentre porque va a ser lo mismo, o sea el certificado bancario lo necesita mesa de control. Si en la factura está, pues la verdad uso la primera que encuentro. 
+
+18:41
+Daniel Restrepo
+Si quieres si entras al Automation Hub un momentico porfa. 
+
+18:47
+Sofía Tobón
+¿Al que me diste? 
+
+18:48
+Daniel Restrepo
+Sí, por favor. 
+
+18:50
+Sofía Tobón
+OK, espérame un segundo. Yo sé, este está como un poquito más complejo me imagino. 
+
+19:01
+Daniel Restrepo
+Pero no te va a mentir, está más complejo, pero. 
+
+19:06
+Sofía Tobón
+Pues en lo que me puedan ayudar de verdad me servía demasiado porque está bastante demandante. 
+
+19:11
+Daniel Restrepo
+¿Y cuánto tiempo se te va en esto? 
+
+19:15
+Sofía Tobón
+Nada Dani, se me va cero, o sea de verdad que se me va. 
+
+19:19
+Daniel Restrepo
+En hacerlo manual, por eso se me. 
+
+19:21
+Sofía Tobón
+Van a por como hacerlo en todo el proceso. Yo creo que se me van por 15 minutos pues mientras que entro, busco la cotización, entro a HubSpot, descargo los documentos, abro los míos, en eso se me pueden ir 15 minutos. El problema es que muchas veces ellos lo necesitan demasiado rápido, lo que te digo y yo a veces estoy haciendo cosas más urgentes, tengo a 500 personas encima mío diciéndome por favor, es urgente y yo estoy sacando otras cosas. Si se podría automatizar de manera que yo lo meta una parte y ya me salga pues me ahorraría el tener que entrar a plataforma y confirmar, entrar a HubSpot, descargar vainas de HubSpot, abrir los documentos. Copy pastear, eso, copy pastear las. 
+
+20:08
+Daniel Restrepo
+Vainas por documento porque entiendo que por cada operación son esos dos. 
+
+20:13
+Sofía Tobón
+Por eso 15 minutos. ¿Como 15 o 12 minutos me puedo demorar por documento en todo el proceso? Por documento te lo juro que me puedo demorar por cinco minutos. OK, todo abierto me demoró cinco minutos. 
+
+20:28
+Daniel Restrepo
+¿Ok, y si lo generas y revisas cuánto te demoras? 
+
+20:34
+Sofía Tobón
+No, no me demoro nada, generando y revisando no se demora nada. 
+
+20:39
+Daniel Restrepo
+¿Ya entraste a la aplicación? Sí, puedes compartir pantalla. 
+
+20:46
+Sofía Tobón
+Y últimamente está alta demanda, están saliendo muchas operaciones muy seguido, entonces. 
+
+20:55
+Daniel Restrepo
+Contratos operaciones sería otra pestañita aquí y funcionaría como este solicitar inventario, bodega, entonces si quieres entra a esa tercera pestaña, busca algún cliente. 
+
+21:12
+Sofía Tobón
+Creo que. 
+
+21:12
+Daniel Restrepo
+Hace poquito, listo, entonces tendrías seleccionar archivos root, en vez de eso sería cotización y con eso sacaríamos el primero. Lo que estamos asumiendo es que ese archivo de cotización no varía casi de un caso en otro porque lo que estaríamos haciendo es Reject, entonces Reject es inflexible, esa forma de hacer, no permite tanta variabilidad. Si, son cosas mucho más variables, toca hacer algo más complejo entonces. OK, entonces el segundo caso tendrías que subir 2, que es el certificado bancario, Entonces sería ese esquema, ¿Cómo lo ves? 
+
+22:03
+Sofía Tobón
+Lo que podemos hacer, y estoy pensando yo aquí, sí, o sea, el esquema está perfectísimo, es dejar. 
+
+22:12
+Daniel Restrepo
+Cómo que fue. 
+
+22:14
+Oscar Alejandro Ardila Novoa
+Esa es la propuesta inicial. Hay otra propuesta, si lo podemos hacer robusto, es integrar a HubSpot y con el NIT traer automáticamente con los tags esos documentos y no tengas que descargar el HubSpot, cargarlos acá, pero ese es el. 
+
+22:38
+Daniel Restrepo
+Enterprise. 
+
+22:41
+Sofía Tobón
+Como dice María Garrido, esa sería mi carta al niño Dios. 
+
+22:46
+Oscar Alejandro Ardila Novoa
+Eso es lo que yo, los retos que a mí me gustan, Todo se puede, pero lo que dice, podemos como llegar a un alcance que como dice que sabemos que ya se puede hacer con lo que ha hecho Dani y es como él te dijo ahora que podemos ponerle más poderes, lo podemos tratar también de ser y. Y tenerles el regalo de señores, o. 
+
+23:13
+Sofía Tobón
+Sea, si lo quieres hacer con todos los poderes, o sea, todo tuyo, experimenta, todo tuyo porque de verdad me ayudaría muchisimo, en serio, mucho poder automatizarlo. Ahora, lo que estaba pensando Dani es, mientras que Oscar se ilumina y nos ayuda, lo que podemos hacer es dejar dos formatos como prehechos, el de la DIAN y yo ya te pongo la tablita como de la DIAN prehecha, que cuando sea la DIAN solamente se copy pasteen los campos de la cotización que les acabo de mostrar, como la fecha, el monto y demás y ya sale la tablita de la DIAN como PCE, lo que sea y con el clic de una vez el mark hecho, ese puede ser uno y tenemos el template número 2 para todo lo que no sea la DIAN y ya sí tocaría subir la certificación bancaria. 
+
+24:13
+Daniel Restrepo
+OK, o sea, tú dices tener dos me gusta tanto porque empieza como a llenarse más de lo que se necesita, pero bueno, está bien si lo abrimos. 
+
+24:23
+Sofía Tobón
+Es como para hacértelo más fácil, pero. 
+
+24:25
+Daniel Restrepo
+Sí, si no está buena la idea, pues acaso no se puede o se puede una primera versión rápida, entre comillas rápida y una más robusta llegando a la panacea que sería la idea de Oscar con la integración a HubSpot. 
+
+24:46
+Sofía Tobón
+Sería magnífico, de verdad sería magnífico, él. 
+
+24:50
+Maria Alejandra Gaitán
+Viene del equipo de integraciones y entonces le encantan las integraciones con todas las aplicaciones. 
+
+24:56
+Oscar Alejandro Ardila Novoa
+No, yo ya me integré, o sea, yo me integré a HubSpot con Analiz, con el Standalone, entonces sé que se puede. 
+
+25:04
+Sofía Tobón
+Excelente pues, o sea, mejor dicho, háganle porque esto me está enloqueciendo. 
+
+25:11
+Daniel Restrepo
+Si ¿Llevas cuánto tiempo con paga local? 
+
+25:13
+Sofía Tobón
+Como año y medio desde que entré, lo primero que yo entré y al otro día que yo entré, o sea año y medio, yo entré y al otro día Lina me dijo mira. 
+
+25:23
+Maria Alejandra Gaitán
+Bienvenida. 
+
+25:24
+Sofía Tobón
+Te dije todo tuyo y en verdad sí es demandante y a veces hoy por ejemplo salieron dos operaciones, ayer salió una, entonces es entrar, descargar, meterse, copy. 
+
+25:34
+Daniel Restrepo
+Pastear, no es tanto que te tome tanto tiempo hacerlo, sino que estás ocupado, otras cosas y el solo hecho de esperar a que te desocupes puede generar los roces con las otras áreas. 
+
+25:46
+Sofía Tobón
+Sí, y sobre todo que si lo pueden tener más rápido, si lo pueden tener más rápido, giran más rápido, mesa de control libera más rápido, o sea. 
+
+25:53
+Daniel Restrepo
+Todo a las 10 de la noche. 
+
+25:57
+Sofía Tobón
+Y exactamente mesa de control tiene que girar a las 10 de la noche. Y también más que todo es el hecho de son vainas que son copy paste, o sea, yo me puedo demorar tres horas en un contrato y soy feliz tu problema, pero para copy paste me demoro mucho para hacer una vaina que simplemente copy pastear unos campos. 
+
+26:16
+Daniel Restrepo
+Perfecto, listo. Entonces esto que para poder avanzar Sofi Inputs que necesitamos en mi opinión y pues al resolver lo que diga Male y Oscar, lo que ya me enviaste anteriormente, que es el documento con los comentarios, luego pues tengo que normalizar los nombres de las variables, porque no voy a usar un nombre variable distinto al que estoy usando en otros documentos, ¿Si me hago entender? En realidad, más la lógica por decir y los ejemplos de los documentos. Entonces para el caso 1 el documento que necesita la plantilla y la cotización, para el caso 2 a pues el caso DIAN, ¿Cierto? 
+
+27:03
+Sofía Tobón
+Y el caso otro no dian y. 
+
+27:07
+Daniel Restrepo
+Con los dos documentos, con los documentos que son la cotización y el certificado bancario y o factura. 
+
+27:19
+Sofía Tobón
+Listo, perfecto. 
+
+27:21
+Daniel Restrepo
+Idealmente pues certificado bancario, si ese es el que debemos estar usando, podemos usar factura, pero de pronto complicamos un poquito el tema. Entonces para arrancar si quiere certificado bancario y luego vemos si vale la pena meterle factura. 
+
+27:39
+Sofía Tobón
+Intentemos comer. Lo que pasa es que a veces, a veces comercial no sube el certificado bancario, o sea, no lo sube y es como te lo subo ahorita y más tarde te lo subo y no, es que en la factura puedes encontrar la cuenta con factura, pero no podemos volvernos un poco hitlerianos y decirles igual se va a necesitar el certificado bancario porque mesa de control necesita, entonces pues que lo suban. 
+
+28:03
+Daniel Restrepo
+Si quieres mándanos las dos por si acaso. Y fascista. 
+
+28:11
+Sofía Tobón
+Lo podemos intentar, ya hay. 
+
+28:13
+Maria Alejandra Gaitán
+Otros equipos que están fascistas. Facturación ya se puso así, no hay problema. 
+
+28:18
+Sofía Tobón
+Exacto, estoy getting inline con el resto de nuevo. Módulos de fincargo Y otra cosa Dani, y también te voy a mandar los dos documentos marco, que es el contrato marco y el contrato de mandato para automatizar, Pero esos son súper sencillos, o sea, eso es algo que ya hemos hecho como simplemente solo va el nombre del cliente, eso se arrastra a Jarvis, nombre del cliente, ciudad, domicilio, nombre de representante legal y cédula de representante legal. 
+
+28:50
+Daniel Restrepo
+El caso trocio caso igualito al caso. 
+
+28:53
+Sofía Tobón
+Del de activos, es más, ni siquiera hay que poner cupo ni nada, entonces creo que es más rapid también para automatizar eso de una vez. 
+
+29:03
+Daniel Restrepo
+Perfecto, listo, pues si quieren olvidarnos eso y le saco un espacio más ley Oscar para que vean pues con como es como la implementación y seguro hay mejores formas de hacerlo para las siguientes ocasiones. 
+
+29:21
+Sofía Tobón
+Les agradezco un montón, de verdad, el equipo legal está eternamente agradecido con ustedes por toda la ayuda, cualquier cosa que necesiten me avisan y en lo que pueda ayudar o colaborar pues me avisan. 
