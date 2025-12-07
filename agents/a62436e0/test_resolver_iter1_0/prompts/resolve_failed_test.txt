@@ -1,0 +1,7 @@
+/resolve_failed_test {
+  "test_name": "all_backend_tests",
+  "passed": false,
+  "execution_command": "cd backend && python -m pytest -v --tb=short",
+  "test_purpose": "Validates all backend functionality including contract generation, document services, API endpoints, and business logic",
+  "error": "2 tests failed: tests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_parse_invalid_pdf_raises_error - AssertionError: HTTPException not raised; tests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_parse_empty_pdf_raises_error - AssertionError: HTTPException not raised"
+}

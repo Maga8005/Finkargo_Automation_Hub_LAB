@@ -5,6 +5,7 @@ This service parses bank certificates from Colombian banks (primarily Bancolombi
 to extract creditor bank account information for Instruccion de Mandato documents.
 """
 import fitz  # PyMuPDF
+from fitz import EmptyFileError, FileDataError
 import logging
 import re
 from typing import Optional
@@ -103,8 +104,11 @@ class BankCertificateParserService:
 
             return certificate_data
 
-        except fitz.fitz.FileDataError as e:
-            logger.error(f"Invalid PDF file: {str(e)}")
+        except EmptyFileError as e:
+            logger.error(f"Empty PDF file: {str(e)}")
+            raise ValueError("Invalid PDF: Cannot open empty file")
+        except FileDataError as e:
+            logger.error(f"Invalid PDF format: {str(e)}")
             raise ValueError(f"Invalid PDF file format: {str(e)}")
         except Exception as e:
             logger.error(f"Error parsing Bank Certificate: {str(e)}")

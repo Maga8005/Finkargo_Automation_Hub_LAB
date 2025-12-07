@@ -1,0 +1,7 @@
+/resolve_failed_test {
+  "test_name": "backend_linting",
+  "passed": false,
+  "execution_command": "cd backend && ./venv/bin/ruff check src/",
+  "test_purpose": "Validates Python code quality, identifies unused imports, style violations, and potential bugs",
+  "error": "F541 [*] f-string without any placeholders --> src/core/servicios/bank_certificate_parser_service.py:109:30"
+}

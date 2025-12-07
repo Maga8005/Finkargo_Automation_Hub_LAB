@@ -1,0 +1,7 @@
+/resolve_failed_e2e_test {
+  "test_name": "test_payment_template_converter",
+  "status": "failed",
+  "test_path": ".claude/commands/e2e/test_payment_template_converter.md",
+  "screenshots": [],
+  "error": "Result parsing error: Failed to parse JSON: Expecting value: line 1 column 1 (char 0). Text was: ..."
+}
