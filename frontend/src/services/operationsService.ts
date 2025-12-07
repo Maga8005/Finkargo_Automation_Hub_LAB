@@ -8,6 +8,8 @@ import type {
   OperationsFilterParams,
   CotizacionData,
   SolicitudDesembolsoRequest,
+  BankCertificateData,
+  InstruccionMandatoRequest,
 } from '../types/legal';
 
 const BASE_URL = '/operations';
@@ -231,6 +233,57 @@ export const operationsService = {
   ): Promise<ContractGeneration> {
     const response = await apiClient.post<ContractGeneration>(
       `${BASE_URL}/contracts/solicitud-desembolso/generate`,
+      request
+    );
+    return response.data;
+  },
+
+  /**
+   * Parse Cotización PDF and extract data for Instrucción de Mandato
+   */
+  async parseCotizacionForMandato(file: File): Promise<CotizacionData> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<CotizacionData>(
+      `${BASE_URL}/contracts/instruccion-mandato/parse-cotizacion`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  /**
+   * Parse Bank Certificate PDF and extract creditor bank account information
+   */
+  async parseBankCertificate(file: File): Promise<BankCertificateData> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<BankCertificateData>(
+      `${BASE_URL}/contracts/instruccion-mandato/parse-bank-certificate`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  /**
+   * Generate Instrucción de Mandato contract
+   */
+  async generateInstruccionMandato(
+    request: InstruccionMandatoRequest
+  ): Promise<ContractGeneration> {
+    const response = await apiClient.post<ContractGeneration>(
+      `${BASE_URL}/contracts/instruccion-mandato/generate`,
       request
     );
     return response.data;

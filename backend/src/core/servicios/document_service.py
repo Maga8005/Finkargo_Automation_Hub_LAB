@@ -100,6 +100,8 @@ class DocumentService:
             return self.generate_paga_local_credito_aval_pn_document(contract_data)
         elif contract_type == 'pl_co_solicitud_desembolso':
             return self.generate_solicitud_desembolso_document(contract_data)
+        elif contract_type == 'pl_co_mandato_im':
+            return self.generate_instruccion_mandato_document(contract_data)
         else:
             return self.generate_activos_document(contract_data, template_name)
 
@@ -926,6 +928,258 @@ class DocumentService:
             9: 'septiembre', 10: 'octubre', 11: 'noviembre', 12: 'diciembre'
         }
         return months.get(month, '')
+
+    def generate_instruccion_mandato_document(
+        self,
+        contract_data: Dict[str, Any],
+        template_name: str = "FK COL - Fin. COP - Mandato (IM).docx"
+    ) -> bytes:
+        """
+        Generate Instruccion de Mandato contract document from template and data
+
+        Args:
+            contract_data: Dictionary containing contract data with data_snapshot including:
+                - Client data (nit, nombre_importador, representante_legal, cedula_representante)
+                - numero_cotizacion_desembolso
+                - fecha_contrato_mandato
+                - monto
+                - acreedores (list of dict with razon_social, nit, banco, tipo_cuenta, numero_cuenta)
+
+        Returns:
+            bytes: Generated DOCX file content
+        """
+        template_path = self.template_dir / template_name
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"Template not found: {template_path}")
+
+        logger.info(f"Loading Instruccion de Mandato template from: {template_path}")
+
+        # Load template
+        doc = Document(str(template_path))
+
+        # Extract data from data_snapshot
+        data = contract_data.get('data_snapshot', contract_data)
+        logger.debug(f"Data snapshot keys: {list(data.keys())}")
+        logger.debug(f"numero_cotizacion_desembolso: {data.get('numero_cotizacion_desembolso')}")
+        logger.debug(f"fecha_contrato_mandato: {data.get('fecha_contrato_mandato')}")
+        logger.debug(f"monto: {data.get('monto')}")
+        logger.debug(f"acreedores count: {len(data.get('acreedores', []))}")
+
+        # Prepare replacements
+        replacements = self._prepare_instruccion_mandato_replacements(data)
+        logger.info(f"Prepared {len(replacements)} placeholder replacements")
+        for placeholder, value in replacements.items():
+            logger.debug(f"  {placeholder} -> {value}")
+
+        # Replace placeholders in paragraphs
+        para_replacements = 0
+        for paragraph in doc.paragraphs:
+            for placeholder, value in replacements.items():
+                if placeholder in paragraph.text:
+                    paragraph.text = paragraph.text.replace(placeholder, str(value))
+                    para_replacements += 1
+
+        # Replace placeholders in tables (EXCEPT nested creditor table which we handle separately)
+        table_replacements = 0
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        for placeholder, value in replacements.items():
+                            if placeholder in paragraph.text:
+                                paragraph.text = paragraph.text.replace(placeholder, str(value))
+                                table_replacements += 1
+
+        logger.info(f"Replacements made: {para_replacements} in paragraphs, {table_replacements} in tables")
+
+        # Populate creditor table (nested table in Table 0, Row 3, Cell 0)
+        acreedores = data.get('acreedores', [])
+        if acreedores:
+            self._populate_acreedores_table(doc, acreedores)
+
+        # Save to bytes
+        import io
+        file_stream = io.BytesIO()
+        doc.save(file_stream)
+        file_stream.seek(0)
+
+        logger.info(f"Generated Instruccion de Mandato document for contract {data.get('contract_id', 'unknown')}")
+        return file_stream.read()
+
+    def _prepare_instruccion_mandato_replacements(self, data: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Prepare placeholder replacements for Instruccion de Mandato template
+
+        Template placeholders (exact match required):
+        - [Fecha actual]
+        - [Número de cotización de desembolso]
+        - [día de firma contrato mandato]
+        - [mes de firma contrato mandato]
+        - [año de firma contrato mandato]
+        - [monto a transferir en letras]
+        - [monto a transferir en números]
+        - [Nombre del representante legal del Cliente]
+        - [número ID representante legal]
+
+        Args:
+            data: Contract data snapshot
+
+        Returns:
+            Dictionary mapping placeholders to values
+        """
+        # Current date for fecha actual
+        fecha_actual = datetime.utcnow()
+
+        # Parse fecha_contrato_mandato into datetime for component extraction
+        fecha_mandato_str = data.get('fecha_contrato_mandato', '')
+        fecha_mandato_dt = None
+        if fecha_mandato_str:
+            try:
+                # Handle ISO format: 2025-11-06 or 2025-11-06T00:00:00Z
+                fecha_mandato_dt = datetime.fromisoformat(fecha_mandato_str.replace('Z', '+00:00').split('+')[0])
+                logger.debug(f"Parsed fecha_contrato_mandato: {fecha_mandato_dt}")
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Could not parse fecha_contrato_mandato '{fecha_mandato_str}': {e}")
+
+        # Format monto
+        monto = data.get('monto', 0)
+        try:
+            monto_float = float(monto)
+            # Format: $739,860 (Colombian format uses comma for thousands, dollar sign prefix)
+            monto_formatted = f"${monto_float:,.0f}"
+            # Convert to words in Spanish
+            monto_letras = self._number_to_words_spanish(monto_float) + " PESOS"
+        except (ValueError, TypeError):
+            monto_formatted = str(monto)
+            monto_letras = str(monto)
+
+        # Format fecha actual in Spanish: "DD de MONTH de YYYY"
+        fecha_actual_str = f"{fecha_actual.day} de {self._get_month_name_spanish(fecha_actual.month)} de {fecha_actual.year}"
+
+        # Build replacements with EXACT placeholder keys matching the template
+        replacements = {
+            # Fecha actual
+            '[Fecha actual]': fecha_actual_str,
+
+            # Numero de cotizacion de desembolso
+            '[Número de cotización de desembolso]': data.get('numero_cotizacion_desembolso', ''),
+
+            # Fecha de firma del contrato de mandato - split into components
+            '[día de firma contrato mandato]': str(fecha_mandato_dt.day) if fecha_mandato_dt else '',
+            '[mes de firma contrato mandato]': self._get_month_name_spanish(fecha_mandato_dt.month) if fecha_mandato_dt else '',
+            '[año de firma contrato mandato]': str(fecha_mandato_dt.year) if fecha_mandato_dt else '',
+
+            # Financial fields
+            '[monto a transferir en letras]': monto_letras,
+            '[monto a transferir en números]': monto_formatted,
+
+            # Client representative information
+            '[Nombre del representante legal del Cliente]': data.get('representante_legal', ''),
+            '[número ID representante legal]': data.get('cedula_representante', ''),
+        }
+
+        return replacements
+
+    def _populate_acreedores_table(self, doc: Document, acreedores: list) -> None:
+        """
+        Populate creditor information table in Instruccion de Mandato template
+
+        The creditor table is nested: Table 0 → Row 3 → Cell 0 → Nested Table
+        The nested table has:
+        - Row 0: Header row
+        - Rows 1-3: Data rows for up to 3 creditors
+
+        Each creditor row has 5 columns:
+        - Column 0: Razon Social
+        - Column 1: NIT (si aplica)
+        - Column 2: Banco
+        - Column 3: Tipo de Cuenta
+        - Column 4: Numero de Cuenta
+
+        Args:
+            doc: Document object with template loaded
+            acreedores: List of creditor dictionaries (max 3)
+        """
+        try:
+            # Navigate to nested table: Table 0 → Row 3 → Cell 0 → Nested Table
+            if len(doc.tables) == 0:
+                logger.error("No tables found in document")
+                return
+
+            main_table = doc.tables[0]
+            if len(main_table.rows) < 4:
+                logger.error(f"Main table has only {len(main_table.rows)} rows, expected at least 4")
+                return
+
+            target_cell = main_table.rows[3].cells[0]
+
+            # Check if nested table exists
+            if len(target_cell.tables) == 0:
+                logger.error("No nested table found in target cell")
+                return
+
+            nested_table = target_cell.tables[0]
+            logger.info(f"Found nested creditor table with {len(nested_table.rows)} rows")
+
+            # Verify table structure (should have header + 3 data rows = 4 rows)
+            if len(nested_table.rows) < 4:
+                logger.warning(f"Nested table has {len(nested_table.rows)} rows, expected 4 (1 header + 3 data rows)")
+
+            # Populate creditor rows (rows 1-3, row 0 is header)
+            for idx, acreedor in enumerate(acreedores[:3]):  # Max 3 creditors
+                row_idx = idx + 1  # Skip header row
+                if row_idx >= len(nested_table.rows):
+                    logger.warning(f"Cannot populate row {row_idx}, table has only {len(nested_table.rows)} rows")
+                    break
+
+                row = nested_table.rows[row_idx]
+                cells = row.cells
+
+                if len(cells) < 5:
+                    logger.warning(f"Row {row_idx} has only {len(cells)} cells, expected 5")
+                    continue
+
+                # Extract creditor data
+                razon_social = acreedor.get('razon_social', '')
+                nit = acreedor.get('nit', 'N/A')
+                banco = acreedor.get('banco', '')
+                tipo_cuenta = acreedor.get('tipo_cuenta', '')
+                numero_cuenta = acreedor.get('numero_cuenta', '')
+
+                # Replace placeholders in each cell
+                # Column 0: Razon Social
+                for paragraph in cells[0].paragraphs:
+                    if '[' in paragraph.text and ']' in paragraph.text:
+                        paragraph.text = razon_social
+
+                # Column 1: NIT
+                for paragraph in cells[1].paragraphs:
+                    if '[' in paragraph.text and ']' in paragraph.text:
+                        paragraph.text = nit if nit else 'N/A'
+
+                # Column 2: Banco
+                for paragraph in cells[2].paragraphs:
+                    if '[' in paragraph.text and ']' in paragraph.text:
+                        paragraph.text = banco
+
+                # Column 3: Tipo de Cuenta
+                for paragraph in cells[3].paragraphs:
+                    if '[' in paragraph.text and ']' in paragraph.text:
+                        paragraph.text = tipo_cuenta
+
+                # Column 4: Numero de Cuenta
+                for paragraph in cells[4].paragraphs:
+                    if '[' in paragraph.text and ']' in paragraph.text:
+                        paragraph.text = numero_cuenta
+
+                logger.debug(f"Populated creditor row {row_idx}: {razon_social}")
+
+            logger.info(f"Successfully populated {len(acreedores[:3])} creditor rows")
+
+        except Exception as e:
+            logger.error(f"Error populating creditor table: {str(e)}")
+            raise
 
     def _number_to_words_spanish(self, number: float) -> str:
         """

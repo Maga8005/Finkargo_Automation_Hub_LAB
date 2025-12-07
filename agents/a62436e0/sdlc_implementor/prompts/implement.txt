@@ -1,0 +1,1 @@
+/implement specs/issue-69-adw-a62436e0-instruccion-mandato-document-generation.md

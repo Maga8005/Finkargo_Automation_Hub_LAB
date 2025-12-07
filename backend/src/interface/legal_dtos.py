@@ -373,3 +373,93 @@ class SolicitudDesembolsoRequest(BaseModel):
         if v <= 0:
             raise ValueError('monto must be greater than 0')
         return v
+
+
+# ==================== Instrucción de Mandato DTOs ====================
+
+class BankCertificateData(BaseModel):
+    """Data extracted from Bank Certificate PDF"""
+    numero_certificado: Optional[str] = Field(None, description="Certificate number if available")
+    banco: str = Field(..., min_length=1, max_length=100, description="Bank name (e.g., BANCOLOMBIA, BBVA)")
+    fecha_emision: Optional[str] = Field(None, description="Certificate issue date")
+    razon_social: str = Field(..., min_length=1, max_length=255, description="Company name")
+    nit: str = Field(..., min_length=5, max_length=20, description="Colombian tax ID")
+    tipo_cuenta: str = Field(..., description="Account type (e.g., CUENTA DE AHORROS, CUENTA CORRIENTE)")
+    numero_cuenta: str = Field(..., min_length=1, max_length=50, description="Account number")
+
+    @validator('nit')
+    def validate_nit(cls, v):
+        """Validate NIT is not empty"""
+        if not v or not v.strip():
+            raise ValueError('nit cannot be empty')
+        return v.strip()
+
+    @validator('razon_social')
+    def validate_razon_social(cls, v):
+        """Validate razon_social is not empty"""
+        if not v or not v.strip():
+            raise ValueError('razon_social cannot be empty')
+        return v.strip()
+
+
+class AcreedorGastosNacionales(BaseModel):
+    """Creditor information for Instruccion de Mandato (National Expense Creditor)"""
+    razon_social: str = Field(..., min_length=1, max_length=255, description="Company name")
+    nit: Optional[str] = Field(None, max_length=20, description="Colombian tax ID (optional for DIAN)")
+    banco: str = Field(..., min_length=1, max_length=100, description="Bank name")
+    tipo_cuenta: str = Field(..., description="Account type (Ahorros, Corriente, PCE)")
+    numero_cuenta: str = Field(..., min_length=1, max_length=50, description="Account number or N/A")
+
+    @validator('razon_social')
+    def validate_razon_social(cls, v):
+        """Validate razon_social is not empty"""
+        if not v or not v.strip():
+            raise ValueError('razon_social cannot be empty')
+        return v.strip()
+
+    @validator('banco')
+    def validate_banco(cls, v):
+        """Validate banco is not empty"""
+        if not v or not v.strip():
+            raise ValueError('banco cannot be empty')
+        return v.strip()
+
+    @validator('tipo_cuenta')
+    def validate_tipo_cuenta(cls, v):
+        """Validate tipo_cuenta is valid"""
+        valid_types = ['Ahorros', 'Corriente', 'PCE', 'CUENTA DE AHORROS', 'CUENTA CORRIENTE']
+        if v not in valid_types:
+            # Normalize common variations
+            v_lower = v.lower()
+            if 'ahorr' in v_lower:
+                return 'Ahorros'
+            elif 'corriente' in v_lower:
+                return 'Corriente'
+            elif 'pce' in v_lower:
+                return 'PCE'
+            else:
+                raise ValueError(f'tipo_cuenta must be one of: {", ".join(valid_types)}')
+        return v
+
+
+class InstruccionMandatoRequest(BaseModel):
+    """Request to generate Instruccion de Mandato contract"""
+    client_nit: str = Field(..., min_length=5, max_length=20, description="Client NIT")
+    numero_cotizacion_desembolso: str = Field(..., min_length=1, max_length=100, description="Disbursement quote number")
+    fecha_contrato_mandato: str = Field(..., description="Mandate contract date (ISO format)")
+    monto: Decimal = Field(..., gt=0, description="Total amount to transfer in COP")
+    acreedores: list[AcreedorGastosNacionales] = Field(..., min_items=1, max_items=3, description="List of creditors (1-3)")
+
+    @validator('client_nit')
+    def validate_client_nit(cls, v):
+        """Validate NIT is not empty"""
+        if not v or not v.strip():
+            raise ValueError('client_nit cannot be empty')
+        return v.strip()
+
+    @validator('monto')
+    def validate_monto(cls, v):
+        """Validate that monto is positive"""
+        if v <= 0:
+            raise ValueError('monto must be greater than 0')
+        return v

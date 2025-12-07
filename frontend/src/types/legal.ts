@@ -190,3 +190,39 @@ export interface SolicitudDesembolsoRequest {
   dias_plazo: number;
   anexo_items: AnexoItem[];
 }
+
+// Instrucción de Mandato Types
+export interface BankCertificateData {
+  numero_certificado?: string;
+  banco: string;
+  fecha_emision?: string;
+  razon_social: string;
+  nit: string;
+  tipo_cuenta: string;
+  numero_cuenta: string;
+}
+
+export interface AcreedorGastosNacionales {
+  razon_social: string;
+  nit?: string;
+  banco: string;
+  tipo_cuenta: string;
+  numero_cuenta: string;
+}
+
+export interface InstruccionMandatoRequest {
+  client_nit: string;
+  numero_cotizacion_desembolso: string;
+  fecha_contrato_mandato: string; // ISO date string
+  monto: number;
+  acreedores: AcreedorGastosNacionales[];
+}
+
+export interface InstruccionMandatoFormData {
+  cotizacion_file?: File;
+  cotizacion_data?: CotizacionData;
+  bank_certificate_files: File[];
+  acreedores: AcreedorGastosNacionales[];
+  is_dian_only: boolean;
+  manual_acreedores: AcreedorGastosNacionales[];
+}
