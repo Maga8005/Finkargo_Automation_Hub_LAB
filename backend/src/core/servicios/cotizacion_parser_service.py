@@ -142,23 +142,97 @@ class CotizacionParserService:
 
     def _extract_fecha_cotizacion(self, text: str) -> Optional[str]:
         """
-        Extract quote date from PDF
+        Extract quote date from PDF.
+
+        Looks for the date in the header table "Fecha de Cotización de Desembolso:"
         Expected format: "DD de MONTH de YYYY" (Spanish)
         Example: "10 de noviembre de 2025"
         """
+        # First try to find date specifically after "Fecha de Cotización de Desembolso"
+        # Pattern: "Fecha de Cotización de Desembolso:" followed by date
+        pattern = r'Fecha\s+de\s+Cotizaci[oó]n\s+de\s+Desembolso\s*:?\s*(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})'
+        match = re.search(pattern, text, re.IGNORECASE)
+
+        if match:
+            date_str = match.group(1)
+            date_iso = self._parse_spanish_date_string(date_str)
+            if date_iso:
+                logger.debug(f"Extracted fecha_cotizacion from header: {date_iso}")
+                return date_iso
+
+        # Fallback: return the first Spanish date found in the document
+        logger.debug("Falling back to first date for fecha_cotizacion")
         return self._parse_spanish_date(text, context="cotización")
 
     def _extract_fecha_contrato_credito(self, text: str) -> Optional[str]:
         """
-        Extract credit contract date from PDF
+        Extract credit contract date from PDF.
+
+        Looks for the date that follows "Contrato de Crédito en Pesos de fecha"
+        in the first paragraph.
         Expected format: "DD de MONTH de YYYY" (Spanish)
+        Example: "6 de noviembre de 2025"
         """
+        # Pattern: "Contrato de Crédito" (optional "en Pesos") "de fecha" followed by date
+        # Handles variations like:
+        # - "Contrato de Crédito en Pesos de fecha 6 de noviembre de 2025"
+        # - "Contrato de Crédito de fecha 6 de noviembre de 2025"
+        pattern = r'Contrato\s+de\s+Cr[eé]dito(?:\s+en\s+Pesos)?\s+de\s+fecha\s+(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})'
+        match = re.search(pattern, text, re.IGNORECASE)
+
+        if match:
+            date_str = match.group(1)
+            date_iso = self._parse_spanish_date_string(date_str)
+            if date_iso:
+                logger.debug(f"Extracted fecha_contrato_credito from context: {date_iso}")
+                return date_iso
+
+        # Fallback: if specific pattern not found, try to find second date in document
+        # This maintains backward compatibility
+        logger.warning("Could not find 'Contrato de Crédito de fecha' pattern, using fallback")
         return self._parse_spanish_date(text, context="contrato")
+
+    def _parse_spanish_date_string(self, date_str: str) -> Optional[str]:
+        """
+        Parse a Spanish date string to ISO format.
+
+        Args:
+            date_str: Spanish date string like "6 de noviembre de 2025"
+
+        Returns:
+            ISO format date string "YYYY-MM-DD" or None if invalid
+        """
+        # Pattern: day (1-2 digits) de month (word) de year (4 digits)
+        pattern = r'(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})'
+        match = re.match(pattern, date_str.strip(), re.IGNORECASE)
+
+        if not match:
+            logger.warning(f"Could not parse Spanish date string: {date_str}")
+            return None
+
+        day_str = match.group(1)
+        month_str = match.group(2).lower()
+        year_str = match.group(3)
+
+        # Convert month name to number
+        month_num = SPANISH_MONTHS.get(month_str)
+
+        if not month_num:
+            logger.warning(f"Unknown Spanish month: {month_str}")
+            return None
+
+        try:
+            # Validate and create date
+            date_obj = datetime(int(year_str), month_num, int(day_str))
+            return date_obj.strftime('%Y-%m-%d')
+        except ValueError as e:
+            logger.warning(f"Invalid date values: day={day_str}, month={month_str}, year={year_str}: {e}")
+            return None
 
     def _parse_spanish_date(self, text: str, context: str = "") -> Optional[str]:
         """
-        Parse Spanish date format: "DD de MONTH de YYYY"
-        Returns ISO format date string: "YYYY-MM-DD"
+        Parse Spanish date format from text: "DD de MONTH de YYYY"
+        Returns the first valid date found as ISO format string: "YYYY-MM-DD"
         """
         # Pattern: day (1-2 digits) de month (word) de year (4 digits)
         pattern = r'(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})'

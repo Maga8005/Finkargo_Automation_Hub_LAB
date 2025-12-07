@@ -39,6 +39,7 @@ class TestCotizacionParserService:
         Expected values:
         - Numero Cotizacion: CO:900436389:1:2:DOM
         - Fecha Cotizacion: 2025-11-10
+        - Fecha Contrato Credito: 2025-11-06
         - 3 Anexo items with total 739,860 COP
         """
         if not cotizacion_pdf_path.exists():
@@ -56,6 +57,10 @@ class TestCotizacionParserService:
         # Verify fecha_cotizacion
         assert result.fecha_cotizacion == "2025-11-10", \
             f"Expected '2025-11-10', got '{result.fecha_cotizacion}'"
+
+        # Verify fecha_contrato_credito (different from fecha_cotizacion)
+        assert result.fecha_contrato_credito == "2025-11-06", \
+            f"Expected '2025-11-06', got '{result.fecha_contrato_credito}'"
 
     def test_parse_cotizacion_anexo_items_count(self, parser, cotizacion_pdf_path):
         """Test that exactly 3 Anexo I items are extracted"""
@@ -110,6 +115,72 @@ class TestCotizacionParserService:
         expected_total = Decimal("739860.00")
         assert result.monto_total == expected_total, \
             f"Expected monto_total {expected_total}, got {result.monto_total}"
+
+    def test_parse_cotizacion_fecha_contrato_credito(self, parser, cotizacion_pdf_path):
+        """
+        Test that fecha_contrato_credito is correctly extracted from the
+        'Contrato de Crédito en Pesos de fecha' phrase in the first paragraph.
+
+        Expected: 2025-11-06 (NOT 2025-11-10 which is the cotización date)
+        """
+        if not cotizacion_pdf_path.exists():
+            pytest.skip(f"Test file not found: {cotizacion_pdf_path}")
+
+        with open(cotizacion_pdf_path, 'rb') as f:
+            pdf_bytes = f.read()
+
+        result = parser.parse_cotizacion(pdf_bytes)
+
+        # The credit contract date should be 2025-11-06
+        assert result.fecha_contrato_credito == "2025-11-06", \
+            f"Expected fecha_contrato_credito '2025-11-06', got '{result.fecha_contrato_credito}'"
+
+    def test_fecha_contrato_credito_different_from_cotizacion(self, parser, cotizacion_pdf_path):
+        """
+        Test that fecha_contrato_credito is different from fecha_cotizacion.
+
+        In the test PDF:
+        - Fecha de Cotización de Desembolso: 10 de noviembre de 2025
+        - Contrato de Crédito en Pesos de fecha: 6 de noviembre de 2025
+        """
+        if not cotizacion_pdf_path.exists():
+            pytest.skip(f"Test file not found: {cotizacion_pdf_path}")
+
+        with open(cotizacion_pdf_path, 'rb') as f:
+            pdf_bytes = f.read()
+
+        result = parser.parse_cotizacion(pdf_bytes)
+
+        # The two dates should be different
+        assert result.fecha_cotizacion != result.fecha_contrato_credito, \
+            f"fecha_cotizacion ({result.fecha_cotizacion}) should differ from " \
+            f"fecha_contrato_credito ({result.fecha_contrato_credito})"
+
+        # Verify the specific values
+        assert result.fecha_cotizacion == "2025-11-10"
+        assert result.fecha_contrato_credito == "2025-11-06"
+
+    def test_parse_spanish_date_string(self, parser):
+        """Test parsing Spanish date strings to ISO format"""
+        # Normal date
+        result = parser._parse_spanish_date_string("6 de noviembre de 2025")
+        assert result == "2025-11-06"
+
+        # Double-digit day
+        result = parser._parse_spanish_date_string("10 de noviembre de 2025")
+        assert result == "2025-11-10"
+
+        # Different month
+        result = parser._parse_spanish_date_string("15 de enero de 2024")
+        assert result == "2024-01-15"
+
+        # Invalid month
+        result = parser._parse_spanish_date_string("6 de invalidmonth de 2025")
+        assert result is None
+
+        # Invalid format
+        result = parser._parse_spanish_date_string("invalid date string")
+        assert result is None
 
     def test_parse_cop_amount_with_thousands_separator(self, parser):
         """Test parsing Colombian peso amount with period as thousands separator"""
