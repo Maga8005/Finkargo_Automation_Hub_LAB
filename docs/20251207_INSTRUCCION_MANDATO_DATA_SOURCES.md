@@ -5,7 +5,9 @@
 The **Instruccion de Mandato** (Instruction of Mandate) is a legal document generated as part of the Paga Local Colombia operation workflow. It authorizes Finkargo to transfer funds to National Expense Creditors (Acreedores de Gastos Nacionales) on behalf of the client. This document is generated alongside the "Solicitud de Desembolso" (Disbursement Request) for each disbursement operation.
 
 **Template File:** `FK COL - Fin. COP - Mandato (IM).docx`
-**Contract Type:** `pl_co_mandato_im` (existing) and `pl_co_dian_mandato_im` (DIAN-specific variant)
+**Contract Type:** `pl_co_mandato_im` (for non-DIAN creditors requiring Bank Certificate)
+
+> **Note:** DIAN-specific payments (`pl_co_dian_mandato_im`) will be implemented separately with a dedicated template. This document focuses on the non-DIAN implementation only.
 
 ## Data Sources Summary
 
@@ -21,11 +23,11 @@ The **Instruccion de Mandato** (Instruction of Mandate) is a legal document gene
 1. **Disbursement Number**: Same as the quote number (Numero de Cotizacion de Desembolso), copy-pasted from the Cotizacion PDF
 2. **Contract Date (Fecha del contrato marco de mandato)**: Always the same as the Credit Contract date (same as Contrato de Credito)
 3. **Amount**: Extracted from Cotizacion PDF - must be displayed in both letters (text) and numbers
-4. **Creditor Information**:
-   - For **DIAN** (tax authority): Uses pre-filled static table (PCE payment method)
-   - For **Other creditors**: Information extracted from Bank Certificate PDF (varies by creditor)
-5. **Multiple Creditors**: A single Instruccion de Mandato can have multiple creditors (e.g., DIAN + freight agent)
+4. **Creditor Information**: Extracted from Bank Certificate PDF (varies by creditor/bank)
+5. **Multiple Creditors**: A single Instruccion de Mandato can have multiple creditors (up to 3)
 6. **Bank Certificate Requirement**: Mesa de Control requires the bank certificate before releasing disbursement
+
+> **Scope Note:** This implementation handles non-DIAN creditors only. DIAN payments (tax authority) will use a separate template with pre-filled static values (PCE payment method).
 
 ## Field Mapping by Source
 
@@ -62,9 +64,9 @@ The **Instruccion de Mandato** (Instruction of Mandate) is a legal document gene
 | Fecha Actual | Current date at generation time | `[Fecha actual]` | Format: DD de MONTH de YYYY |
 | Document ID | Auto-increment sequence | N/A (not in template) | For tracking purposes |
 
-### DIAN-Specific Static Values
+### DIAN-Specific Static Values (For Future Separate Implementation)
 
-When the creditor is **DIAN** (Entidad de pago de Impuestos), use these static values:
+> **Out of Scope:** The following DIAN values are documented for reference only. DIAN payments will be implemented separately with contract type `pl_co_dian_mandato_im` and a dedicated template.
 
 | Field | Static Value | Notes |
 |-------|-------------|-------|
@@ -96,29 +98,30 @@ The template contains a nested table for creditor information with the following
 
 | Column | Placeholder | Source |
 |--------|-------------|--------|
-| Razon social | `[...]` | Bank Certificate PDF / DIAN Static |
-| NIT (si aplica) | `[...]` | Bank Certificate PDF / DIAN Static |
-| Banco | `[...]` | Bank Certificate PDF / DIAN Static |
-| Tipo de Cuenta | `[Ahorros \| Corriente]` | Bank Certificate PDF / DIAN Static |
-| Numero de Cuenta | `[...]` | Bank Certificate PDF / DIAN Static |
+| Razon social | `[...]` | Bank Certificate PDF |
+| NIT (si aplica) | `[...]` | Bank Certificate PDF |
+| Banco | `[...]` | Bank Certificate PDF |
+| Tipo de Cuenta | `[Ahorros \| Corriente]` | Bank Certificate PDF |
+| Numero de Cuenta | `[...]` | Bank Certificate PDF |
 
 **Note:** Template has 3 data rows available for multiple creditors.
 
-## Variant Handling: DIAN vs Non-DIAN
+## Implementation Approach: Separate Templates (Chosen)
 
-### Option 1: Single Template with Conditional Logic (Recommended)
+Based on stakeholder requirements, DIAN and non-DIAN creditors will be handled as **separate implementations**:
 
-Detect if creditor is DIAN based on:
-- Acreedor name contains "DIAN", "Entidad de pago de Impuestos", or "tributo"
-- Use static DIAN values when detected
-- Use Bank Certificate data for other creditors
+| Contract Type | Template | Creditor Type | Input Required |
+|---------------|----------|---------------|----------------|
+| `pl_co_mandato_im` | `FK COL - Fin. COP - Mandato (IM).docx` | Non-DIAN (banks, agents, etc.) | Cotizacion PDF + Bank Certificate PDF |
+| `pl_co_dian_mandato_im` | *Separate template TBD* | DIAN (tax authority) | Cotizacion PDF only (static values) |
 
-### Option 2: Two Separate Templates
+**This Document Scope:** `pl_co_mandato_im` (non-DIAN) implementation only.
 
-- `pl_co_mandato_im` - Generic template requiring Bank Certificate
-- `pl_co_dian_mandato_im` - DIAN-specific template with pre-filled values
-
-**Per transcript discussion**, Option 2 was suggested but Option 1 is more maintainable.
+**Benefits of Separate Templates:**
+- Simpler logic per implementation
+- Clear separation of concerns
+- Easier to maintain and test independently
+- Different UI flows (Bank Certificate required vs not required)
 
 ## File Processing Requirements
 
@@ -181,11 +184,12 @@ numero_cuenta           |         |
 
 ## Edge Cases and Validation
 
-1. **Missing Bank Certificate**: If creditor is not DIAN and no bank certificate provided, block generation
+1. **Missing Bank Certificate**: Bank Certificate is REQUIRED for this implementation - block generation if not provided
 2. **Multiple Creditors**: Support up to 3 creditors (template limit)
 3. **Amount Validation**: Ensure monto in Instruccion de Mandato matches Cotizacion total
 4. **Date Consistency**: Fecha del contrato mandato MUST equal fecha del contrato de credito
 5. **ID Type Detection**: Detect C.C. vs C.E. from certificate or database
+6. **Bank Format Variations**: Handle different bank certificate formats (Bancolombia, BBVA, etc.)
 
 ## References
 
