@@ -1,0 +1,79 @@
+/find_plan_file 69 a62436e0 Perfect! Now let me create a summary of the work completed:
+
+## Summary
+
+I've successfully created a comprehensive implementation plan for the **Instruccion de Mandato (Mandate Instruction) Document Generation feature** (Issue #69). Here's what was accomplished:
+
+### 📋 Plan File Created
+
+**Location:** `specs/issue-69-adw-a62436e0-instruccion-mandato-document-generation.md`
+
+### 🔍 Key Plan Components
+
+1. **Feature Overview**
+   - Automates generation of Instruccion de Mandato documents for Paga Local Colombia workflow
+   - Supports PDF parsing (Cotización + Bank Certificate), data extraction, and document generation
+   - Handles multiple creditors (up to 3) with bank account information
+
+2. **Complete Pre-Implementation Verification**
+   - ✅ **Template Placeholder Inventory:** Documented 9 main placeholders + 5 nested table columns
+   - ✅ **File Format Specs:** Cotización PDF and Bank Certificate PDF formats with extraction patterns
+   - ✅ **Data Contract Verification:** All repository methods return `dict` (use bracket notation)
+   - ✅ **Interface Mapping:** Frontend ↔ Backend field mapping (snake_case consistently)
+   - ✅ **Database Dependencies:** Contract type enum exists, template file exists, no migrations needed
+
+3. **16 Step-by-Step Tasks**
+   - Task 1-4: Backend foundation (DTOs, constants, Bank Certificate parser, tests)
+   - Task 5-7: Document generation logic and API endpoints
+   - Task 8-13: Frontend types, services, UI components, routing
+   - Task 14-15: E2E test creation and execution
+   - Task 16: Validation commands (pytest, linting, build)
+
+4. **7 New Files to Create**
+   - Backend: `bank_certificate_parser_service.py`, `constants.py`, `test_bank_certificate_parser_service.py`
+   - Frontend: `FKInstruccionMandatoForm.tsx`, `FKAcreedorCard.tsx`, `InstruccionMandatoPage.tsx`
+   - E2E Test: `test_instruccion_mandato_generation.md`
+
+5. **6 Files to Modify**
+   - Backend: `legal_dtos.py`, `document_service.py`, `legal_routes.py` or `operations_routes.py`
+   - Frontend: `legal.ts`, `legalService.ts` or `operationsService.ts`, `App.tsx`
+
+6. **Comprehensive Testing Strategy**
+   - Unit tests for Bank Certificate parser (valid certs, invalid PDFs, edge cases)
+   - Integration tests for API endpoints (parsing, generation, error handling)
+   - E2E test covering complete user workflow with screenshots
+   - 20+ edge cases documented (invalid PDFs, missing data, multi-creditor scenarios)
+
+7. **Acceptance Criteria**
+   - 9 backend criteria (parsing, generation, validation, tests)
+   - 9 frontend criteria (forms, validation, build)
+   - 11 integration criteria (end-to-end flow, document verification)
+
+8. **Validation Commands**
+   - Backend tests, linting, and type checking
+   - Frontend tests, linting, and build
+   - E2E test execution
+   - Manual document verification
+
+### 🎯 Plan Quality
+
+All checklist items completed:
+- ✅ Feature category identified (Document Generation + Data Import/Export)
+- ✅ All placeholders extracted programmatically from data sources doc
+- ✅ File format specifications documented with regex patterns
+- ✅ Data contract verified (dict access patterns documented)
+- ✅ Database dependencies checked (no migrations needed)
+- ✅ E2E test included with screenshot requirements
+- ✅ Snake_case naming enforced consistently
+- ✅ Edge cases comprehensively documented
+- ✅ Validation commands test all functionality
+
+### 📚 Architecture Alignment
+
+The plan strictly follows the codebase's Clean Architecture patterns:
+- **Adapter Layer:** HTTP endpoints with RBAC
+- **Core Layer:** Business logic (document generation, PDF parsing)
+- **Repository Layer:** Database access (existing repositories)
+- **Interface Layer:** DTOs with Pydantic validation
+
+All patterns match existing implementations (Solicitud de Desembolso, Cotización parser, Document Service).
