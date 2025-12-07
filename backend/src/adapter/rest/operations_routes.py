@@ -272,16 +272,17 @@ async def generate_solicitud_desembolso(
 
         # Build data snapshot combining client data + solicitud data
         from decimal import Decimal
+        cupo = client.get('cupo_plataforma')
         data_snapshot = {
-            # Client data
-            "nit": client.nit,
-            "nombre_importador": client.nombre_importador,
-            "representante_legal": client.representante_legal,
-            "cedula_representante": client.cedula_representante,
-            "ciudad_domicilio": client.ciudad_domicilio,
-            "cupo_plataforma": float(client.cupo_plataforma) if isinstance(client.cupo_plataforma, Decimal) else client.cupo_plataforma,
-            "direccion_comercial": client.direccion_comercial,
-            "tipo_identificacion_representante": client.tipo_identificacion_representante,
+            # Client data (client is a dict from repository)
+            "nit": client['nit'],
+            "nombre_importador": client['nombre_importador'],
+            "representante_legal": client['representante_legal'],
+            "cedula_representante": client['cedula_representante'],
+            "ciudad_domicilio": client['ciudad_domicilio'],
+            "cupo_plataforma": float(cupo) if cupo is not None and isinstance(cupo, (Decimal, int, float, str)) else cupo,
+            "direccion_comercial": client.get('direccion_comercial'),
+            "tipo_identificacion_representante": client.get('tipo_identificacion_representante'),
             # Solicitud de Desembolso specific data
             "numero_cotizacion_desembolso": request.numero_cotizacion_desembolso,
             "fecha_contrato_credito": request.fecha_contrato_credito,

@@ -245,68 +245,172 @@ class CotizacionParserService:
         logger.warning("Could not extract numero_id_representante")
         return None
 
+    def _parse_cop_amount(self, amount_str: str) -> Optional[Decimal]:
+        """
+        Parse Colombian peso amount from PDF text.
+
+        Handles formats like:
+        - " COP                              407.001,00 "
+        - "COP 290.000,00"
+        - "407.001,00"
+        - "-" (empty/zero)
+
+        Colombian format uses:
+        - Period (.) as thousands separator
+        - Comma (,) as decimal separator
+
+        Returns:
+            Decimal amount or None if invalid/empty
+        """
+        if not amount_str:
+            return None
+
+        # Strip whitespace and COP prefix
+        cleaned = amount_str.strip()
+        cleaned = re.sub(r'^COP\s*', '', cleaned, flags=re.IGNORECASE)
+        cleaned = cleaned.strip()
+
+        # Handle empty amounts (shown as "-" in the PDF)
+        if cleaned == '-' or cleaned == '':
+            return None
+
+        # Remove thousands separators (periods) and convert decimal separator (comma) to period
+        # Format: 407.001,00 -> 407001.00
+        # First, remove all periods (thousands separators)
+        cleaned = cleaned.replace('.', '')
+        # Then convert comma to period (decimal separator)
+        cleaned = cleaned.replace(',', '.')
+
+        try:
+            amount = Decimal(cleaned)
+            # Validate reasonable amount (> 0, < 1 trillion)
+            if amount > 0 and amount < 1_000_000_000_000:
+                return amount
+            return None
+        except Exception as e:
+            logger.warning(f"Could not parse COP amount '{amount_str}': {e}")
+            return None
+
     def _extract_anexo_table(self, text: str) -> list[AnexoItem]:
         """
-        Extract Anexo I table data from PDF
+        Extract Anexo I table data from PDF.
+
         Expected columns: Acreedor, No. Instrumento, Monto
 
-        This is a simplified extraction - may need refinement based on actual PDF structure
+        PyMuPDF extracts table cells on separate lines. The PDF structure is:
+        - Table header: "Acreedor del Gasto Nacional de Importación"
+        - Data rows (3 lines each): acreedor, numero_instrumento, monto
+        - Empty rows: "0", "0  COP -"
+        - Total row: " COP 739.860,00 "
+        - Footer: "ANEXO I"
+
+        We parse from the table header UNTIL we hit "ANEXO I" or end of document.
         """
         anexo_items = []
 
-        # Look for "Anexo I" section
-        anexo_pattern = r'Anexo\s+I'
-        anexo_match = re.search(anexo_pattern, text, re.IGNORECASE)
+        # Find the table header row - this marks the start of the Anexo I table
+        header_pattern = r'Acreedor del Gasto Nacional de Importaci[oó]n'
+        header_match = re.search(header_pattern, text, re.IGNORECASE)
 
-        if not anexo_match:
-            logger.warning("Could not find 'Anexo I' section in PDF")
+        if not header_match:
+            logger.warning("Could not find Anexo I table header in PDF")
             return anexo_items
 
-        # Get text after Anexo I heading
-        anexo_start = anexo_match.end()
-        anexo_text = text[anexo_start:anexo_start + 5000]  # Extract next ~5000 chars
+        # Get text from header to end, then find where ANEXO I appears (as footer)
+        table_start = header_match.start()
+        table_text = text[table_start:]
 
-        # Pattern: Extract table rows (simplified - assumes specific structure)
-        # Looking for lines with: text, number, currency amount
-        # Example: "Entidad de pago de Impuestos    1003887257    $407,001.00"
+        # Find where "ANEXO I" appears (as the table footer/title at the end)
+        anexo_footer = re.search(r'\bANEXO\s+I\s*$', table_text, re.IGNORECASE | re.MULTILINE)
+        if anexo_footer:
+            table_text = table_text[:anexo_footer.start()]
 
-        # Split into lines
-        lines = anexo_text.split('\n')
+        logger.info(f"Found Anexo I table header at position {table_start}")
 
-        for line in lines:
-            # Skip empty lines or header lines
-            if not line.strip() or 'Acreedor' in line or 'Total' in line.lower():
+        # Split into lines and clean
+        lines = [line.strip() for line in table_text.split('\n') if line.strip()]
+
+        logger.debug(f"Processing {len(lines)} lines in Anexo I table")
+
+        # Skip header lines (first 3 lines are the column headers)
+        # "Acreedor del Gasto Nacional de Importación."
+        # "No. de Instrumento de Pago"
+        # "Monto del Instrumento de Pago (COP$)"
+        i = 0
+        header_keywords = ['Acreedor', 'No. de Instrumento', 'Monto del Instrumento', 'Instrumento de Pago']
+        while i < len(lines) and any(keyword in lines[i] for keyword in header_keywords):
+            i += 1
+
+        # Now process data rows
+        # Table structure (each data row spans 3 lines):
+        # Line N: "Entidad de pago de Impuestos" (acreedor - text with letters)
+        # Line N+1: "1003887257" (numero_instrumento - digits only)
+        # Line N+2: " COP 407.001,00 " (monto - COP amount)
+        #
+        # Empty rows have structure:
+        # Line N: "0" (acreedor = 0)
+        # Line N+1: "0  COP -" (combined instrumento + monto, both zero/empty)
+
+        while i < len(lines):
+            line1 = lines[i]
+
+            # Stop if we hit a total line (COP without preceding acreedor pattern)
+            if line1.strip().startswith('COP') or (line1.strip().startswith(' COP') and 'Entidad' not in line1):
+                logger.debug(f"Reached total line at index {i}: '{line1}'")
+                break
+
+            # Skip empty/placeholder rows (where acreedor is "0")
+            if line1 == "0":
+                i += 1
+                # Next line should be "0  COP -" (combined), skip it too
+                if i < len(lines) and lines[i].startswith("0"):
+                    i += 1
                 continue
 
-            # Try to extract: acreedor (text), numero_instrumento (digits), monto (currency)
-            # Pattern: text followed by digits followed by currency
-            row_pattern = r'([A-Za-zÁÉÍÓÚáéíóúñÑ\s]+?)\s+(\d+)\s+\$?\s?([\d,\.]+)'
-            row_match = re.search(row_pattern, line)
+            # Check if this looks like a valid acreedor (contains letters, not just digits/symbols)
+            is_valid_acreedor = bool(re.search(r'[A-Za-zÁÉÍÓÚáéíóúñÑ]', line1))
 
-            if row_match:
-                acreedor = row_match.group(1).strip()
-                numero_instrumento = row_match.group(2).strip()
-                monto_str = row_match.group(3).strip()
+            if not is_valid_acreedor:
+                i += 1
+                continue
 
-                # Clean monto: remove commas, convert to Decimal
-                monto_clean = monto_str.replace(',', '').replace('.', '')
+            # Get next two lines for instrumento and monto
+            if i + 2 >= len(lines):
+                break
 
-                try:
-                    # Parse as integer (Colombian peso format: no decimals in practice)
-                    monto = Decimal(monto_clean)
+            line2 = lines[i + 1]
+            line3 = lines[i + 2]
 
-                    # Validate reasonable amount (> 0, < 1 billion)
-                    if 0 < monto < 1_000_000_000:
+            # Check if line2 looks like an instrument number (only digits)
+            is_valid_instrumento = bool(re.match(r'^\d+$', line2))
+
+            # Check if line3 contains COP amount
+            has_cop_amount = 'COP' in line3
+
+            if is_valid_instrumento and has_cop_amount:
+                acreedor = line1.strip()
+                numero_instrumento = line2.strip()
+                monto = self._parse_cop_amount(line3)
+
+                if monto is not None:
+                    try:
                         item = AnexoItem(
                             acreedor=acreedor,
                             numero_instrumento=numero_instrumento,
                             monto=monto
                         )
                         anexo_items.append(item)
-                        logger.debug(f"Extracted anexo item: {acreedor} - {monto}")
-                except (ValueError, Exception) as e:
-                    logger.warning(f"Could not parse anexo row: {line} - {e}")
-                    continue
+                        logger.debug(f"Extracted anexo item: {acreedor} | {numero_instrumento} | {monto}")
+                    except Exception as e:
+                        logger.warning(f"Failed to create AnexoItem: {e}")
 
-        logger.info(f"Extracted {len(anexo_items)} anexo items from table")
+                i += 3  # Move to next row group
+            else:
+                i += 1  # Move to next line if pattern doesn't match
+
+        logger.info(f"Extracted {len(anexo_items)} anexo items from ANEXO I table")
+        if anexo_items:
+            total = sum(item.monto for item in anexo_items)
+            logger.info(f"Total amount from extracted items: {total} COP")
+
         return anexo_items

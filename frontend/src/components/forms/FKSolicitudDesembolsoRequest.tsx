@@ -61,7 +61,11 @@ const FKSolicitudDesembolsoRequest: React.FC = () => {
 
   // Calculate total when anexo items change
   useEffect(() => {
-    const total = anexoItems.reduce((sum, item) => sum + (item.monto || 0), 0);
+    const total = anexoItems.reduce((sum, item) => {
+      // Ensure monto is treated as a number (defensive check for string values)
+      const monto = typeof item.monto === 'string' ? parseFloat(item.monto) : Number(item.monto);
+      return sum + (monto || 0);
+    }, 0);
     setMontoTotal(total);
   }, [anexoItems]);
 
@@ -124,9 +128,16 @@ const FKSolicitudDesembolsoRequest: React.FC = () => {
       setExtractedData(data);
 
       // Pre-populate form fields
-      setNumeroCotizacion(data.numeroCotizacion || '');
-      setFechaContrato(data.fechaContratCredito || '');
-      setAnexoItems(data.anexoItems || []);
+      setNumeroCotizacion(data.numero_cotizacion || '');
+      setFechaContrato(data.fecha_contrato_credito || '');
+
+      // Convert monto from string to number for each anexo item
+      // Backend serializes Decimal as string, frontend needs numbers for calculations
+      const convertedItems = (data.anexo_items || []).map(item => ({
+        ...item,
+        monto: typeof item.monto === 'string' ? parseFloat(item.monto) : Number(item.monto)
+      }));
+      setAnexoItems(convertedItems);
 
       setError(null);
     } catch (err) {
@@ -139,7 +150,7 @@ const FKSolicitudDesembolsoRequest: React.FC = () => {
   };
 
   const handleAddAnexoRow = () => {
-    setAnexoItems([...anexoItems, { acreedor: '', numeroInstrumento: '', monto: 0 }]);
+    setAnexoItems([...anexoItems, { acreedor: '', numero_instrumento: '', monto: 0 }]);
   };
 
   const handleRemoveAnexoRow = (index: number) => {
@@ -182,20 +193,13 @@ const FKSolicitudDesembolsoRequest: React.FC = () => {
     setError(null);
 
     try {
-      // Convert anexo items to backend format (snake_case) - note that frontend uses camelCase
-      const anexoItemsBackend: AnexoItem[] = anexoItems.map(item => ({
-        acreedor: item.acreedor,
-        numeroInstrumento: item.numeroInstrumento,
-        monto: item.monto,
-      }));
-
       const request: SolicitudDesembolsoRequest = {
         client_nit: selectedClient.nit,
         numero_cotizacion_desembolso: numeroCotizacion,
         fecha_contrato_credito: fechaContrato,
         monto: montoTotal,
         dias_plazo: diasPlazo,
-        anexo_items: anexoItemsBackend,
+        anexo_items: anexoItems,
       };
 
       const contract = await operationsService.generateSolicitudDesembolso(request);
@@ -398,7 +402,7 @@ const FKSolicitudDesembolsoRequest: React.FC = () => {
 
           {extractedData && (
             <Alert severity="success" sx={{ mt: 2 }}>
-              Datos extraídos exitosamente: {extractedData.anexoItems.length} ítems encontrados
+              Datos extraídos exitosamente: {extractedData.anexo_items.length} ítems encontrados
             </Alert>
           )}
         </CardContent>
@@ -491,8 +495,8 @@ const FKSolicitudDesembolsoRequest: React.FC = () => {
                       <TableCell>
                         <TextField
                           fullWidth
-                          value={item.numeroInstrumento}
-                          onChange={(e) => handleAnexoItemChange(index, 'numeroInstrumento', e.target.value)}
+                          value={item.numero_instrumento}
+                          onChange={(e) => handleAnexoItemChange(index, 'numero_instrumento', e.target.value)}
                           size="small"
                           variant="standard"
                         />

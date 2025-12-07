@@ -167,19 +167,19 @@ export interface OperationsFilterParams {
 // Solicitud de Desembolso Types
 export interface AnexoItem {
   acreedor: string;
-  numeroInstrumento: string;
+  numero_instrumento: string;
   monto: number;
 }
 
 export interface CotizacionData {
-  numeroCotizacion: string;
-  fechaCotizacion?: string;
-  fechaContratCredito?: string;
-  representanteLegal?: string;
-  tipoIdRepresentante?: string;
-  numeroIdRepresentante?: string;
-  anexoItems: AnexoItem[];
-  montoTotal: number;
+  numero_cotizacion: string;
+  fecha_cotizacion?: string;
+  fecha_contrato_credito?: string;
+  representante_legal?: string;
+  tipo_id_representante?: string;
+  numero_id_representante?: string;
+  anexo_items: AnexoItem[];
+  monto_total: number;
 }
 
 export interface SolicitudDesembolsoRequest {
