@@ -43,42 +43,6 @@ When investigating bugs, understand the layer where the issue occurs:
 - Respect requested files in the `Relevant Files` section.
 - Start your research by reading the `README.md` file.
 
-## Verification Requirements (Prevents Common Bug Patterns)
-
-### Data Contract Verification
-- CRITICAL: When the bug involves API data access:
-  1. **Verify return types** of repository methods (check if they return `dict` or model objects)
-  2. **Check access patterns** - use `['key']` for dicts, `.attribute` for objects
-  3. **Verify frontend/backend field naming** matches (this project uses snake_case)
-
-### Template Verification (Document Generation Bugs)
-- CRITICAL: If the bug involves Word document placeholders:
-  1. **Extract ACTUAL placeholders** from the template programmatically:
-     ```python
-     cd backend && python -c "
-     from docx import Document
-     import re
-     doc = Document('templates/YOUR_TEMPLATE.docx')
-     placeholders = set()
-     for para in doc.paragraphs:
-         found = re.findall(r'\[[^\]]+\]', para.text)
-         placeholders.update(found)
-     for table in doc.tables:
-         for row in table.rows:
-             for cell in row.cells:
-                 found = re.findall(r'\[[^\]]+\]', cell.text)
-                 placeholders.update(found)
-     for p in sorted(placeholders):
-         print(p)
-     "
-     ```
-  2. **Compare with code** - ensure code uses EXACT placeholder strings (case-sensitive)
-
-### Database Verification
-- CRITICAL: If the bug involves missing database records:
-  1. **Check if required records exist** in relevant tables
-  2. **Create migration** if records need to be inserted
-
 ## Relevant Files
 
 Focus on the following files:
