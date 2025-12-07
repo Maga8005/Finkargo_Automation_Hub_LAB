@@ -61,6 +61,130 @@ If the feature requires role protection:
 - Respect requested files in the `Relevant Files` section.
 - Start your research by reading the `README.md` file.
 
+## Feature Category Classification
+
+First, identify which category this feature belongs to and apply the relevant verification requirements:
+
+| Category | Examples | Key Verification |
+|----------|----------|------------------|
+| **Document Generation** | Contracts, Solicitud de Desembolso | Template placeholders, database records |
+| **Excel Processing** | Invoice upload, Payment conversion | Column mapping, data transformation |
+| **Data Import/Export** | CSV import, ZIP download | File format validation, field mapping |
+| **API Integration** | Google Drive sync, external services | Auth, endpoint contracts, error handling |
+| **Reporting** | Finance reports, audit history | Query structure, pagination, filtering |
+| **CRUD Operations** | Client management, template CRUD | Repository patterns, validation rules |
+
+## Verification Requirements by Feature Category
+
+### A. Document Generation Features (Contracts, PDFs)
+- CRITICAL: If the feature involves Word document generation or modification:
+  1. **Extract ALL placeholders programmatically** by running:
+     ```python
+     cd backend && python -c "
+     from docx import Document
+     import re
+     doc = Document('templates/YOUR_TEMPLATE.docx')
+     placeholders = set()
+     for para in doc.paragraphs:
+         found = re.findall(r'\[[^\]]+\]', para.text)
+         placeholders.update(found)
+     for table in doc.tables:
+         for row in table.rows:
+             for cell in row.cells:
+                 found = re.findall(r'\[[^\]]+\]', cell.text)
+                 placeholders.update(found)
+     for p in sorted(placeholders):
+         print(p)
+     "
+     ```
+  2. **Document the EXACT placeholder strings** in the plan (case-sensitive, may contain spaces)
+  3. **Create a placeholder mapping table**: Placeholder -> Data Source -> Format
+  4. **Verify database records**: template record in `contract_templates`, enum in DTOs
+
+### B. Excel Processing Features (Treasury, Finance, Operations)
+- CRITICAL: If the feature involves Excel file processing or conversion:
+  1. **Document source Excel structure**:
+     - List ALL expected columns with exact names (case-sensitive)
+     - Note required vs optional columns
+     - Document data types and formats (dates, numbers, text)
+  2. **Document output Excel structure** (if generating output):
+     - Target column names and order
+     - Data transformation rules (1:1 or 1:N row expansion)
+     - Formulas or calculations applied
+  3. **Identify existing similar services** to follow patterns:
+     - `PaymentTemplateService` for payment conversions
+     - `ExcelValidationService` for upload validation
+     - `ExcelMergeService` for data consolidation
+  4. **Document catalog/lookup dependencies**:
+     - AR account mappings
+     - Product classifications
+     - Country-specific variations (CO vs MX)
+
+### C. Data Import/Export Features
+- CRITICAL: If the feature involves file import or export:
+  1. **Document file format specifications**:
+     - Supported formats (CSV, XLSX, ZIP)
+     - Size limits and validation rules
+     - Required headers or structure
+  2. **Map input fields to internal data model**:
+     - Field name mapping (source -> internal)
+     - Data type conversions
+     - Validation rules per field
+  3. **Document error handling**:
+     - What happens on invalid rows?
+     - Partial success handling
+     - Error message format
+
+### D. API/Integration Features
+- CRITICAL: If the feature involves external service integration:
+  1. **Document external API contract**:
+     - Endpoint URLs and methods
+     - Authentication method
+     - Request/response formats
+  2. **Error handling strategy**:
+     - Retry logic
+     - Timeout handling
+     - Fallback behavior
+  3. **Data synchronization**:
+     - Conflict resolution
+     - Idempotency requirements
+
+### E. Reporting Features
+- CRITICAL: If the feature involves reports or data queries:
+  1. **Document query requirements**:
+     - Filter parameters
+     - Pagination needs
+     - Sort options
+  2. **Performance considerations**:
+     - Expected data volume
+     - Indexing needs
+     - Caching strategy
+
+## Data Contract Verification Requirements (ALL Features)
+
+- CRITICAL: Before implementing API endpoints:
+  1. **Verify return types** of all repository methods (check if they return `dict` or model objects)
+  2. **Document access patterns** - use `['key']` for dicts, `.attribute` for objects
+  3. **Match frontend/backend field naming**:
+     - This project's backend Pydantic models use **snake_case** (Python convention)
+     - Frontend TypeScript should use **snake_case** to match API responses (NOT camelCase)
+     - If different naming is required, explicitly document the transformation layer
+  4. **Create an Interface Mapping Table** showing Frontend Field -> Backend Field -> Type
+
+## Database Dependencies Requirements
+
+- CRITICAL: For features involving new database entities:
+  1. **Check if required records exist** in relevant tables
+  2. **Create migration file** if new database records are needed
+  3. **For contract features**, verify:
+     - Contract type enum in `legal_dtos.py`
+     - Contract ID prefix in database function
+     - Template file in `backend/templates/`
+     - Template record in `contract_templates` table
+  4. **For catalog/lookup features**, verify:
+     - Catalog data exists or migration creates it
+     - Country-specific variations handled (CO vs MX)
+
 ## Relevant Files
 
 Focus on the following files:
@@ -111,6 +235,82 @@ Use these files to implement the feature:
 
 ### New Files
 <list new files to be created with their purpose>
+
+## Pre-Implementation Verification
+
+### Feature Category
+<Mark which category applies - this determines which verification sections are required:>
+- [ ] Document Generation (contracts, PDFs) → Complete sections A, D, E
+- [ ] Excel Processing (treasury, finance) → Complete sections B, D
+- [ ] Data Import/Export (CSV, ZIP) → Complete sections C, D
+- [ ] API Integration (external services) → Complete sections D, F
+- [ ] Reporting (queries, history) → Complete sections D, G
+- [ ] CRUD Operations (basic data management) → Complete sections D, E
+
+### A. Template Placeholder Inventory (Document Generation only)
+<If this feature involves Word document generation, run the placeholder extraction script and list ALL placeholders:>
+
+| Placeholder | Data Source | Format | Notes |
+|-------------|-------------|--------|-------|
+| [Example Placeholder] | data.field_name | String | Exact case matters |
+
+### B. Excel Column Mapping (Excel Processing only)
+<If this feature involves Excel processing, document the column structure:>
+
+**Source Excel Structure:**
+| Column Name (exact) | Required | Data Type | Validation |
+|--------------------|----------|-----------|------------|
+| Número de Operación | Yes | String | Not empty |
+
+**Output Excel Structure (if applicable):**
+| Column Name | Source Field | Transformation |
+|-------------|--------------|----------------|
+| Operation ID | Número de Operación | Direct copy |
+
+**Catalog Dependencies:**
+- [ ] AR account mappings documented
+- [ ] Country-specific variations identified (CO vs MX)
+
+### C. File Format Specification (Import/Export only)
+<If this feature involves file import/export:>
+
+| Format | Max Size | Required Headers | Validation Rules |
+|--------|----------|------------------|------------------|
+| XLSX | 10MB | Column A, B, C | Non-empty rows |
+
+### D. Data Contract Verification (ALL features)
+<Document return types and access patterns for repository methods used:>
+
+| Repository Method | Return Type | Access Pattern | Example |
+|------------------|-------------|----------------|---------|
+| client_repo.get_by_nit() | dict | data['nit'] | Not data.nit |
+
+### E. Database Dependencies Checklist (Document/CRUD only)
+- [ ] Required enums exist in DTOs (or will be added)
+- [ ] Template file exists in `backend/templates/` (if applicable)
+- [ ] Database records exist (or migration created)
+- [ ] Country-specific data handled (CO vs MX)
+
+### F. External API Contract (Integration only)
+<If this feature involves external APIs:>
+
+| Endpoint | Method | Auth | Request Format | Response Format |
+|----------|--------|------|----------------|-----------------|
+| /api/v1/data | POST | Bearer Token | JSON | JSON |
+
+### G. Query Specification (Reporting only)
+<If this feature involves data queries:>
+
+| Filter | Type | Required | Default |
+|--------|------|----------|---------|
+| date_from | date | No | 30 days ago |
+
+### Interface Mapping (Frontend ↔ Backend)
+<Map frontend TypeScript fields to backend Pydantic fields:>
+
+| Frontend Field | Backend Field | Type | Notes |
+|---------------|---------------|------|-------|
+| numero_cotizacion | numero_cotizacion | string | Use snake_case in both |
 
 ## Implementation Plan
 ### Phase 1: Foundation
@@ -165,6 +365,53 @@ Execute every command to validate the feature works correctly with zero regressi
 
 ## Notes
 <optionally list any additional notes, future considerations, or context that are relevant to the feature that will be helpful to the developer>
+
+## Plan Quality Checklist
+Before finalizing the plan, verify all items are complete:
+
+### General Completeness (ALL features)
+- [ ] Feature category identified in Pre-Implementation Verification
+- [ ] All new files listed in "New Files" section
+- [ ] All database migrations identified and tasks created
+- [ ] E2E test file task included (if UI feature)
+- [ ] All external dependencies (npm/pip packages) listed in Notes
+
+### Category-Specific Completeness
+**Document Generation:**
+- [ ] ALL template placeholders extracted and documented
+- [ ] Placeholder mapping table complete with data sources
+- [ ] Database records verified (template, enum, prefix)
+
+**Excel Processing:**
+- [ ] Source Excel columns documented with exact names
+- [ ] Output Excel structure documented (if applicable)
+- [ ] Data transformation rules specified (1:1 or 1:N)
+- [ ] Catalog/lookup dependencies identified
+
+**Data Import/Export:**
+- [ ] File format specifications documented
+- [ ] Field mapping table complete
+- [ ] Error handling strategy defined
+
+**API Integration:**
+- [ ] External API contract documented
+- [ ] Auth method specified
+- [ ] Error/retry strategy defined
+
+**Reporting:**
+- [ ] Query filters and parameters documented
+- [ ] Pagination/sorting requirements specified
+
+### Consistency (ALL features)
+- [ ] Data types match between frontend and backend
+- [ ] Field naming conventions use snake_case consistently
+- [ ] Access patterns (dict vs object) verified for repository methods
+- [ ] Country-specific variations handled (CO vs MX) if applicable
+
+### Testing
+- [ ] Validation commands test all new functionality
+- [ ] Edge cases documented in Testing Strategy
+- [ ] E2E test covers happy path with screenshots (if UI feature)
 ```
 
 ## Feature

@@ -76,32 +76,6 @@ TEST_COMMAND_TIMEOUT: 5 minutes
    - test_name: "frontend_build"
    - test_purpose: "Validates the complete frontend build process including Vite bundling, asset optimization, and production compilation"
 
-### Runtime Verification Tests (Post-Build Validation)
-
-7. **DTO Import Validation**
-   - Preparation Command: None
-   - Command: `cd backend && python -c "from src.interface.legal_dtos import *; print('DTOs OK')"`
-   - test_name: "dto_import_validation"
-   - test_purpose: "Validates all DTO definitions are syntactically correct and importable without errors"
-
-8. **Document Service Import Validation**
-   - Preparation Command: None
-   - Command: `cd backend && python -c "from src.core.servicios.document_service import DocumentService; print('DocumentService OK')"`
-   - test_name: "document_service_import"
-   - test_purpose: "Validates document service can be imported without errors, catching missing dependencies or syntax issues"
-
-9. **Repository Layer Validation**
-   - Preparation Command: None
-   - Command: `cd backend && python -c "from src.repositorio.client_repository import ClientRepository; from src.repositorio.contract_repository import ContractRepository; print('Repositories OK')"`
-   - test_name: "repository_import_validation"
-   - test_purpose: "Validates repository layer imports correctly, catching circular dependencies or missing modules"
-
-10. **Frontend Type Definitions Validation**
-    - Preparation Command: None
-    - Command: `cd frontend && npx tsc --noEmit src/types/legal.ts src/types/index.ts`
-    - test_name: "frontend_types_validation"
-    - test_purpose: "Validates frontend type definitions specifically, catching interface mismatches early"
-
 ## Report
 
 - IMPORTANT: Return results exclusively as a JSON array based on the `Output Structure` section below.
