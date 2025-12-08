@@ -10,6 +10,7 @@ import type {
   SolicitudDesembolsoRequest,
   BankCertificateData,
   InstruccionMandatoRequest,
+  DIANMandatoRequest,
 } from '../types/legal';
 
 const BASE_URL = '/operations';
@@ -284,6 +285,38 @@ export const operationsService = {
   ): Promise<ContractGeneration> {
     const response = await apiClient.post<ContractGeneration>(
       `${BASE_URL}/contracts/instruccion-mandato/generate`,
+      request
+    );
+    return response.data;
+  },
+
+  /**
+   * Parse Cotización PDF and extract data for DIAN Mandato (IM)
+   */
+  async parseCotizacionForDIANMandato(file: File): Promise<CotizacionData> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<CotizacionData>(
+      `${BASE_URL}/contracts/dian-mandato/parse-cotizacion`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  /**
+   * Generate DIAN Mandato (IM) contract - simplified, no creditors
+   */
+  async generateDIANMandato(
+    request: DIANMandatoRequest
+  ): Promise<ContractGeneration> {
+    const response = await apiClient.post<ContractGeneration>(
+      `${BASE_URL}/contracts/dian-mandato/generate`,
       request
     );
     return response.data;

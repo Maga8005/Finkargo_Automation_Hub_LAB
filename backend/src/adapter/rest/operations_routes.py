@@ -28,6 +28,7 @@ from src.interface.legal_dtos import (
     SolicitudDesembolsoRequest,
     BankCertificateData,
     InstruccionMandatoRequest,
+    DIANMandatoRequest,
 )
 
 router = APIRouter(prefix="/api/operations", tags=["Operations"])
@@ -744,4 +745,163 @@ async def generate_instruccion_mandato(
         raise
     except Exception as e:
         logger.error(f"Error generating Instrucción de Mandato: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error generating contract: {str(e)}")
+
+
+# ==================== DIAN Mandato (IM) Endpoints ====================
+
+@router.post("/contracts/dian-mandato/parse-cotizacion", response_model=CotizacionData)
+async def parse_cotizacion_for_dian_mandato(
+    file: UploadFile = File(..., description="Cotización PDF document"),
+    current_user: dict = Depends(require_operations_role)
+):
+    """
+    Parse Cotización PDF for DIAN Mandato (IM) (Operations role or Admin required)
+
+    This endpoint reuses the same Cotización parser as Instrucción de Mandato.
+    Returns extracted data for form pre-population.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Cotización PDF parse request for DIAN Mandato - File: {file.filename}, User: {current_user.get('email', current_user.get('id'))}")
+
+    try:
+        # Validate file type
+        if file.content_type != 'application/pdf':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type: {file.content_type}. Only PDF files are allowed"
+            )
+
+        # Validate file size (5MB limit)
+        pdf_bytes = await file.read()
+        if len(pdf_bytes) > 5 * 1024 * 1024:
+            raise HTTPException(
+                status_code=400,
+                detail="PDF file size exceeds 5MB limit"
+            )
+
+        # Parse Cotización document
+        logger.info(f"Parsing Cotización document: {file.filename}")
+        parser = CotizacionParserService()
+
+        try:
+            cotizacion_data = parser.parse_cotizacion(pdf_bytes)
+            logger.info(f"Cotización parsed successfully - Quote: {cotizacion_data.numero_cotizacion}")
+            return cotizacion_data
+        except ValueError as e:
+            logger.error(f"Cotización parsing failed: {e}")
+            raise HTTPException(
+                status_code=422,
+                detail=f"Error parsing Cotización document: {str(e)}"
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error parsing Cotización: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=422,
+                detail=f"Failed to parse Cotización document: {str(e)}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing Cotización PDF: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/contracts/dian-mandato/generate", response_model=ContractGenerationResponse, status_code=status.HTTP_201_CREATED)
+async def generate_dian_mandato(
+    request: DIANMandatoRequest,
+    service: ContractService = Depends(get_contract_service),
+    client_repo: ClientRepository = Depends(get_client_repo),
+    current_user: dict = Depends(require_operations_role)
+):
+    """
+    Generate DIAN Mandato (IM) contract (Operations role or Admin required)
+
+    This is a simplified Mandato for DIAN payments - no creditors required.
+
+    The request must include:
+    - client_nit: Client NIT for database lookup
+    - numero_cotizacion_desembolso: Quote number
+    - fecha_contrato_mandato: Mandate contract date (ISO format)
+    - monto: Total amount
+
+    Returns the created contract with ID format: PLDI-YYYY-XXX
+    """
+    import logging
+    from decimal import Decimal
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"DIAN Mandato generation request - NIT: {request.client_nit}, Quote: {request.numero_cotizacion_desembolso}, User: {current_user.get('email', current_user.get('id'))}")
+
+    try:
+        # Get user_id from authenticated user
+        user_id = current_user['id']
+
+        # Validate client exists
+        client = await client_repo.get_by_nit(request.client_nit)
+        if not client:
+            logger.error(f"Client not found with NIT: {request.client_nit}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Client with NIT {request.client_nit} not found"
+            )
+
+        # Build data snapshot combining client data + DIAN mandato data
+        cupo = client.get('cupo_plataforma')
+
+        data_snapshot = {
+            # Client data (client is a dict from repository)
+            "nit": client['nit'],
+            "nombre_importador": client['nombre_importador'],
+            "representante_legal": client['representante_legal'],
+            "cedula_representante": client['cedula_representante'],
+            "ciudad_domicilio": client['ciudad_domicilio'],
+            "cupo_plataforma": float(cupo) if cupo is not None and isinstance(cupo, (Decimal, int, float, str)) else cupo,
+            "direccion_comercial": client.get('direccion_comercial'),
+            "tipo_identificacion_representante": client.get('tipo_identificacion_representante'),
+            # DIAN Mandato specific data
+            "numero_cotizacion_desembolso": request.numero_cotizacion_desembolso,
+            "fecha_contrato_mandato": request.fecha_contrato_mandato,
+            "monto": float(request.monto),
+            # No acreedores for DIAN
+        }
+
+        logger.info("Prepared data snapshot for DIAN Mandato")
+
+        # Create contract generation request
+        contract_request = ContractGenerationRequest(
+            client_nit=request.client_nit,
+            contract_type=ContractType.PL_CO_DIAN_MANDATO_IM,
+            custodian_data=None
+        )
+
+        # Generate contract with custom data snapshot
+        contract = await service.generate_contract(
+            request=contract_request,
+            user_id=user_id,
+            custom_data_snapshot=data_snapshot
+        )
+
+        contract_id = contract.get('contract_id', 'unknown')
+        logger.info(f"Generated DIAN Mandato contract: {contract_id}")
+
+        # Return response
+        return ContractGenerationResponse(
+            id=contract['id'],
+            contract_id=contract['contract_id'],
+            contract_type=contract['contract_type'],
+            client_nit=contract['client_nit'],
+            status=contract['status'],
+            generated_at=contract['generated_at'],
+            pdf_url=contract.get('pdf_url'),
+            approved_document_url=contract.get('approved_document_url'),
+            data_snapshot=contract['data_snapshot']
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating DIAN Mandato: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating contract: {str(e)}")

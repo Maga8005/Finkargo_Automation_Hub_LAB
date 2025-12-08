@@ -20,6 +20,7 @@ import {
 import FKPagaLocalCOContractRequest from './FKPagaLocalCOContractRequest';
 import FKSolicitudDesembolsoRequest from './FKSolicitudDesembolsoRequest';
 import FKInstruccionMandatoForm from './FKInstruccionMandatoForm';
+import FKDIANMandatoForm from './FKDIANMandatoForm';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -128,11 +129,13 @@ const FKPagaLocalCODocumentosOperacion: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Contract Request Form - Use specialized forms for Solicitud de Desembolso and Mandato (IM) */}
+          {/* Contract Request Form - Use specialized forms for each document type */}
           {config.type === 'pl_co_solicitud_desembolso' ? (
             <FKSolicitudDesembolsoRequest />
           ) : config.type === 'pl_co_mandato_im' ? (
             <FKInstruccionMandatoForm />
+          ) : config.type === 'pl_co_dian_mandato_im' ? (
+            <FKDIANMandatoForm />
           ) : (
             <FKPagaLocalCOContractRequest
               contractType={config.type}

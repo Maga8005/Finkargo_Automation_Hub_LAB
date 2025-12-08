@@ -102,6 +102,8 @@ class DocumentService:
             return self.generate_solicitud_desembolso_document(contract_data)
         elif contract_type == 'pl_co_mandato_im':
             return self.generate_instruccion_mandato_document(contract_data)
+        elif contract_type == 'pl_co_dian_mandato_im':
+            return self.generate_dian_mandato_document(contract_data)
         else:
             return self.generate_activos_document(contract_data, template_name)
 
@@ -1769,3 +1771,74 @@ class DocumentService:
         month = spanish_months.get(date_obj.month, '')
         year = date_obj.year
         return f"{day} de {month} de {year}"
+
+    def generate_dian_mandato_document(
+        self,
+        contract_data: Dict[str, Any],
+        template_name: str = "FK COL - Fin. COP - Template DIAN -  Mandato (IM).docx"
+    ) -> bytes:
+        """
+        Generate DIAN Mandato (IM) contract document from template and data
+
+        This is a simplified version of Instruccion de Mandato - no creditor table.
+        Uses same placeholders but doesn't have nested creditor table.
+
+        Args:
+            contract_data: Dictionary containing contract data with data_snapshot including:
+                - Client data (representante_legal, cedula_representante)
+                - numero_cotizacion_desembolso
+                - fecha_contrato_mandato
+                - monto
+
+        Returns:
+            bytes: Generated DOCX file content
+        """
+        template_path = self.template_dir / template_name
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"Template not found: {template_path}")
+
+        logger.info(f"Loading DIAN Mandato (IM) template from: {template_path}")
+
+        # Load template
+        doc = Document(str(template_path))
+
+        # Extract data from data_snapshot
+        data = contract_data.get('data_snapshot', contract_data)
+        logger.debug(f"Data snapshot keys: {list(data.keys())}")
+
+        # Reuse the same replacements function as regular Mandato (IM)
+        replacements = self._prepare_instruccion_mandato_replacements(data)
+        logger.info(f"Prepared {len(replacements)} placeholder replacements")
+
+        # Replace placeholders in paragraphs
+        para_replacements = 0
+        for paragraph in doc.paragraphs:
+            for placeholder, value in replacements.items():
+                if placeholder in paragraph.text:
+                    paragraph.text = paragraph.text.replace(placeholder, str(value))
+                    para_replacements += 1
+
+        # Replace placeholders in tables
+        table_replacements = 0
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        for placeholder, value in replacements.items():
+                            if placeholder in paragraph.text:
+                                paragraph.text = paragraph.text.replace(placeholder, str(value))
+                                table_replacements += 1
+
+        logger.info(f"Replacements made: {para_replacements} in paragraphs, {table_replacements} in tables")
+
+        # NOTE: No creditor table population needed for DIAN template
+
+        # Save to bytes
+        import io
+        file_stream = io.BytesIO()
+        doc.save(file_stream)
+        file_stream.seek(0)
+
+        logger.info(f"Generated DIAN Mandato (IM) document for contract {data.get('contract_id', 'unknown')}")
+        return file_stream.read()
