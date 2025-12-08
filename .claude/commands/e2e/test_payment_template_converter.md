@@ -14,6 +14,15 @@ So that I can efficiently apply payments in NetSuite with the correct account ma
 - Backend and frontend servers running
 - Test Excel file with Historial de Pagos format available
 
+## Test Fixture File
+
+**Location**: `.claude/commands/e2e/fixtures/test_historial_pagos_co.xlsx`
+
+This fixture contains 3 test rows with:
+- Required columns: Cliente, Identificación del cliente, Código de desembolso, etc.
+- Concept columns: Capital, 4x1000, Fondo de garantías, Intereses, etc.
+- Optional columns: NT (one row with "NT" for Operaciones Cedidas), Cuenta Remitente, Spread
+
 ## Test Excel File Requirements
 
 The test Excel file (Historial de Pagos) must contain columns including:

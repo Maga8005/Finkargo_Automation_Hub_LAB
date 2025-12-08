@@ -17,6 +17,7 @@ from src.core.servicios.contract_service import ContractService
 from src.core.servicios.document_service import DocumentService
 from src.core.servicios.rut_parser_service import RUTParserService
 from src.core.servicios.cotizacion_parser_service import CotizacionParserService
+from src.core.servicios.bank_certificate_parser_service import BankCertificateParserService
 from src.adapter.rest.rbac_dependencies import require_operations_role
 from src.interface.legal_dtos import (
     ContractGenerationRequest,
@@ -25,6 +26,8 @@ from src.interface.legal_dtos import (
     ContractType,
     CotizacionData,
     SolicitudDesembolsoRequest,
+    BankCertificateData,
+    InstruccionMandatoRequest,
 )
 
 router = APIRouter(prefix="/api/operations", tags=["Operations"])
@@ -498,3 +501,247 @@ async def download_approved_contract_pdf(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error downloading PDF: {str(e)}")
+
+
+# ==================== Instrucción de Mandato Endpoints ====================
+
+@router.post("/contracts/instruccion-mandato/parse-cotizacion", response_model=CotizacionData)
+async def parse_cotizacion_for_mandato(
+    file: UploadFile = File(..., description="Cotización PDF document"),
+    current_user: dict = Depends(require_operations_role)
+):
+    """
+    Parse Cotización PDF for Instrucción de Mandato (Operations role or Admin required)
+
+    This endpoint extracts structured data from Cotización PDFs including:
+    - Quote number (numero_cotizacion)
+    - Credit contract date
+    - Anexo I table items (creditors)
+    - Total amount
+
+    Returns extracted data for form pre-population
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Cotización PDF parse request for Mandato - File: {file.filename}, User: {current_user.get('email', current_user.get('id'))}")
+
+    try:
+        # Validate file type
+        if file.content_type != 'application/pdf':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type: {file.content_type}. Only PDF files are allowed"
+            )
+
+        # Validate file size (5MB limit)
+        pdf_bytes = await file.read()
+        if len(pdf_bytes) > 5 * 1024 * 1024:
+            raise HTTPException(
+                status_code=400,
+                detail="PDF file size exceeds 5MB limit"
+            )
+
+        # Parse Cotización document
+        logger.info(f"Parsing Cotización document: {file.filename}")
+        parser = CotizacionParserService()
+
+        try:
+            cotizacion_data = parser.parse_cotizacion(pdf_bytes)
+            logger.info(f"Cotización parsed successfully - Quote: {cotizacion_data.numero_cotizacion}, Items: {len(cotizacion_data.anexo_items)}")
+            return cotizacion_data
+        except ValueError as e:
+            logger.error(f"Cotización parsing failed: {e}")
+            raise HTTPException(
+                status_code=422,
+                detail=f"Error parsing Cotización document: {str(e)}"
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error parsing Cotización: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=422,
+                detail=f"Failed to parse Cotización document: {str(e)}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing Cotización PDF: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/contracts/instruccion-mandato/parse-bank-certificate", response_model=BankCertificateData)
+async def parse_bank_certificate(
+    file: UploadFile = File(..., description="Bank Certificate PDF document"),
+    current_user: dict = Depends(require_operations_role)
+):
+    """
+    Parse Bank Certificate PDF and extract creditor bank account information (Operations role or Admin required)
+
+    This endpoint extracts structured data from Bank Certificate PDFs including:
+    - Company name (razon_social)
+    - NIT (Colombian tax ID)
+    - Bank name (banco)
+    - Account type (tipo_cuenta)
+    - Account number (numero_cuenta)
+
+    Supports formats from major Colombian banks (Bancolombia, BBVA, etc.)
+
+    Returns extracted data for form pre-population
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Bank Certificate PDF parse request - File: {file.filename}, User: {current_user.get('email', current_user.get('id'))}")
+
+    try:
+        # Validate file type
+        if file.content_type != 'application/pdf':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type: {file.content_type}. Only PDF files are allowed"
+            )
+
+        # Validate file size (5MB limit)
+        pdf_bytes = await file.read()
+        if len(pdf_bytes) > 5 * 1024 * 1024:
+            raise HTTPException(
+                status_code=400,
+                detail="PDF file size exceeds 5MB limit"
+            )
+
+        # Parse Bank Certificate document
+        logger.info(f"Parsing Bank Certificate document: {file.filename}")
+        parser = BankCertificateParserService()
+
+        try:
+            certificate_data = parser.parse_bank_certificate(pdf_bytes)
+            logger.info(f"Bank Certificate parsed successfully - Company: {certificate_data.razon_social}, NIT: {certificate_data.nit}")
+            return certificate_data
+        except ValueError as e:
+            logger.error(f"Bank Certificate parsing failed: {e}")
+            raise HTTPException(
+                status_code=422,
+                detail=f"Error parsing Bank Certificate: {str(e)}"
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error parsing Bank Certificate: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=422,
+                detail=f"Failed to parse Bank Certificate: {str(e)}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing Bank Certificate PDF: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/contracts/instruccion-mandato/generate", response_model=ContractGenerationResponse, status_code=status.HTTP_201_CREATED)
+async def generate_instruccion_mandato(
+    request: InstruccionMandatoRequest,
+    service: ContractService = Depends(get_contract_service),
+    client_repo: ClientRepository = Depends(get_client_repo),
+    current_user: dict = Depends(require_operations_role)
+):
+    """
+    Generate Instrucción de Mandato contract (Operations role or Admin required)
+
+    This creates an Instrucción de Mandato contract in UNDER_REVIEW status for Legal approval.
+
+    The request must include:
+    - client_nit: Client NIT for database lookup
+    - numero_cotizacion_desembolso: Quote number
+    - fecha_contrato_mandato: Mandate contract date (ISO format)
+    - monto: Total amount to transfer
+    - acreedores: List of creditors (1-3) with bank account information
+
+    Returns the created contract with ID format: ACT-YYYY-XXX
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Instrucción de Mandato generation request - NIT: {request.client_nit}, Quote: {request.numero_cotizacion_desembolso}, Creditors: {len(request.acreedores)}, User: {current_user.get('email', current_user.get('id'))}")
+
+    try:
+        # Get user_id from authenticated user
+        user_id = current_user['id']
+
+        # Validate client exists
+        client = await client_repo.get_by_nit(request.client_nit)
+        if not client:
+            logger.error(f"Client not found with NIT: {request.client_nit}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Client with NIT {request.client_nit} not found"
+            )
+
+        # Build data snapshot combining client data + mandato data
+        from decimal import Decimal
+        cupo = client.get('cupo_plataforma')
+
+        # Convert acreedores to list of dicts for storage
+        acreedores_dicts = [
+            {
+                "razon_social": acreedor.razon_social,
+                "nit": acreedor.nit,
+                "banco": acreedor.banco,
+                "tipo_cuenta": acreedor.tipo_cuenta,
+                "numero_cuenta": acreedor.numero_cuenta,
+            }
+            for acreedor in request.acreedores
+        ]
+
+        data_snapshot = {
+            # Client data (client is a dict from repository)
+            "nit": client['nit'],
+            "nombre_importador": client['nombre_importador'],
+            "representante_legal": client['representante_legal'],
+            "cedula_representante": client['cedula_representante'],
+            "ciudad_domicilio": client['ciudad_domicilio'],
+            "cupo_plataforma": float(cupo) if cupo is not None and isinstance(cupo, (Decimal, int, float, str)) else cupo,
+            "direccion_comercial": client.get('direccion_comercial'),
+            "tipo_identificacion_representante": client.get('tipo_identificacion_representante'),
+            # Instrucción de Mandato specific data
+            "numero_cotizacion_desembolso": request.numero_cotizacion_desembolso,
+            "fecha_contrato_mandato": request.fecha_contrato_mandato,
+            "monto": float(request.monto),
+            "acreedores": acreedores_dicts,
+        }
+
+        logger.info(f"Prepared data snapshot with {len(acreedores_dicts)} creditors")
+
+        # Create contract generation request
+        contract_request = ContractGenerationRequest(
+            client_nit=request.client_nit,
+            contract_type=ContractType.PL_CO_MANDATO_IM,
+            custodian_data=None  # Not needed for Instrucción de Mandato
+        )
+
+        # Generate contract with custom data snapshot
+        contract = await service.generate_contract(
+            request=contract_request,
+            user_id=user_id,
+            custom_data_snapshot=data_snapshot
+        )
+
+        contract_id = contract.get('contract_id', 'unknown')
+        logger.info(f"Generated Instrucción de Mandato contract: {contract_id}")
+
+        # Return response
+        return ContractGenerationResponse(
+            id=contract['id'],
+            contract_id=contract['contract_id'],
+            contract_type=contract['contract_type'],
+            client_nit=contract['client_nit'],
+            status=contract['status'],
+            generated_at=contract['generated_at'],
+            pdf_url=contract.get('pdf_url'),
+            approved_document_url=contract.get('approved_document_url'),
+            data_snapshot=contract['data_snapshot']
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating Instrucción de Mandato: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error generating contract: {str(e)}")

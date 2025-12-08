@@ -1,0 +1,930 @@
+[
+  {
+    "type": "system",
+    "subtype": "init",
+    "cwd": "/Users/danielrestrepo/Finkargo_Automation_Hub",
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "tools": [
+      "Task",
+      "Bash",
+      "Glob",
+      "Grep",
+      "ExitPlanMode",
+      "Read",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "WebFetch",
+      "TodoWrite",
+      "WebSearch",
+      "BashOutput",
+      "KillShell",
+      "Skill",
+      "SlashCommand",
+      "EnterPlanMode",
+      "mcp__playwright__browser_close",
+      "mcp__playwright__browser_resize",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_handle_dialog",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_file_upload",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_install",
+      "mcp__playwright__browser_press_key",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_navigate_back",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_run_code",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_drag",
+      "mcp__playwright__browser_hover",
+      "mcp__playwright__browser_select_option",
+      "mcp__playwright__browser_tabs",
+      "mcp__playwright__browser_wait_for"
+    ],
+    "mcp_servers": [
+      {
+        "name": "playwright",
+        "status": "connected"
+      }
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "permissionMode": "bypassPermissions",
+    "slash_commands": [
+      "implement",
+      "validate",
+      "start_local",
+      "generate_branch_name",
+      "find_plan_file",
+      "test_e2e",
+      "install",
+      "Feature_Branch",
+      "resolve_failed_e2e_test",
+      "classify_adw",
+      "resolve_failed_test",
+      "validate_plan",
+      "bug",
+      "pull_request",
+      "chore",
+      "prime",
+      "commit",
+      "start",
+      "feature",
+      "test",
+      "Checkout_Master",
+      "contracts_document_to_feature",
+      "tools",
+      "classify_issue",
+      "e2e:test_solicitud_desembolso_pdf_upload",
+      "e2e:test_export_approved_contracts_excel",
+      "e2e:test_export_approved_contracts_pdf",
+      "e2e:test_payment_template_converter",
+      "e2e:test_solicitud_desembolso_monto_total",
+      "e2e:test_paga_local_aval_pj_template",
+      "e2e:test_excel_upload",
+      "e2e:test_solicitud_desembolso_generation",
+      "e2e:test_solicitud_desembolso_document_generation",
+      "e2e:test_tesoreria_menu",
+      "e2e:test_contract_request",
+      "e2e:test_paga_local_sin_aval_contracts",
+      "e2e:test_contract_review",
+      "e2e:test_login",
+      "backups:20251207_pre_sdlc_improvements:implement",
+      "backups:20251207_pre_sdlc_improvements:bug",
+      "backups:20251207_pre_sdlc_improvements:chore",
+      "backups:20251207_pre_sdlc_improvements:feature",
+      "backups:20251207_pre_sdlc_improvements:test",
+      "compact",
+      "context",
+      "cost",
+      "init",
+      "pr-comments",
+      "release-notes",
+      "todos",
+      "review",
+      "security-review",
+      "plan"
+    ],
+    "apiKeySource": "ANTHROPIC_API_KEY",
+    "claude_code_version": "2.0.57",
+    "output_style": "default",
+    "agents": [
+      "general-purpose",
+      "statusline-setup",
+      "Explore",
+      "Plan"
+    ],
+    "skills": [],
+    "plugins": [],
+    "uuid": "bb6a15e7-15a1-4d0c-803d-5d5b853c7adc"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01DpCu1uVcyu486o1jHL3DXW",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01MFVEhS2mtKJhnwPtbuCSav",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/backend && python -m py_compile src/main.py",
+            "description": "Python syntax check on main.py",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 8587,
+        "cache_read_input_tokens": 20108,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 8587,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 5,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "de14402a-36fd-4bd0-a25f-1eaa698a0855"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "content": "Exit code 1\n[Errno 2] No such file or directory: 'src/main.py'",
+          "is_error": true,
+          "tool_use_id": "toolu_01MFVEhS2mtKJhnwPtbuCSav"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "574c814b-31aa-4a2c-8d67-3d6ae859c8e7",
+    "tool_use_result": "Error: Exit code 1\n[Errno 2] No such file or directory: 'src/main.py'"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01HuFHTP2y4rsHgSg5Kv5xxi",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01E2PHKc3i5z4TUSapzZtN3H",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/backend && ls -la *.py src/*.py 2>/dev/null || ls -la",
+            "description": "List Python files in backend"
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 172,
+        "cache_read_input_tokens": 28695,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 172,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 25,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "3487713a-a4ef-4bc2-bab1-2b93f855ce5e"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01E2PHKc3i5z4TUSapzZtN3H",
+          "type": "tool_result",
+          "content": "-rw-r--r--  1 danielrestrepo  staff  1853 Nov 22 10:45 analyze_template.py\n-rw-r--r--@ 1 danielrestrepo  staff  3504 Dec  7 07:13 main.py\n-rw-r--r--  1 danielrestrepo  staff     0 Nov 22 10:45 src/__init__.py\n-rw-r--r--  1 danielrestrepo  staff  2645 Nov 22 10:45 test_document_generation.py",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "f6f614b4-6bd4-48f5-a3b4-366e0a1ec5bd",
+    "tool_use_result": {
+      "stdout": "-rw-r--r--  1 danielrestrepo  staff  1853 Nov 22 10:45 analyze_template.py\n-rw-r--r--@ 1 danielrestrepo  staff  3504 Dec  7 07:13 main.py\n-rw-r--r--  1 danielrestrepo  staff     0 Nov 22 10:45 src/__init__.py\n-rw-r--r--  1 danielrestrepo  staff  2645 Nov 22 10:45 test_document_generation.py",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01Pd2aPvzHAe6rDaaMu3S6EM",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01W11QMSevfMtggj1se5TvJq",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/backend && python -m py_compile main.py",
+            "description": "Python syntax check on main.py",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 263,
+        "cache_read_input_tokens": 28867,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 263,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 24,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "1f8864e6-a016-4cbf-a854-98d7d81c00e9"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01W11QMSevfMtggj1se5TvJq",
+          "type": "tool_result",
+          "content": "",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "c7dd05fa-687f-4d09-a387-fedfe6984683",
+    "tool_use_result": {
+      "stdout": "",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01MqHf8sXWSKVexdupbkCH7W",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01EVF6wmA3yhM2ZyrrMJ7vsh",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/backend && ./venv/bin/ruff check src/",
+            "description": "Backend linting with ruff",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 148,
+        "cache_read_input_tokens": 29130,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 148,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 24,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "3512c9b5-759b-4c8e-a889-7f4ae288eb7f"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01EVF6wmA3yhM2ZyrrMJ7vsh",
+          "type": "tool_result",
+          "content": "All checks passed!",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "0384c6cc-895b-43d5-9e79-488f818c5fb5",
+    "tool_use_result": {
+      "stdout": "All checks passed!",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01DwTZ4BSsLNWotFYma54vCs",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01EoBKkvfGN3GZc4rp7ywTPV",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/backend && python -m pytest -v --tb=short",
+            "description": "Run all backend tests",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 138,
+        "cache_read_input_tokens": 29278,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 138,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 24,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "04047f70-61b3-487b-a8cd-5a1059122d40"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01EoBKkvfGN3GZc4rp7ywTPV",
+          "type": "tool_result",
+          "content": "============================= test session starts ==============================\nplatform darwin -- Python 3.12.12, pytest-9.0.1, pluggy-1.6.0 -- /Users/danielrestrepo/.cache/uv/environments-v2/adw-test-239a165685d1d3f7/bin/python\ncachedir: .pytest_cache\nrootdir: /Users/danielrestrepo/Finkargo_Automation_Hub/backend\nplugins: anyio-4.12.0, asyncio-1.3.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 48 items\n\ntest_document_generation.py::test_document_generation PASSED             [  2%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_parse_valid_bank_certificate PASSED [  4%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_parse_bank_certificate_tipo_cuenta_validation PASSED [  6%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_parse_invalid_pdf_raises_error PASSED [  8%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_parse_empty_pdf_raises_error PASSED [ 10%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_extract_razon_social_patterns PASSED [ 12%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_extract_nit_patterns PASSED [ 14%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_extract_banco_detection PASSED [ 16%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_extract_tipo_cuenta_patterns PASSED [ 18%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_extract_numero_cuenta_patterns PASSED [ 20%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cotizacion_all_fields PASSED [ 22%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cotizacion_anexo_items_count PASSED [ 25%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cotizacion_anexo_items_values PASSED [ 27%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cotizacion_monto_total PASSED [ 29%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cotizacion_fecha_contrato_credito PASSED [ 31%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_fecha_contrato_credito_different_from_cotizacion PASSED [ 33%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_spanish_date_string PASSED [ 35%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cop_amount_with_thousands_separator PASSED [ 37%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cop_amount_with_whitespace PASSED [ 39%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cop_amount_empty PASSED [ 41%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cop_amount_zero PASSED [ 43%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cop_amount_no_decimals PASSED [ 45%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_invalid_pdf_raises_error PASSED [ 47%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_empty_pdf_raises_error PASSED [ 50%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_cotizacion_data_model_has_required_fields PASSED [ 52%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_placeholders_replaced PASSED [ 54%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_date_components_replaced PASSED [ 56%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_anexo_table_populated PASSED [ 58%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_total_calculated PASSED [ 60%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_prepare_solicitud_desembolso_replacements PASSED [ 62%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_empty_anexo_items PASSED [ 64%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_missing_fecha_contrato PASSED [ 66%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_impuestos PASSED [ 68%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_transporte PASSED [ 70%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_logisticos PASSED [ 72%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_multiple PASSED [ 75%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_empty PASSED [ 77%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_no_match PASSED [ 79%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_case_insensitive PASSED [ 81%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_gastos_category_keywords_defined PASSED [ 83%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_gastos_checkbox_indices_defined PASSED [ 85%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_all_fields PASSED [ 87%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_nit_extraction PASSED [ 89%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_legal_rep_id_extraction PASSED [ 91%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_legal_rep_name_extraction PASSED [ 93%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_invalid_pdf_raises_error PASSED [ 95%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_empty_pdf_raises_error PASSED [ 97%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_custodian_data_model_validation PASSED [100%]\n\n=============================== warnings summary ===============================\n<frozen importlib._bootstrap>:488\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute\n\n<frozen importlib._bootstrap>:488\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute\n\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute\n\nsrc/interface/legal_dtos.py:69\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:69: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('cupo_plataforma', pre=True)\n\nsrc/interface/legal_dtos.py:99\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:99: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ClientResponse(ClientBase):\n\nsrc/interface/legal_dtos.py:131\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:131: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('email_operador_custodio')\n\nsrc/interface/legal_dtos.py:145\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:145: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('client_nit')\n\nsrc/interface/legal_dtos.py:181\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:181: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractGenerationResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:197\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:197: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractGenerationDetail(BaseModel):\n\nsrc/interface/legal_dtos.py:234\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:234: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractReviewResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:256\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:256: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractTemplateResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:272\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:272: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class DataImportResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:327\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:327: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('monto')\n\nsrc/interface/legal_dtos.py:346\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:346: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('monto_total')\n\nsrc/interface/legal_dtos.py:361\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:361: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    anexo_items: list[AnexoItem] = Field(..., min_items=1, description=\"At least one Anexo I item required\")\n\nsrc/interface/legal_dtos.py:363\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:363: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('client_nit')\n\nsrc/interface/legal_dtos.py:370\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:370: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('monto')\n\nsrc/interface/legal_dtos.py:390\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:390: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('nit')\n\nsrc/interface/legal_dtos.py:397\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:397: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('razon_social')\n\nsrc/interface/legal_dtos.py:413\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:413: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('razon_social')\n\nsrc/interface/legal_dtos.py:420\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:420: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('banco')\n\nsrc/interface/legal_dtos.py:427\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:427: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('tipo_cuenta')\n\nsrc/interface/legal_dtos.py:451\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:451: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    acreedores: list[AcreedorGastosNacionales] = Field(..., min_items=1, max_items=3, description=\"List of creditors (1-3)\")\n\nsrc/interface/legal_dtos.py:451\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:451: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    acreedores: list[AcreedorGastosNacionales] = Field(..., min_items=1, max_items=3, description=\"List of creditors (1-3)\")\n\nsrc/interface/legal_dtos.py:453\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:453: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('client_nit')\n\nsrc/interface/legal_dtos.py:460\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:460: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('monto')\n\nsrc/config/settings.py:8\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/config/settings.py:8: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class Settings(BaseSettings):\n\ntest_document_generation.py::test_document_generation\n  /Users/danielrestrepo/.cache/uv/environments-v2/adw-test-239a165685d1d3f7/lib/python3.12/site-packages/_pytest/python.py:170: PytestReturnNotNoneWarning: Test functions should return None, but test_document_generation.py::test_document_generation returned <class 'bool'>.\n  Did you mean to use `assert` instead of `return`?\n  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.\n    warnings.warn(\n\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_placeholders_replaced\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_date_components_replaced\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_anexo_table_populated\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_total_calculated\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_prepare_solicitud_desembolso_replacements\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_empty_anexo_items\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_missing_fecha_contrato\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/core/servicios/document_service.py:1530: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n    fecha_solicitud = datetime.utcnow()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n======================= 48 passed, 37 warnings in 1.02s ========================\nsys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "3cae0344-cb73-456e-9bf9-abf645456211",
+    "tool_use_result": {
+      "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.12.12, pytest-9.0.1, pluggy-1.6.0 -- /Users/danielrestrepo/.cache/uv/environments-v2/adw-test-239a165685d1d3f7/bin/python\ncachedir: .pytest_cache\nrootdir: /Users/danielrestrepo/Finkargo_Automation_Hub/backend\nplugins: anyio-4.12.0, asyncio-1.3.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 48 items\n\ntest_document_generation.py::test_document_generation PASSED             [  2%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_parse_valid_bank_certificate PASSED [  4%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_parse_bank_certificate_tipo_cuenta_validation PASSED [  6%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_parse_invalid_pdf_raises_error PASSED [  8%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_parse_empty_pdf_raises_error PASSED [ 10%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_extract_razon_social_patterns PASSED [ 12%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_extract_nit_patterns PASSED [ 14%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_extract_banco_detection PASSED [ 16%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_extract_tipo_cuenta_patterns PASSED [ 18%]\ntests/test_bank_certificate_parser_service.py::TestBankCertificateParserService::test_extract_numero_cuenta_patterns PASSED [ 20%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cotizacion_all_fields PASSED [ 22%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cotizacion_anexo_items_count PASSED [ 25%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cotizacion_anexo_items_values PASSED [ 27%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cotizacion_monto_total PASSED [ 29%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cotizacion_fecha_contrato_credito PASSED [ 31%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_fecha_contrato_credito_different_from_cotizacion PASSED [ 33%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_spanish_date_string PASSED [ 35%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cop_amount_with_thousands_separator PASSED [ 37%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cop_amount_with_whitespace PASSED [ 39%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cop_amount_empty PASSED [ 41%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cop_amount_zero PASSED [ 43%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_cop_amount_no_decimals PASSED [ 45%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_invalid_pdf_raises_error PASSED [ 47%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_parse_empty_pdf_raises_error PASSED [ 50%]\ntests/test_cotizacion_parser_service.py::TestCotizacionParserService::test_cotizacion_data_model_has_required_fields PASSED [ 52%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_placeholders_replaced PASSED [ 54%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_date_components_replaced PASSED [ 56%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_anexo_table_populated PASSED [ 58%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_total_calculated PASSED [ 60%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_prepare_solicitud_desembolso_replacements PASSED [ 62%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_empty_anexo_items PASSED [ 64%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_missing_fecha_contrato PASSED [ 66%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_impuestos PASSED [ 68%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_transporte PASSED [ 70%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_logisticos PASSED [ 72%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_multiple PASSED [ 75%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_empty PASSED [ 77%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_no_match PASSED [ 79%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_determine_gastos_categories_case_insensitive PASSED [ 81%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_gastos_category_keywords_defined PASSED [ 83%]\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_gastos_checkbox_indices_defined PASSED [ 85%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_all_fields PASSED [ 87%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_nit_extraction PASSED [ 89%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_legal_rep_id_extraction PASSED [ 91%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_gamalog_rut_legal_rep_name_extraction PASSED [ 93%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_invalid_pdf_raises_error PASSED [ 95%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_parse_empty_pdf_raises_error PASSED [ 97%]\ntests/test_rut_parser_service.py::TestRUTParserService::test_custodian_data_model_validation PASSED [100%]\n\n=============================== warnings summary ===============================\n<frozen importlib._bootstrap>:488\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute\n\n<frozen importlib._bootstrap>:488\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute\n\n<frozen importlib._bootstrap>:488\n  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute\n\nsrc/interface/legal_dtos.py:69\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:69: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('cupo_plataforma', pre=True)\n\nsrc/interface/legal_dtos.py:99\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:99: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ClientResponse(ClientBase):\n\nsrc/interface/legal_dtos.py:131\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:131: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('email_operador_custodio')\n\nsrc/interface/legal_dtos.py:145\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:145: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('client_nit')\n\nsrc/interface/legal_dtos.py:181\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:181: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractGenerationResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:197\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:197: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractGenerationDetail(BaseModel):\n\nsrc/interface/legal_dtos.py:234\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:234: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractReviewResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:256\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:256: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class ContractTemplateResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:272\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:272: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class DataImportResponse(BaseModel):\n\nsrc/interface/legal_dtos.py:327\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:327: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('monto')\n\nsrc/interface/legal_dtos.py:346\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:346: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('monto_total')\n\nsrc/interface/legal_dtos.py:361\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:361: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    anexo_items: list[AnexoItem] = Field(..., min_items=1, description=\"At least one Anexo I item required\")\n\nsrc/interface/legal_dtos.py:363\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:363: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('client_nit')\n\nsrc/interface/legal_dtos.py:370\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:370: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('monto')\n\nsrc/interface/legal_dtos.py:390\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:390: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('nit')\n\nsrc/interface/legal_dtos.py:397\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:397: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('razon_social')\n\nsrc/interface/legal_dtos.py:413\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:413: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('razon_social')\n\nsrc/interface/legal_dtos.py:420\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:420: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('banco')\n\nsrc/interface/legal_dtos.py:427\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:427: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('tipo_cuenta')\n\nsrc/interface/legal_dtos.py:451\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:451: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    acreedores: list[AcreedorGastosNacionales] = Field(..., min_items=1, max_items=3, description=\"List of creditors (1-3)\")\n\nsrc/interface/legal_dtos.py:451\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:451: PydanticDeprecatedSince20: `max_items` is deprecated and will be removed, use `max_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    acreedores: list[AcreedorGastosNacionales] = Field(..., min_items=1, max_items=3, description=\"List of creditors (1-3)\")\n\nsrc/interface/legal_dtos.py:453\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:453: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('client_nit')\n\nsrc/interface/legal_dtos.py:460\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/interface/legal_dtos.py:460: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    @validator('monto')\n\nsrc/config/settings.py:8\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/config/settings.py:8: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class Settings(BaseSettings):\n\ntest_document_generation.py::test_document_generation\n  /Users/danielrestrepo/.cache/uv/environments-v2/adw-test-239a165685d1d3f7/lib/python3.12/site-packages/_pytest/python.py:170: PytestReturnNotNoneWarning: Test functions should return None, but test_document_generation.py::test_document_generation returned <class 'bool'>.\n  Did you mean to use `assert` instead of `return`?\n  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.\n    warnings.warn(\n\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_placeholders_replaced\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_date_components_replaced\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_anexo_table_populated\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_total_calculated\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_prepare_solicitud_desembolso_replacements\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_empty_anexo_items\ntests/test_document_service.py::TestSolicitudDesembolsoDocumentGeneration::test_solicitud_desembolso_missing_fecha_contrato\n  /Users/danielrestrepo/Finkargo_Automation_Hub/backend/src/core/servicios/document_service.py:1530: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n    fecha_solicitud = datetime.utcnow()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n======================= 48 passed, 37 warnings in 1.02s ========================\nsys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01UTKT1Z3aDGSgWkkjV9B8cm",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01TkjTBSLV5gVaqq123q5pqZ",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/frontend && npm run lint",
+            "description": "Frontend linting",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 6822,
+        "cache_read_input_tokens": 29416,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 6822,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 25,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "1d76f415-8efc-42f9-94f4-1f176b3b7353"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01TkjTBSLV5gVaqq123q5pqZ",
+          "type": "tool_result",
+          "content": "> frontend@0.0.0 lint\n> eslint .",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "83b0a34b-7bb7-4726-82b9-7e8b24030a41",
+    "tool_use_result": {
+      "stdout": "> frontend@0.0.0 lint\n> eslint .",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01P4gCzizkbWdahvgJtMNwwZ",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01V84hpZL4W95pBeWHFwDTYa",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/frontend && npx tsc --noEmit",
+            "description": "TypeScript type check",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 138,
+        "cache_read_input_tokens": 36238,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 138,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 118,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "738eddf5-3951-4c4c-b0b0-0700af867c5e"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01V84hpZL4W95pBeWHFwDTYa",
+          "type": "tool_result",
+          "content": "",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "86d02751-c82f-43b2-a457-68b28cc2e116",
+    "tool_use_result": {
+      "stdout": "",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01LA6W5q7mAJ83degiJ8c93b",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01CLF59m8n9WPVXmeNdMKFd3",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/frontend && npm run build",
+            "description": "Frontend production build",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 231,
+        "cache_read_input_tokens": 36376,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 231,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 112,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "3a4fddfc-cf6a-4d63-8b59-19aea1dfc878"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01CLF59m8n9WPVXmeNdMKFd3",
+          "type": "tool_result",
+          "content": "> frontend@0.0.0 build\n> tsc -b && vite build\n\nvite v7.1.9 building for production...\ntransforming...\n\u2713 12943 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                              0.46 kB \u2502 gzip:   0.29 kB\ndist/assets/index-BGxMQKeU.css               0.60 kB \u2502 gzip:   0.37 kB\ndist/assets/purify.es-B6FQ9oRL.js           22.57 kB \u2502 gzip:   8.74 kB\ndist/assets/index.es-D4AXgDkX.js           159.35 kB \u2502 gzip:  53.40 kB\ndist/assets/html2canvas.esm-B0tyYwQk.js    202.36 kB \u2502 gzip:  48.04 kB\ndist/assets/index-BpVUrRSM.js            1,749.91 kB \u2502 gzip: 535.28 kB\n\u2713 built in 5.38s\n\n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "2eb8d78d-0173-4fff-832c-475dd6f49fd7",
+    "tool_use_result": {
+      "stdout": "> frontend@0.0.0 build\n> tsc -b && vite build\n\nvite v7.1.9 building for production...\ntransforming...\n\u2713 12943 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                              0.46 kB \u2502 gzip:   0.29 kB\ndist/assets/index-BGxMQKeU.css               0.60 kB \u2502 gzip:   0.37 kB\ndist/assets/purify.es-B6FQ9oRL.js           22.57 kB \u2502 gzip:   8.74 kB\ndist/assets/index.es-D4AXgDkX.js           159.35 kB \u2502 gzip:  53.40 kB\ndist/assets/html2canvas.esm-B0tyYwQk.js    202.36 kB \u2502 gzip:  48.04 kB\ndist/assets/index-BpVUrRSM.js            1,749.91 kB \u2502 gzip: 535.28 kB\n\u2713 built in 5.38s\n\n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_0166zuZFa4kcHcbzekqQQscR",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01PcATTq9A3ynXWwMSELX2zs",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/backend && python -c \"from src.interface.legal_dtos import *; print('DTOs OK')\"",
+            "description": "DTO import validation",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 497,
+        "cache_read_input_tokens": 36607,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 497,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 133,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "4dbde399-9040-4206-a90c-312e4b720b23"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01PcATTq9A3ynXWwMSELX2zs",
+          "type": "tool_result",
+          "content": "DTOs OK",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "8d9d79f4-1795-4787-8e12-3d8c1e73ca7f",
+    "tool_use_result": {
+      "stdout": "DTOs OK",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_014zb3yfHNNXzVKtNT7vt1We",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_018bjs35r8vXUoBLKvb3eVDT",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/backend && python -c \"from src.core.servicios.document_service import DocumentService; print('DocumentService OK')\"",
+            "description": "Document service import validation",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 148,
+        "cache_read_input_tokens": 37104,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 148,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 24,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "f7bed60c-aa0c-4951-b330-4526a9432711"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_018bjs35r8vXUoBLKvb3eVDT",
+          "type": "tool_result",
+          "content": "DocumentService OK",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "fb622248-383a-411f-8aca-033dd80edaa3",
+    "tool_use_result": {
+      "stdout": "DocumentService OK",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_017HSwzMgVfmHgffZT1vRtva",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_019Y7PYUUGBqbgX1Skotjxhs",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/backend && python -c \"from src.repositorio.client_repository import ClientRepository; from src.repositorio.contract_repository import ContractRepository; print('Repositories OK')\"",
+            "description": "Repository layer import validation",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 254,
+        "cache_read_input_tokens": 37252,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 254,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 24,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "3f5fae72-291f-4af0-a7b8-cb0d16305b46"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_019Y7PYUUGBqbgX1Skotjxhs",
+          "type": "tool_result",
+          "content": "Repositories OK",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "425ec5ff-3782-41bc-be55-7aa1f3548511",
+    "tool_use_result": {
+      "stdout": "Repositories OK",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_015wUsg27Q2j5FjDGGLDUBtk",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01WYojYgYDVH689pBb4atSLM",
+          "name": "Bash",
+          "input": {
+            "command": "cd /Users/danielrestrepo/Finkargo_Automation_Hub/frontend && npx tsc --noEmit src/types/legal.ts src/types/index.ts",
+            "description": "Frontend types validation",
+            "timeout": 300000
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 163,
+        "cache_read_input_tokens": 37506,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 163,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 131,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "724b12ff-ebb5-473d-a275-99f40337bacd"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01WYojYgYDVH689pBb4atSLM",
+          "type": "tool_result",
+          "content": "",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "aae79fbc-7b1f-492a-a27b-d42823000cac",
+    "tool_use_result": {
+      "stdout": "",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_01SGcfi3ktLnprDg3mVUgENS",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "```json\n[\n  {\n    \"test_name\": \"python_syntax_check\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && python -m py_compile main.py\",\n    \"test_purpose\": \"Validates Python syntax by compiling main entry point, catching syntax errors like missing colons, invalid indentation, or malformed statements\"\n  },\n  {\n    \"test_name\": \"backend_linting\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && ./venv/bin/ruff check src/\",\n    \"test_purpose\": \"Validates Python code quality, identifies unused imports, style violations, and potential bugs\"\n  },\n  {\n    \"test_name\": \"all_backend_tests\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && python -m pytest -v --tb=short\",\n    \"test_purpose\": \"Validates all backend functionality including contract generation, document services, API endpoints, and business logic\"\n  },\n  {\n    \"test_name\": \"frontend_linting\",\n    \"passed\": true,\n    \"execution_command\": \"cd frontend && npm run lint\",\n    \"test_purpose\": \"Validates frontend code quality with ESLint, catching style issues and potential bugs\"\n  },\n  {\n    \"test_name\": \"typescript_check\",\n    \"passed\": true,\n    \"execution_command\": \"cd frontend && npx tsc --noEmit\",\n    \"test_purpose\": \"Validates TypeScript type correctness without generating output files, catching type errors, missing imports, and incorrect function signatures\"\n  },\n  {\n    \"test_name\": \"frontend_build\",\n    \"passed\": true,\n    \"execution_command\": \"cd frontend && npm run build\",\n    \"test_purpose\": \"Validates the complete frontend build process including Vite bundling, asset optimization, and production compilation\"\n  },\n  {\n    \"test_name\": \"dto_import_validation\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && python -c \\\"from src.interface.legal_dtos import *; print('DTOs OK')\\\"\",\n    \"test_purpose\": \"Validates all DTO definitions are syntactically correct and importable without errors\"\n  },\n  {\n    \"test_name\": \"document_service_import\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && python -c \\\"from src.core.servicios.document_service import DocumentService; print('DocumentService OK')\\\"\",\n    \"test_purpose\": \"Validates document service can be imported without errors, catching missing dependencies or syntax issues\"\n  },\n  {\n    \"test_name\": \"repository_import_validation\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && python -c \\\"from src.repositorio.client_repository import ClientRepository; from src.repositorio.contract_repository import ContractRepository; print('Repositories OK')\\\"\",\n    \"test_purpose\": \"Validates repository layer imports correctly, catching circular dependencies or missing modules\"\n  },\n  {\n    \"test_name\": \"frontend_types_validation\",\n    \"passed\": true,\n    \"execution_command\": \"cd frontend && npx tsc --noEmit src/types/legal.ts src/types/index.ts\",\n    \"test_purpose\": \"Validates frontend type definitions specifically, catching interface mismatches early\"\n  }\n]\n```"
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 157,
+        "cache_read_input_tokens": 37669,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 157,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      },
+      "context_management": null
+    },
+    "parent_tool_use_id": null,
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "uuid": "7840afb2-1a3d-4dca-b81a-fcd0c7b0ecec"
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 92824,
+    "duration_api_ms": 95481,
+    "num_turns": 13,
+    "result": "```json\n[\n  {\n    \"test_name\": \"python_syntax_check\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && python -m py_compile main.py\",\n    \"test_purpose\": \"Validates Python syntax by compiling main entry point, catching syntax errors like missing colons, invalid indentation, or malformed statements\"\n  },\n  {\n    \"test_name\": \"backend_linting\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && ./venv/bin/ruff check src/\",\n    \"test_purpose\": \"Validates Python code quality, identifies unused imports, style violations, and potential bugs\"\n  },\n  {\n    \"test_name\": \"all_backend_tests\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && python -m pytest -v --tb=short\",\n    \"test_purpose\": \"Validates all backend functionality including contract generation, document services, API endpoints, and business logic\"\n  },\n  {\n    \"test_name\": \"frontend_linting\",\n    \"passed\": true,\n    \"execution_command\": \"cd frontend && npm run lint\",\n    \"test_purpose\": \"Validates frontend code quality with ESLint, catching style issues and potential bugs\"\n  },\n  {\n    \"test_name\": \"typescript_check\",\n    \"passed\": true,\n    \"execution_command\": \"cd frontend && npx tsc --noEmit\",\n    \"test_purpose\": \"Validates TypeScript type correctness without generating output files, catching type errors, missing imports, and incorrect function signatures\"\n  },\n  {\n    \"test_name\": \"frontend_build\",\n    \"passed\": true,\n    \"execution_command\": \"cd frontend && npm run build\",\n    \"test_purpose\": \"Validates the complete frontend build process including Vite bundling, asset optimization, and production compilation\"\n  },\n  {\n    \"test_name\": \"dto_import_validation\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && python -c \\\"from src.interface.legal_dtos import *; print('DTOs OK')\\\"\",\n    \"test_purpose\": \"Validates all DTO definitions are syntactically correct and importable without errors\"\n  },\n  {\n    \"test_name\": \"document_service_import\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && python -c \\\"from src.core.servicios.document_service import DocumentService; print('DocumentService OK')\\\"\",\n    \"test_purpose\": \"Validates document service can be imported without errors, catching missing dependencies or syntax issues\"\n  },\n  {\n    \"test_name\": \"repository_import_validation\",\n    \"passed\": true,\n    \"execution_command\": \"cd backend && python -c \\\"from src.repositorio.client_repository import ClientRepository; from src.repositorio.contract_repository import ContractRepository; print('Repositories OK')\\\"\",\n    \"test_purpose\": \"Validates repository layer imports correctly, catching circular dependencies or missing modules\"\n  },\n  {\n    \"test_name\": \"frontend_types_validation\",\n    \"passed\": true,\n    \"execution_command\": \"cd frontend && npx tsc --noEmit src/types/legal.ts src/types/index.ts\",\n    \"test_purpose\": \"Validates frontend type definitions specifically, catching interface mismatches early\"\n  }\n]\n```",
+    "session_id": "02ce2475-24f0-4f96-8854-dd6aa8f10194",
+    "total_cost_usd": 0.4048285999999999,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 17718,
+      "cache_read_input_tokens": 424246,
+      "output_tokens": 2307,
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 17718
+      }
+    },
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 19975,
+        "outputTokens": 708,
+        "cacheReadInputTokens": 7681,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.024283100000000002,
+        "contextWindow": 200000
+      },
+      "claude-opus-4-5-20251101": {
+        "inputTokens": 2,
+        "outputTokens": 2307,
+        "cacheReadInputTokens": 424246,
+        "cacheCreationInputTokens": 17718,
+        "webSearchRequests": 0,
+        "costUSD": 0.3805454999999999,
+        "contextWindow": 200000
+      }
+    },
+    "permission_denials": [],
+    "uuid": "b1d75601-6c0c-469e-b353-72f6abe47274"
+  }
+]
