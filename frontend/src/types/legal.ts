@@ -226,3 +226,11 @@ export interface InstruccionMandatoFormData {
   is_dian_only: boolean;
   manual_acreedores: AcreedorGastosNacionales[];
 }
+
+// DIAN Mandato (IM) Types - Simplified, no creditors
+export interface DIANMandatoRequest {
+  client_nit: string;
+  numero_cotizacion_desembolso: string;
+  fecha_contrato_mandato: string; // ISO date string
+  monto: number;
+}

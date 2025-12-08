@@ -463,3 +463,25 @@ class InstruccionMandatoRequest(BaseModel):
         if v <= 0:
             raise ValueError('monto must be greater than 0')
         return v
+
+
+class DIANMandatoRequest(BaseModel):
+    """Request to generate DIAN Mandato (IM) contract - simplified, no creditors"""
+    client_nit: str = Field(..., min_length=5, max_length=20, description="Client NIT")
+    numero_cotizacion_desembolso: str = Field(..., min_length=1, max_length=100, description="Disbursement quote number")
+    fecha_contrato_mandato: str = Field(..., description="Mandate contract date (ISO format)")
+    monto: Decimal = Field(..., gt=0, description="Total amount to transfer in COP")
+
+    @validator('client_nit')
+    def validate_client_nit(cls, v):
+        """Validate NIT is not empty"""
+        if not v or not v.strip():
+            raise ValueError('client_nit cannot be empty')
+        return v.strip()
+
+    @validator('monto')
+    def validate_monto(cls, v):
+        """Validate that monto is positive"""
+        if v <= 0:
+            raise ValueError('monto must be greater than 0')
+        return v
