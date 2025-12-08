@@ -710,15 +710,22 @@ async def generate_instruccion_mandato(
 
         logger.info(f"Prepared data snapshot with {len(acreedores_dicts)} creditors")
 
-        # Generate contract using service
-        contract = await service.generate_contract(
+        # Create contract generation request
+        contract_request = ContractGenerationRequest(
             client_nit=request.client_nit,
-            contract_type="pl_co_mandato_im",
-            generated_by=user_id,
-            data_snapshot=data_snapshot
+            contract_type=ContractType.PL_CO_MANDATO_IM,
+            custodian_data=None  # Not needed for Instrucción de Mandato
         )
 
-        logger.info(f"Generated Instrucción de Mandato contract: {contract['contract_id']}")
+        # Generate contract with custom data snapshot
+        contract = await service.generate_contract(
+            request=contract_request,
+            user_id=user_id,
+            custom_data_snapshot=data_snapshot
+        )
+
+        contract_id = contract.get('contract_id', 'unknown')
+        logger.info(f"Generated Instrucción de Mandato contract: {contract_id}")
 
         # Return response
         return ContractGenerationResponse(
