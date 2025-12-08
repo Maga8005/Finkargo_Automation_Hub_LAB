@@ -368,6 +368,15 @@ class PaymentTemplateService:
             except (ValueError, TypeError):
                 pass
 
+        # Extract Total Pagado (USD) for spread calculation
+        total_pagado_usd_raw = get_value("total_pagado_usd", optional_columns)
+        total_pagado_usd = None
+        if total_pagado_usd_raw:
+            try:
+                total_pagado_usd = float(total_pagado_usd_raw)
+            except (ValueError, TypeError):
+                pass
+
         # Extract NT flag value for spread routing (column "NT")
         nt_value_for_spread = get_value("nt_flag", optional_columns)
 
@@ -395,6 +404,10 @@ class PaymentTemplateService:
                 spread_fk = spread_value
                 logger.debug(f"Spread value {spread_value} -> Spread FK (NT column does not contain NT)")
 
+        # Log spread calculation details
+        if spread_value is not None and total_pagado_usd is not None:
+            logger.debug(f"Spread calculation: {spread_value} × {total_pagado_usd} USD")
+
         # Process each concept column
         processed_concepts = self._process_concepts(
             row, country, concept_columns, df_columns_normalized, is_nt
@@ -412,9 +425,9 @@ class PaymentTemplateService:
 
                 # Only the first output row from this payment group gets spread/comision values
                 row_comision_banco = comision_banco if idx == 0 else None
-                # Multiply spread by payment amount for the first row
-                row_spread_pa = round(spread_pa * amount, 2) if idx == 0 and spread_pa is not None else None
-                row_spread_fk = round(spread_fk * amount, 2) if idx == 0 and spread_fk is not None else None
+                # Multiply spread by Total Pagado (USD) for the first row only
+                row_spread_pa = round(spread_pa * total_pagado_usd, 2) if idx == 0 and spread_pa is not None and total_pagado_usd is not None else None
+                row_spread_fk = round(spread_fk * total_pagado_usd, 2) if idx == 0 and spread_fk is not None and total_pagado_usd is not None else None
                 row_spread_supra = spread_supra if idx == 0 else None
 
                 output_rows.append({
