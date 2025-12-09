@@ -239,18 +239,20 @@ class PaymentTemplateService:
                     return None
 
                 # Extract values needed for payment group key generation
-                invoice_core_id = get_row_value("invoice_core_id", required_columns) or ""
+                customer_external_id = get_row_value("customer_external_id", required_columns) or ""
                 payment_date_raw = get_row_value("payment_date", required_columns)
                 currency = get_row_value("currency", required_columns) or "COP"
                 cuenta_remitente = get_row_value("cuenta_remitente", optional_columns)
+                exchangerate_raw = get_row_value("exchangerate", optional_columns)
 
-                # Generate payment_ref using new grouping logic:
-                # invoice_core_id + payment_date + currency + cuenta_remitente
+                # Generate payment_ref using grouping logic:
+                # customer_external_id + payment_date + currency + cuenta_remitente + exchangerate
                 payment_ref = self._generate_payment_ref(
-                    invoice_core_id,
+                    customer_external_id,
                     payment_date_raw,
                     currency,
-                    cuenta_remitente
+                    cuenta_remitente,
+                    exchangerate_raw
                 )
 
                 # Check if this is the first row for this payment group
@@ -375,14 +377,15 @@ class PaymentTemplateService:
         referencia_bancaria = get_value("referencia_bancaria", optional_columns)
         cuenta_remitente = get_value("cuenta_remitente", optional_columns)
 
-        # Generate payment_ref using new grouping logic:
-        # invoice_core_id + payment_date + currency + cuenta_remitente
+        # Generate payment_ref using grouping logic:
+        # customer_external_id + payment_date + currency + cuenta_remitente + exchangerate
         # For online payments (no cuenta_remitente), currency differentiates accounts
         payment_ref = self._generate_payment_ref(
-            invoice_core_id,
+            customer_external_id,
             payment_date_raw,
             currency,
-            cuenta_remitente
+            cuenta_remitente,
+            exchangerate_raw
         )
 
         # Extract spread value from input file (column AX "Spread")
@@ -631,29 +634,32 @@ class PaymentTemplateService:
 
     def _generate_payment_ref(
         self,
-        invoice_core_id: str,
+        customer_external_id: str,
         payment_date_raw: Optional[str],
         currency: str,
-        cuenta_remitente: Optional[str]
+        cuenta_remitente: Optional[str],
+        exchangerate: Optional[str] = None
     ) -> str:
         """
         Generate a composite payment reference for grouping payments.
 
         The grouping logic is based on the combination of:
-        1. Código de desembolso (invoice_core_id)
+        1. Identificación del cliente (customer_external_id)
         2. Fecha de pago (payment_date) - formatted as YYYYMMDD
         3. Moneda (currency)
         4. Cuenta Remitente (cuenta_remitente) - optional for online payments
+        5. Tasa de cambio (exchangerate) - exchange rate
 
         For online payments where no bank account is registered, the currency
         differentiates between payments going to different accounts
         (compensation account vs peso account).
 
         Args:
-            invoice_core_id: Disbursement code
+            customer_external_id: Customer identification (NIT/RFC)
             payment_date_raw: Raw payment date value
-            currency: Currency code (COP, USD, etc.)
+            currency: Currency code (COP, USD, MXN, etc.)
             cuenta_remitente: Sender's bank account (may be None for online payments)
+            exchangerate: Exchange rate value (may be None)
 
         Returns:
             Composite payment reference string for grouping
@@ -663,7 +669,7 @@ class PaymentTemplateService:
 
         # Build components list
         components = [
-            invoice_core_id or "",
+            customer_external_id or "",
             date_key,
             currency.upper() if currency else "COP"
         ]
@@ -674,13 +680,22 @@ class PaymentTemplateService:
         if cuenta_remitente and str(cuenta_remitente).strip():
             components.append(str(cuenta_remitente).strip())
 
+        # Add exchange rate to grouping key (format to 4 decimal places for consistency)
+        if exchangerate is not None and str(exchangerate).strip():
+            try:
+                rate_value = float(exchangerate)
+                components.append(f"{rate_value:.4f}")
+            except (ValueError, TypeError):
+                components.append(str(exchangerate).strip())
+
         # Join with pipe separator (unlikely to appear in values)
         payment_ref = "|".join(components)
 
         logger.debug(
             f"Generated payment_ref: {payment_ref} from "
-            f"invoice={invoice_core_id}, date={date_key}, "
-            f"currency={currency}, cuenta={cuenta_remitente}"
+            f"customer={customer_external_id}, date={date_key}, "
+            f"currency={currency}, cuenta={cuenta_remitente}, "
+            f"exchangerate={exchangerate}"
         )
 
         return payment_ref
