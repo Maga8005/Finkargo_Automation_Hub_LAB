@@ -515,11 +515,11 @@ class PaymentTemplateService:
             if abs(costos_fijos_total) > 0.001:
                 concepts["COSTOS_FIJOS"] = costos_fijos_total
         else:
-            # México: Process each concept individually (existing behavior)
+            # México: Process each concept individually with space-separated names
             mexico_simple_concepts = [
-                "CAPITAL", "SEGUROS", "COSTOS_ADICIONALES",
-                "COMISION_DESEMBOLSO", "COMISION_DISPOSICION", "COMISION_SWIFT",
-                "COMISION_ADMINISTRACION", "COMISION_APERTURA"
+                "CAPITAL", "SEGUROS", "COSTOS ADICIONALES",
+                "COMISION DESEMBOLSO", "COMISION DISPOSICION", "COMISION SWIFT",
+                "COMISION ADMINISTRACION", "COMISION APERTURA"
             ]
             for concept_type in mexico_simple_concepts:
                 col_name = concept_columns.get(concept_type, "")
@@ -544,7 +544,7 @@ class PaymentTemplateService:
             concepts["INTERESES"] = intereses_final
 
         # Calculate MORATORIOS (sum of PAR 60/61 columns minus condonaciones)
-        # Colombia uses: PAR 60/61 with Tasa corriente and Tasa restante de mora
+        # Both Colombia and México use: PAR 60/61 with Tasa corriente and Tasa restante de mora
         mora_col_60 = concept_columns.get("INTERESES_MORA_TASA_CORRIENTE_PAR_60", "")
         mora_tasa_corriente_60 = get_numeric_value(mora_col_60)
 
@@ -690,22 +690,31 @@ class PaymentTemplateService:
 
         return stats
 
-    def _parse_comision_banco(self, referencia_bancaria: Optional[str]) -> Optional[float]:
+    def _parse_comision_banco(self, referencia_bancaria) -> Optional[float]:
         """
         Parse bank commission from 'Referencia bancaria' field.
 
-        Handles various numeric formats:
+        Handles various formats:
+        - Numeric values (int, float) - returned directly
         - "$1,234.56" (with dollar sign and comma thousands separator)
         - "1234.56" (plain decimal)
         - "1.234,56" (European format with comma decimal separator)
 
         Args:
-            referencia_bancaria: Raw string value from 'Referencia bancaria' column
+            referencia_bancaria: Raw value from 'Referencia bancaria' column (string or numeric)
 
         Returns:
             Parsed float value or None if parsing fails
         """
-        if not referencia_bancaria or not isinstance(referencia_bancaria, str):
+        if referencia_bancaria is None:
+            return None
+
+        # Handle numeric values directly (from Excel)
+        if isinstance(referencia_bancaria, (int, float)):
+            return float(referencia_bancaria)
+
+        # Handle string values
+        if not isinstance(referencia_bancaria, str):
             return None
 
         try:
