@@ -225,16 +225,33 @@ class PaymentTemplateService:
 
         for idx, row in df.iterrows():
             try:
-                # Extract payment_ref to track payment groups
-                payment_ref = None
-                payment_ref_col = required_columns.get("payment_ref", "")
-                if payment_ref_col:
-                    normalized = payment_ref_col.strip().lower()
+                # Helper to extract column values for payment group key generation
+                def get_row_value(internal_name: str, columns: Dict[str, str]) -> Optional[str]:
+                    expected_name = columns.get(internal_name, "")
+                    if not expected_name:
+                        return None
+                    normalized = expected_name.strip().lower()
                     source_col = df_columns_normalized.get(normalized)
                     if source_col and source_col in row.index:
                         val = row[source_col]
                         if pd.notna(val):
-                            payment_ref = str(val)
+                            return str(val)
+                    return None
+
+                # Extract values needed for payment group key generation
+                invoice_core_id = get_row_value("invoice_core_id", required_columns) or ""
+                payment_date_raw = get_row_value("payment_date", required_columns)
+                currency = get_row_value("currency", required_columns) or "COP"
+                cuenta_remitente = get_row_value("cuenta_remitente", optional_columns)
+
+                # Generate payment_ref using new grouping logic:
+                # invoice_core_id + payment_date + currency + cuenta_remitente
+                payment_ref = self._generate_payment_ref(
+                    invoice_core_id,
+                    payment_date_raw,
+                    currency,
+                    cuenta_remitente
+                )
 
                 # Check if this is the first row for this payment group
                 is_first_row_in_group = payment_ref and payment_ref not in payment_groups_seen
@@ -329,7 +346,6 @@ class PaymentTemplateService:
         # Get common values
         customer_external_id = get_value("customer_external_id", required_columns) or ""
         invoice_core_id = get_value("invoice_core_id", required_columns) or ""
-        payment_ref = get_value("payment_ref", required_columns) or ""
         currency = get_value("currency", required_columns) or "COP"
 
         # Parse payment date
@@ -358,6 +374,16 @@ class PaymentTemplateService:
         # Extract optional fields for spread and comision calculations
         referencia_bancaria = get_value("referencia_bancaria", optional_columns)
         cuenta_remitente = get_value("cuenta_remitente", optional_columns)
+
+        # Generate payment_ref using new grouping logic:
+        # invoice_core_id + payment_date + currency + cuenta_remitente
+        # For online payments (no cuenta_remitente), currency differentiates accounts
+        payment_ref = self._generate_payment_ref(
+            invoice_core_id,
+            payment_date_raw,
+            currency,
+            cuenta_remitente
+        )
 
         # Extract spread value from input file (column AX "Spread")
         spread_value_raw = get_value("spread", optional_columns)
@@ -602,6 +628,100 @@ class PaymentTemplateService:
             concepts["MORATORIOS"] = moratorios_final
 
         return concepts
+
+    def _generate_payment_ref(
+        self,
+        invoice_core_id: str,
+        payment_date_raw: Optional[str],
+        currency: str,
+        cuenta_remitente: Optional[str]
+    ) -> str:
+        """
+        Generate a composite payment reference for grouping payments.
+
+        The grouping logic is based on the combination of:
+        1. Código de desembolso (invoice_core_id)
+        2. Fecha de pago (payment_date) - formatted as YYYYMMDD
+        3. Moneda (currency)
+        4. Cuenta Remitente (cuenta_remitente) - optional for online payments
+
+        For online payments where no bank account is registered, the currency
+        differentiates between payments going to different accounts
+        (compensation account vs peso account).
+
+        Args:
+            invoice_core_id: Disbursement code
+            payment_date_raw: Raw payment date value
+            currency: Currency code (COP, USD, etc.)
+            cuenta_remitente: Sender's bank account (may be None for online payments)
+
+        Returns:
+            Composite payment reference string for grouping
+        """
+        # Format date as YYYYMMDD for consistent grouping
+        date_key = self._format_date_for_grouping(payment_date_raw)
+
+        # Build components list
+        components = [
+            invoice_core_id or "",
+            date_key,
+            currency.upper() if currency else "COP"
+        ]
+
+        # Only include cuenta_remitente if it's not empty
+        # For online payments, cuenta_remitente will be None/empty
+        # and currency will differentiate between accounts
+        if cuenta_remitente and str(cuenta_remitente).strip():
+            components.append(str(cuenta_remitente).strip())
+
+        # Join with pipe separator (unlikely to appear in values)
+        payment_ref = "|".join(components)
+
+        logger.debug(
+            f"Generated payment_ref: {payment_ref} from "
+            f"invoice={invoice_core_id}, date={date_key}, "
+            f"currency={currency}, cuenta={cuenta_remitente}"
+        )
+
+        return payment_ref
+
+    def _format_date_for_grouping(self, date_value: Optional[str]) -> str:
+        """
+        Format date value to YYYYMMDD format for consistent grouping.
+
+        Args:
+            date_value: Raw date value from Excel
+
+        Returns:
+            Date string in YYYYMMDD format, or empty string if invalid
+        """
+        if not date_value:
+            return ""
+
+        try:
+            # Try parsing as datetime object directly
+            if isinstance(date_value, datetime):
+                return date_value.strftime("%Y%m%d")
+
+            # Handle pandas Timestamp
+            if hasattr(date_value, 'strftime'):
+                return date_value.strftime("%Y%m%d")
+
+            # Try common date formats
+            date_str = str(date_value).strip()
+            for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y",
+                        "%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S"]:
+                try:
+                    dt = datetime.strptime(date_str.split()[0] if ' ' in date_str else date_str, fmt.split()[0])
+                    return dt.strftime("%Y%m%d")
+                except ValueError:
+                    continue
+
+            # If all parsing fails, return as-is (may cause grouping issues)
+            return date_str
+
+        except Exception:
+            return str(date_value) if date_value else ""
 
     def _format_date(self, date_value: Optional[str]) -> str:
         """
