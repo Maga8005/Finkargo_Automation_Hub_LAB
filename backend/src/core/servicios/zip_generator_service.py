@@ -20,8 +20,8 @@ from .excel_report_service import get_excel_service
 logger = logging.getLogger(__name__)
 
 # Número máximo de descargas paralelas
-# Con cache de archivos, podemos aumentar a 8 ya que las búsquedas son instantáneas
-MAX_PARALLEL_DOWNLOADS = 8
+# Cambiado a 1 (secuencial) para evitar bloqueos con Google Drive API
+MAX_PARALLEL_DOWNLOADS = 1
 
 
 class ZipGeneratorService:
@@ -43,7 +43,8 @@ class ZipGeneratorService:
     def generate_invoice_package(
         self,
         invoices: List[Dict],
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
+        country: str = "MX"
     ) -> io.BytesIO:
         """
         Genera un paquete ZIP con facturas y reporte Excel.
@@ -52,6 +53,7 @@ class ZipGeneratorService:
             invoices: Lista de facturas con datos completos.
                 Cada factura debe tener: uuid, fecha_emision, codigo_operacion, etc.
             metadata: Metadata del paquete (código operación, RFC, fechas, etc.).
+            country: País ('MX' o 'CO') para el cache de IDs de Drive.
 
         Returns:
             BytesIO: Contenido del archivo ZIP.
@@ -60,15 +62,12 @@ class ZipGeneratorService:
             Exception: Si falla la generación del ZIP.
         """
         try:
-            logger.info(f"Iniciando generación de paquete ZIP para {len(invoices)} facturas")
+            logger.info(f"Iniciando generación de paquete ZIP para {len(invoices)} facturas (país={country})")
 
-            # 1. Pre-cachear carpetas de meses necesarias (optimización)
-            logger.info("Pre-cacheando carpetas de Google Drive...")
-            self._precache_month_folders(invoices)
-
-            # 2. Descargar archivos de Google Drive (en paralelo)
-            logger.info("Descargando archivos desde Google Drive (paralelo)...")
-            file_downloads = self._download_invoice_files_parallel(invoices)
+            # 1. Descargar archivos de Google Drive (en paralelo, con cache)
+            # Usa cache de base de datos para evitar búsquedas costosas en Drive
+            logger.info("Descargando archivos desde Google Drive (paralelo + cache)...")
+            file_downloads = self._download_invoice_files_parallel(invoices, country=country)
 
             # 3. Generar reporte Excel
             logger.info("Generando reporte Excel...")
@@ -97,16 +96,16 @@ class ZipGeneratorService:
 
     def _precache_month_folders(self, invoices: List[Dict]) -> None:
         """
-        Pre-cachea las carpetas de meses y sus archivos antes de las descargas paralelas.
+        Pre-cachea TODAS las carpetas de meses del año para búsqueda extendida.
 
-        Esto evita que múltiples hilos intenten cachear la misma carpeta simultáneamente,
-        y reduce drásticamente el número de llamadas a la API.
+        Esto permite encontrar archivos que estén en carpetas diferentes a la
+        fecha de emisión (por errores de descarga o diferencias entre fechas).
 
         Args:
             invoices: Lista de facturas con fecha_emision.
         """
-        # Identificar los meses únicos necesarios
-        months_needed: set = set()
+        # Identificar los años únicos necesarios
+        years_needed: set = set()
         for invoice in invoices:
             fecha_emision = invoice.get("fecha_emision")
             if not fecha_emision:
@@ -118,28 +117,37 @@ class ZipGeneratorService:
                 except Exception:
                     continue
 
-            months_needed.add((fecha_emision.year, fecha_emision.month))
+            years_needed.add(fecha_emision.year)
 
-        logger.info(f"Pre-cacheando {len(months_needed)} carpetas de mes...")
+        # Si no hay años identificados, usar el año actual
+        if not years_needed:
+            years_needed.add(datetime.now().year)
 
-        # Pre-cachear cada carpeta de mes
-        for year, month in months_needed:
+        logger.info(f"Pre-cacheando TODAS las carpetas de meses para años: {sorted(years_needed)}")
+
+        # Pre-cachear TODAS las carpetas de cada año (para búsqueda extendida)
+        for year in years_needed:
             try:
-                month_folder_id = self.drive_service.get_month_folder_id(month, year)
-                if month_folder_id:
-                    # Esto cacheará todos los archivos de la carpeta
-                    self.drive_service._cache_folder_files(month_folder_id)
+                self.drive_service._precache_all_month_folders(year)
             except Exception as e:
-                logger.warning(f"Error al pre-cachear carpeta {month}/{year}: {str(e)}")
+                logger.warning(f"Error al pre-cachear carpetas del año {year}: {str(e)}")
 
-        logger.info("Pre-cache completado")
+        logger.info("Pre-cache de todas las carpetas completado")
 
-    def _download_single_invoice(self, invoice: Dict) -> Optional[Dict]:
+    def _download_single_invoice(
+        self,
+        invoice: Dict,
+        search_all_months: bool = True,
+        country: str = "MX"
+    ) -> Optional[Dict]:
         """
         Descarga los archivos de una sola factura.
 
         Args:
             invoice: Diccionario con uuid, fecha_emision, codigo_operacion.
+            search_all_months: Si True, busca en todas las carpetas de meses si no
+                              encuentra en la carpeta correspondiente a la fecha.
+            country: País ('MX' o 'CO') para el cache de IDs de Drive.
 
         Returns:
             Dict con resultado de descarga o None si hay error.
@@ -160,8 +168,11 @@ class ZipGeneratorService:
                 return None
 
         try:
-            # Descargar archivos
-            pdf_content, xml_content = self.drive_service.get_invoice_files(uuid, fecha_emision)
+            # Descargar archivos con búsqueda global + cache
+            # Usa cache de base de datos primero, luego búsqueda global en Drive
+            pdf_content, xml_content = self.drive_service.get_invoice_files_extended(
+                uuid, fecha_emision, search_all_months=search_all_months, country=country
+            )
 
             return {
                 "uuid": uuid,
@@ -182,53 +193,126 @@ class ZipGeneratorService:
                 "xml_found": False,
             }
 
-    def _download_invoice_files_parallel(self, invoices: List[Dict]) -> List[Dict]:
+    def _download_invoice_files_parallel(
+        self,
+        invoices: List[Dict],
+        country: str = "MX"
+    ) -> List[Dict]:
         """
         Descarga archivos PDF y XML de todas las facturas en paralelo.
 
-        Usa ThreadPoolExecutor para descargas concurrentes, mejorando
-        significativamente el tiempo de respuesta para múltiples facturas.
+        OPTIMIZADO:
+        1. Consulta bulk a Supabase para obtener todos los drive_file_ids de una vez
+        2. Descargas paralelas usando los IDs pre-cacheados
 
         Args:
             invoices: Lista de facturas.
+            country: País ('MX' o 'CO') para el cache de IDs de Drive.
 
         Returns:
             List[Dict]: Lista con información de descargas.
         """
+        from src.repositorio.drive_file_cache_repository import DriveFileCacheRepository
+        from src.config.supabase_config import get_supabase_client
+
         download_results = []
         total_invoices = len(invoices)
-
-        logger.info(f"Iniciando descarga paralela de {total_invoices} facturas (max {MAX_PARALLEL_DOWNLOADS} hilos)")
         start_time = datetime.now()
 
-        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_DOWNLOADS) as executor:
-            # Enviar todas las tareas
-            future_to_invoice = {
-                executor.submit(self._download_single_invoice, invoice): invoice
-                for invoice in invoices
+        # 1. OPTIMIZACIÓN: Obtener TODOS los file_ids de Supabase en UNA sola consulta
+        logger.info(f"Obteniendo {total_invoices} file_ids desde cache de Supabase...")
+        uuids = [inv.get("uuid") for inv in invoices if inv.get("uuid")]
+
+        try:
+            supabase = get_supabase_client()
+            cache_repo = DriveFileCacheRepository(supabase.admin_client)
+            cached_ids = cache_repo.get_bulk_file_ids(uuids, country)
+            logger.info(f"Cache bulk lookup: {len(cached_ids)} UUIDs encontrados en cache")
+        except Exception as e:
+            logger.warning(f"Error en bulk lookup, usando fallback: {e}")
+            cached_ids = {}
+
+        # 2. Preparar lista de descargas con IDs pre-cacheados
+        download_tasks = []
+        for invoice in invoices:
+            uuid = invoice.get("uuid")
+            if not uuid:
+                continue
+
+            # Obtener IDs del cache bulk
+            uuid_cache = cached_ids.get(uuid, {})
+            pdf_id = uuid_cache.get("pdf")
+            xml_id = uuid_cache.get("xml")
+
+            download_tasks.append({
+                "invoice": invoice,
+                "pdf_id": pdf_id,
+                "xml_id": xml_id
+            })
+
+        # 3. Descargar archivos usando IDs directos (sin consultas adicionales a Supabase)
+        logger.info(f"Iniciando descarga de {len(download_tasks)} facturas (max {MAX_PARALLEL_DOWNLOADS} hilos)")
+
+        def download_with_cached_ids(task: Dict) -> Dict:
+            """Descarga archivos usando IDs pre-cacheados."""
+            invoice = task["invoice"]
+            uuid = invoice.get("uuid")
+            pdf_id = task.get("pdf_id")
+            xml_id = task.get("xml_id")
+
+            pdf_content = None
+            xml_content = None
+
+            # Descargar PDF si tenemos el ID
+            if pdf_id:
+                try:
+                    pdf_content = self.drive_service.download_file(pdf_id)
+                except Exception as e:
+                    logger.warning(f"Error descargando PDF {uuid}: {e}")
+
+            # Descargar XML si tenemos el ID
+            if xml_id:
+                try:
+                    xml_content = self.drive_service.download_file(xml_id)
+                except Exception as e:
+                    logger.warning(f"Error descargando XML {uuid}: {e}")
+
+            return {
+                "uuid": uuid,
+                "codigo_operacion": invoice.get("codigo_operacion", ""),
+                "pdf_content": pdf_content,
+                "xml_content": xml_content,
+                "pdf_found": pdf_content is not None,
+                "xml_found": xml_content is not None,
             }
 
-            # Recolectar resultados conforme se completan
+        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_DOWNLOADS) as executor:
+            future_to_task = {
+                executor.submit(download_with_cached_ids, task): task
+                for task in download_tasks
+            }
+
             completed = 0
-            for future in as_completed(future_to_invoice):
+            for future in as_completed(future_to_task):
                 completed += 1
-                result = future.result()
-                if result:
-                    download_results.append(result)
+                try:
+                    result = future.result()
+                    if result:
+                        download_results.append(result)
+                except Exception as e:
+                    logger.warning(f"Error en descarga: {e}")
 
-                # Log progreso cada 10 descargas o al final
-                if completed % 10 == 0 or completed == total_invoices:
-                    logger.info(f"Progreso de descarga: {completed}/{total_invoices}")
+                if completed % 10 == 0 or completed == len(download_tasks):
+                    logger.info(f"Progreso de descarga: {completed}/{len(download_tasks)}")
 
-        # Estadísticas de descarga
+        # Estadísticas
         elapsed = (datetime.now() - start_time).total_seconds()
-        total = len(download_results)
         pdf_found = sum(1 for item in download_results if item["pdf_found"])
         xml_found = sum(1 for item in download_results if item["xml_found"])
 
         logger.info(
-            f"Descarga paralela completada en {elapsed:.1f}s: {total} facturas, "
-            f"{pdf_found} PDFs encontrados, {xml_found} XMLs encontrados"
+            f"Descarga completada en {elapsed:.1f}s: {len(download_results)} facturas, "
+            f"{pdf_found} PDFs, {xml_found} XMLs"
         )
 
         return download_results

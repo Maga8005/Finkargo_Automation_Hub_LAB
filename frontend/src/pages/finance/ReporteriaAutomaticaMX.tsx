@@ -45,6 +45,7 @@ import {
   Search as SearchIcon,
   Refresh as RefreshIcon,
   History as HistoryIcon,
+  CloudSync as CloudSyncIcon,
 } from '@mui/icons-material';
 import FKExcelUploader from '../../components/forms/FKExcelUploader';
 import FKFinanceHistory from '../../components/forms/FKFinanceHistory';
@@ -64,8 +65,12 @@ import {
   downloadFilteredMXData,
   downloadFilteredMXZip,
   triggerDownload,
+  populateDriveCache,
+  getDriveCacheStats,
   type MXFilterRequest,
   type MXFilterResponse,
+  type PopulateCacheResponse,
+  type CacheStatsResponse,
 } from '../../services/financeServiceMX';
 
 // Tab panel component
@@ -107,6 +112,12 @@ const ReporteriaAutomaticaMX: React.FC = () => {
   const [currentFilters, setCurrentFilters] = useState<MXFilterRequest | null>(null);
   const [filterError, setFilterError] = useState<string | null>(null);
 
+  // Cache population state
+  const [isPopulatingCache, setIsPopulatingCache] = useState(false);
+  const [cacheResult, setCacheResult] = useState<PopulateCacheResponse | null>(null);
+  const [cacheStats, setCacheStats] = useState<CacheStatsResponse | null>(null);
+  const [isLoadingCacheStats, setIsLoadingCacheStats] = useState(false);
+
   // =========================================================================
   // Upload tab state (Tab 1 - Cargar Archivos)
   // =========================================================================
@@ -132,6 +143,30 @@ const ReporteriaAutomaticaMX: React.FC = () => {
 
   // Error state
   const [error, setError] = useState<string | null>(null);
+
+  // =========================================================================
+  // Cache stats loader (Tab 0 - Consultar)
+  // =========================================================================
+
+  const loadCacheStats = async () => {
+    setIsLoadingCacheStats(true);
+    try {
+      const stats = await getDriveCacheStats();
+      setCacheStats(stats);
+    } catch (err) {
+      console.error('Error loading cache stats:', err);
+      setCacheStats(null);
+    } finally {
+      setIsLoadingCacheStats(false);
+    }
+  };
+
+  // Load cache stats when switching to Consultar or Cargar Archivos tab
+  React.useEffect(() => {
+    if (activeTab === 0 || activeTab === 1) {
+      loadCacheStats();
+    }
+  }, [activeTab]);
 
   // =========================================================================
   // Filter handlers (Tab 0)
@@ -161,6 +196,28 @@ const ReporteriaAutomaticaMX: React.FC = () => {
     setFilterResult(null);
     setCurrentFilters(null);
     setFilterError(null);
+  };
+
+  const handlePopulateCache = async () => {
+    setIsPopulatingCache(true);
+    setError(null);
+    setCacheResult(null);
+
+    try {
+      const result = await populateDriveCache();
+      setCacheResult(result);
+      // Refresh cache stats after populating
+      await loadCacheStats();
+    } catch (err: unknown) {
+      const errorMessage =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        'Error al poblar cache de Drive';
+      setError(errorMessage);
+    } finally {
+      setIsPopulatingCache(false);
+    }
   };
 
   const handleDownloadFiltered = async () => {
@@ -464,6 +521,55 @@ const ReporteriaAutomaticaMX: React.FC = () => {
           </Alert>
         )}
 
+        {/* Cache status warning - Show if cache is empty */}
+        {!isLoadingCacheStats && cacheStats && !cacheStats.cache_ready && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 3 }}
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => setActiveTab(1)}
+              >
+                Ir a Cargar Archivos
+              </Button>
+            }
+          >
+            <AlertTitle>Cache de Drive no configurado</AlertTitle>
+            <Typography variant="body2">
+              Para generar ZIPs con PDFs y XMLs, primero debe cargar el archivo Excel maestro
+              y ejecutar "Optimizar Cache" en la pestaña "Cargar Archivos".
+            </Typography>
+          </Alert>
+        )}
+
+        {/* Cache status info - Show if cache is ready */}
+        {!isLoadingCacheStats && cacheStats && cacheStats.cache_ready && (
+          <Alert severity="success" sx={{ mb: 3 }} icon={<CloudSyncIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              <Typography variant="body2">
+                <strong>Cache listo:</strong>
+              </Typography>
+              <Chip
+                label={`${cacheStats.total_cached.toLocaleString()} archivos`}
+                size="small"
+                color="success"
+              />
+              <Chip
+                label={`${cacheStats.pdf_count.toLocaleString()} PDFs`}
+                size="small"
+                variant="outlined"
+              />
+              <Chip
+                label={`${cacheStats.xml_count.toLocaleString()} XMLs`}
+                size="small"
+                variant="outlined"
+              />
+            </Box>
+          </Alert>
+        )}
+
         <Stack spacing={3}>
           {/* Filter Panel - Full width */}
           <FKMXFilterPanel
@@ -480,11 +586,12 @@ const ReporteriaAutomaticaMX: React.FC = () => {
             isDownloadingZip={isDownloadingZip}
             onDownload={handleDownloadFiltered}
             onDownloadZip={handleDownloadZipFiltered}
+            cacheReady={cacheStats?.cache_ready ?? false}
           />
         </Stack>
       </TabPanel>
 
-      {/* Tab 1: Upload and Search */}
+      {/* Tab 1: Upload and Optimize Cache */}
       <TabPanel value={activeTab} index={1}>
         {/* Error alert */}
         {error && (
@@ -494,16 +601,20 @@ const ReporteriaAutomaticaMX: React.FC = () => {
           </Alert>
         )}
 
-        {/* Upload Section - Outside Grid when showing Alert */}
-        {!uploadSuccess ? (
-          <Grid container spacing={3}>
-            <Grid size={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    <UploadIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                    Cargar Excel Maestro
-                  </Typography>
+        <Stack spacing={3}>
+          {/* Step 1: Upload Excel */}
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Chip label="Paso 1" color="primary" size="small" />
+                <Typography variant="h6">
+                  <UploadIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Cargar Excel Maestro
+                </Typography>
+              </Box>
+
+              {!uploadSuccess ? (
+                <>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                     Sube el archivo Excel con los datos de facturación. El archivo debe contener
                     las columnas: UUID, CODIGO DE OPERACIÓN, Conceptos, Fecha emision, RFC receptor,
@@ -514,297 +625,195 @@ const ReporteriaAutomaticaMX: React.FC = () => {
                     onUploadError={handleUploadError}
                     maxSizeMB={10}
                   />
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        ) : (
-          <Box>
+                </>
+              ) : (
+                <Alert
+                  severity="success"
+                  action={
+                    <Button
+                      color="inherit"
+                      size="small"
+                      startIcon={<RefreshIcon />}
+                      onClick={handleReset}
+                    >
+                      Cargar nuevo archivo
+                    </Button>
+                  }
+                >
+                  <AlertTitle>Archivo cargado y sincronizado con Drive</AlertTitle>
+                  <Box>
+                    <Typography variant="body2">
+                      Total de registros: <strong>{uploadedData.length.toLocaleString()}</strong>
+                    </Typography>
+                    {sessionStats?.drive_sync_stats && (
+                      <Box sx={{ mt: 1, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                        {sessionStats.drive_sync_stats.new > 0 && (
+                          <Chip
+                            label={`${sessionStats.drive_sync_stats.new} nuevos`}
+                            color="success"
+                            size="small"
+                            variant="outlined"
+                          />
+                        )}
+                        {sessionStats.drive_sync_stats.updated > 0 && (
+                          <Chip
+                            label={`${sessionStats.drive_sync_stats.updated} actualizados`}
+                            color="info"
+                            size="small"
+                            variant="outlined"
+                          />
+                        )}
+                        {sessionStats.drive_sync_stats.unchanged > 0 && (
+                          <Chip
+                            label={`${sessionStats.drive_sync_stats.unchanged.toLocaleString()} sin cambios`}
+                            color="default"
+                            size="small"
+                            variant="outlined"
+                          />
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Step 2: Optimize Cache */}
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Chip label="Paso 2" color={uploadSuccess ? 'primary' : 'default'} size="small" />
+                <Typography variant="h6" color={uploadSuccess ? 'text.primary' : 'text.disabled'}>
+                  <CloudSyncIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Optimizar Cache de Drive
+                </Typography>
+              </Box>
+
+              <Typography variant="body2" color={uploadSuccess ? 'text.secondary' : 'text.disabled'} sx={{ mb: 3 }}>
+                Pre-cachea los IDs de archivos de Google Drive para acelerar la generación de ZIPs.
+                Este paso es <strong>obligatorio</strong> después de cargar un nuevo archivo Excel.
+              </Typography>
+
+              {/* Cache result display */}
+              {cacheResult && (
+                <Alert
+                  severity="success"
+                  sx={{ mb: 3 }}
+                  onClose={() => setCacheResult(null)}
+                >
+                  <AlertTitle>Cache optimizado exitosamente</AlertTitle>
+                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1 }}>
+                    <Chip
+                      label={`${cacheResult.stats.total.toLocaleString()} total`}
+                      size="small"
+                      variant="outlined"
+                    />
+                    <Chip
+                      label={`${cacheResult.stats.cached.toLocaleString()} cacheados`}
+                      color="success"
+                      size="small"
+                    />
+                    <Chip
+                      label={`${cacheResult.stats.already_cached.toLocaleString()} ya en cache`}
+                      color="info"
+                      size="small"
+                    />
+                    {cacheResult.stats.not_found > 0 && (
+                      <Chip
+                        label={`${cacheResult.stats.not_found.toLocaleString()} no encontrados`}
+                        color="warning"
+                        size="small"
+                      />
+                    )}
+                  </Box>
+                </Alert>
+              )}
+
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={handlePopulateCache}
+                disabled={!uploadSuccess || isPopulatingCache}
+                startIcon={isPopulatingCache ? <CircularProgress size={20} /> : <CloudSyncIcon />}
+                fullWidth
+                sx={{ height: 56 }}
+              >
+                {isPopulatingCache ? 'Optimizando cache... (puede tomar varios minutos)' : 'Optimizar Cache'}
+              </Button>
+
+              {isPopulatingCache && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  Este proceso puede tomar varios minutos para archivos grandes (6000+ registros).
+                  Por favor espera...
+                </Alert>
+              )}
+
+              {!uploadSuccess && (
+                <Alert severity="info" sx={{ mt: 2 }} variant="outlined">
+                  Primero cargue el archivo Excel maestro (Paso 1) para habilitar esta opción.
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Cache Status Summary */}
+          {cacheStats && (
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Estado actual del cache
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <Chip
+                    icon={<CloudSyncIcon />}
+                    label={cacheStats.cache_ready ? 'Cache listo' : 'Cache vacío'}
+                    color={cacheStats.cache_ready ? 'success' : 'warning'}
+                  />
+                  {cacheStats.cache_ready && (
+                    <>
+                      <Chip
+                        label={`${cacheStats.total_cached.toLocaleString()} archivos`}
+                        size="small"
+                        variant="outlined"
+                      />
+                      <Chip
+                        label={`${cacheStats.pdf_count.toLocaleString()} PDFs`}
+                        size="small"
+                        variant="outlined"
+                      />
+                      <Chip
+                        label={`${cacheStats.xml_count.toLocaleString()} XMLs`}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </>
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Next step hint */}
+          {cacheStats?.cache_ready && (
             <Alert
               severity="success"
-              sx={{ mb: 3 }}
               action={
                 <Button
                   color="inherit"
                   size="small"
-                  startIcon={<RefreshIcon />}
-                  onClick={handleReset}
+                  onClick={() => setActiveTab(0)}
                 >
-                  Cargar nuevo archivo
+                  Ir a Consultar
                 </Button>
               }
             >
-              <AlertTitle>Archivo cargado y sincronizado con Drive</AlertTitle>
-              <Box>
-                <Typography variant="body2">
-                  Total de registros: <strong>{uploadedData.length}</strong>
-                </Typography>
-                {sessionStats?.drive_sync_stats && (
-                  <Box sx={{ mt: 1, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                    {sessionStats.drive_sync_stats.new > 0 && (
-                      <Chip
-                        label={`${sessionStats.drive_sync_stats.new} nuevos`}
-                        color="success"
-                        size="small"
-                        variant="outlined"
-                      />
-                    )}
-                    {sessionStats.drive_sync_stats.updated > 0 && (
-                      <Chip
-                        label={`${sessionStats.drive_sync_stats.updated} actualizados`}
-                        color="info"
-                        size="small"
-                        variant="outlined"
-                      />
-                    )}
-                    {sessionStats.drive_sync_stats.unchanged > 0 && (
-                      <Chip
-                        label={`${sessionStats.drive_sync_stats.unchanged} sin cambios`}
-                        color="default"
-                        size="small"
-                        variant="outlined"
-                      />
-                    )}
-                  </Box>
-                )}
-              </Box>
+              <AlertTitle>Listo para consultar</AlertTitle>
+              El cache está configurado. Puede ir a la pestaña "Consultar" para buscar facturas
+              y generar paquetes ZIP con PDFs y XMLs.
             </Alert>
-
-            {/* Search Section */}
-            <Card sx={{ mb: 3 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  <SearchIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Buscar Facturas
-                </Typography>
-
-                <Grid container spacing={2} alignItems="flex-end" sx={{ width: '100%', m: 0 }}>
-                  {/* Search type selector */}
-                  <Grid size={{ xs: 12, sm: 3 }}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Tipo de búsqueda</InputLabel>
-                      <Select
-                        value={searchType}
-                        label="Tipo de búsqueda"
-                        onChange={(e) => {
-                          setSearchType(e.target.value as SearchType);
-                          setSearchValue('');
-                          setFechaInicio('');
-                          setFechaFin('');
-                        }}
-                      >
-                        <MenuItem value="codigo_operacion">Código de Operación</MenuItem>
-                        <MenuItem value="rfc">RFC Receptor</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  {/* Primary search input (codigo or rfc) */}
-                  <Grid size={{ xs: 12, sm: 3 }} key="search-value">
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label={
-                        searchType === 'codigo_operacion'
-                          ? 'Código(s) de Operación'
-                          : 'RFC Receptor'
-                      }
-                      value={searchValue}
-                      onChange={(e) => setSearchValue(e.target.value)}
-                      placeholder={
-                        searchType === 'codigo_operacion'
-                          ? 'Ej: OP-001, OP-002'
-                          : 'Ej: XAXX010101000'
-                      }
-                    />
-                  </Grid>
-
-                  {/* Date range inputs - always visible for combined filters */}
-                  <Grid size={{ xs: 12, sm: 2 }} key="fecha-inicio">
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type="date"
-                      label="Fecha Inicio (opcional)"
-                      value={fechaInicio}
-                      onChange={(e) => setFechaInicio(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 2 }} key="fecha-fin">
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type="date"
-                      label="Fecha Fin (opcional)"
-                      value={fechaFin}
-                      onChange={(e) => setFechaFin(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                    />
-                  </Grid>
-
-                  {/* Search button */}
-                  <Grid size={{ xs: 12, sm: 2 }}>
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      onClick={handleSearch}
-                      disabled={searching}
-                      startIcon={searching ? <CircularProgress size={20} /> : <SearchIcon />}
-                    >
-                      Buscar
-                    </Button>
-                  </Grid>
-                </Grid>
-
-                {/* Helper text for search section */}
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                  {searchType === 'codigo_operacion' && (
-                    <>
-                      <strong>Búsqueda:</strong> Separa múltiples códigos con coma.
-                      Las fechas son opcionales para filtrar por rango.
-                    </>
-                  )}
-                  {searchType === 'rfc' && (
-                    <>
-                      <strong>Búsqueda:</strong> Ingresa el RFC del receptor.
-                      Las fechas son opcionales para filtrar por rango.
-                    </>
-                  )}
-                </Typography>
-
-                {/* Search results summary */}
-                {searchResults && (
-                  <Box sx={{ mt: 2 }}>
-                    <Divider sx={{ mb: 2 }} />
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
-                      <Chip
-                        label={`${searchResults.total_found} resultados`}
-                        color="primary"
-                        variant="outlined"
-                      />
-                      <Chip
-                        label={`Total: ${formatCurrency(searchResults.total_amount)}`}
-                        color="success"
-                        variant="outlined"
-                      />
-                      <Button
-                        size="small"
-                        onClick={() => setSearchResults(null)}
-                      >
-                        Ver todos
-                      </Button>
-                    </Box>
-
-                    {/* Generate ZIP Button */}
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      size="large"
-                      onClick={handleGenerateZip}
-                      disabled={generating}
-                      startIcon={generating ? <CircularProgress size={20} /> : <DescriptionIcon />}
-                      sx={{
-                        height: 56,
-                        backgroundColor: 'primary.main',
-                        '&:hover': {
-                          backgroundColor: 'primary.dark',
-                        },
-                      }}
-                    >
-                      {generating
-                        ? 'Generando paquete ZIP...'
-                        : `Generar Paquete ZIP (${searchResults.total_found} facturas)`}
-                    </Button>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                      Incluye PDFs, XMLs y reporte Excel detallado
-                    </Typography>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Results Table */}
-            {tableData.length > 0 && (
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    {searchResults ? 'Resultados de Búsqueda' : 'Todos los Registros'}
-                  </Typography>
-
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>UUID</TableCell>
-                          <TableCell>Código Op.</TableCell>
-                          <TableCell>Fecha</TableCell>
-                          <TableCell>RFC Receptor</TableCell>
-                          <TableCell>Razón Social</TableCell>
-                          <TableCell align="right">SubTotal</TableCell>
-                          <TableCell align="right">IVA</TableCell>
-                          <TableCell align="right">Total</TableCell>
-                          <TableCell>Tipo</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {displayData.map((row, index) => (
-                          <TableRow key={row.uuid + index} hover>
-                            <TableCell>
-                              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                                {row.uuid.substring(0, 8)}...
-                              </Typography>
-                            </TableCell>
-                            <TableCell>{row.codigo_operacion}</TableCell>
-                            <TableCell>{formatDate(row.fecha_emision)}</TableCell>
-                            <TableCell>
-                              <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                                {row.rfc_receptor}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>
-                                {row.razon_receptor}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">{formatCurrency(row.subtotal)}</TableCell>
-                            <TableCell align="right">{formatCurrency(row.iva_trasladado)}</TableCell>
-                            <TableCell align="right">
-                              <strong>{formatCurrency(row.total)}</strong>
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label={row.tipo_comprobante || '-'}
-                                size="small"
-                                variant="outlined"
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-
-                  <TablePagination
-                    component="div"
-                    count={tableData.length}
-                    page={page}
-                    onPageChange={(_, newPage) => setPage(newPage)}
-                    rowsPerPage={rowsPerPage}
-                    onRowsPerPageChange={(e) => {
-                      setRowsPerPage(parseInt(e.target.value, 10));
-                      setPage(0);
-                    }}
-                    labelRowsPerPage="Filas por página:"
-                    labelDisplayedRows={({ from, to, count }) =>
-                      `${from}-${to} de ${count}`
-                    }
-                  />
-                </CardContent>
-              </Card>
-            )}
-          </Box>
-        )}
+          )}
+        </Stack>
       </TabPanel>
 
       {/* Tab 2: History */}

@@ -268,3 +268,62 @@ export const downloadFilteredCOZip = async (
   );
   return response.data;
 };
+
+// ============================================================================
+// Drive Cache Functions for CO
+// ============================================================================
+
+/**
+ * Response from cache population endpoint
+ */
+export interface PopulateCacheResponse {
+  success: boolean;
+  message: string;
+  stats: {
+    total: number;
+    cached: number;
+    not_found: number;
+    already_cached: number;
+  };
+}
+
+/**
+ * Populate Drive file cache from master Excel.
+ * This pre-caches file IDs to speed up ZIP generation.
+ *
+ * @returns Cache population statistics
+ */
+export const populateDriveCacheCO = async (): Promise<PopulateCacheResponse> => {
+  const response = await apiClient.post<PopulateCacheResponse>(
+    '/finance/co/populate-drive-cache',
+    {},
+    { timeout: 600000 } // 10 minutes for large files
+  );
+  return response.data;
+};
+
+/**
+ * Response from cache stats endpoint
+ */
+export interface CacheStatsResponse {
+  success: boolean;
+  country: string;
+  total_cached: number;
+  pdf_count: number;
+  xml_count: number;
+  cache_ready: boolean;
+  message: string;
+}
+
+/**
+ * Get Drive file cache statistics for CO.
+ * Use this to check if the cache needs to be populated before generating ZIPs.
+ *
+ * @returns Cache statistics
+ */
+export const getDriveCacheStatsCO = async (): Promise<CacheStatsResponse> => {
+  const response = await apiClient.get<CacheStatsResponse>(
+    '/finance/co/cache-stats'
+  );
+  return response.data;
+};

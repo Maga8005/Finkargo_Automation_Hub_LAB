@@ -1181,6 +1181,176 @@ class GoogleDriveServiceCO:
         return results
 
 
+    def _list_all_pdf_files(self) -> List[Dict]:
+        """
+        Lista TODOS los archivos PDF del Google Drive CO con paginación.
+        Busca en todas las carpetas de años y meses recursivamente.
+
+        Returns:
+            Lista de diccionarios con {id, name, mimeType}
+        """
+        try:
+            service = self.authenticate()
+            all_files = []
+
+            # Query para PDFs solamente (CO no tiene XMLs)
+            query = (
+                f"mimeType='application/pdf' and "
+                f"trashed=false"
+            )
+
+            page_token = None
+            while True:
+                results = service.files().list(
+                    q=query,
+                    fields="nextPageToken, files(id, name, mimeType)",
+                    pageSize=1000,
+                    pageToken=page_token,
+                    # Buscar en todo el drive compartido
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True
+                ).execute()
+
+                files = results.get('files', [])
+                all_files.extend(files)
+
+                page_token = results.get('nextPageToken')
+                if not page_token:
+                    break
+
+                logger.info(f"Listed {len(all_files)} PDF files so far...")
+
+            logger.info(f"Total PDF files listed from Drive CO: {len(all_files)}")
+            return all_files
+
+        except HttpError as e:
+            logger.error(f"Error HTTP al listar archivos PDF CO: {str(e)}")
+            return []
+        except Exception as e:
+            logger.error(f"Error al listar archivos PDF CO: {str(e)}")
+            return []
+
+    def precache_drive_file_ids(
+        self,
+        invoice_numbers: List[str],
+        country: str = "CO"
+    ) -> Dict[str, int]:
+        """
+        Pre-cachea los IDs de archivos de Drive para facturas de Colombia.
+
+        OPTIMIZADO: Lista todos los PDFs del Drive una sola vez
+        y hace el match en memoria (segundos en lugar de horas).
+
+        A diferencia de MX que usa UUIDs, CO usa números de factura
+        como identificadores (FE10555, ITGC846, etc.).
+
+        Args:
+            invoice_numbers: Lista de números de factura a cachear.
+            country: País ('CO').
+
+        Returns:
+            Dict con estadísticas: {total, cached, already_cached, not_found}
+        """
+        from src.repositorio.drive_file_cache_repository import DriveFileCacheRepository
+        from src.config.supabase_config import get_supabase_client
+
+        stats = {
+            'total': len(invoice_numbers),
+            'cached': 0,
+            'already_cached': 0,
+            'not_found': 0,
+            'errors': 0
+        }
+
+        if not invoice_numbers:
+            logger.warning("No invoice numbers provided for precache")
+            return stats
+
+        try:
+            # Obtener repositorio de cache
+            supabase = get_supabase_client()
+            cache_repo = DriveFileCacheRepository(supabase.admin_client)
+
+            # 1. Verificar cuáles ya están en cache
+            logger.info(f"Checking existing cache for {len(invoice_numbers)} invoice numbers...")
+            already_cached = cache_repo.get_bulk_file_ids(invoice_numbers, country)
+            stats['already_cached'] = len(already_cached)
+
+            # Filtrar los que ya están en cache
+            invoice_numbers_to_process = [
+                inv for inv in invoice_numbers
+                if inv not in already_cached
+            ]
+
+            if not invoice_numbers_to_process:
+                logger.info(f"All {len(invoice_numbers)} invoice numbers already in cache")
+                return stats
+
+            logger.info(f"Need to cache {len(invoice_numbers_to_process)} invoice numbers")
+
+            # 2. OPTIMIZACIÓN: Listar TODOS los PDFs del Drive una sola vez
+            logger.info("Listing ALL PDF files from Google Drive CO (this may take a moment)...")
+            all_drive_files = self._list_all_pdf_files()
+            logger.info(f"Found {len(all_drive_files)} PDF files in Drive CO")
+
+            # 3. Crear índice por nombre de archivo para búsqueda O(1)
+            # El nombre del archivo es "FE10555.pdf", la clave será "FE10555"
+            file_index: Dict[str, Dict[str, str]] = {}
+            for file_info in all_drive_files:
+                filename = file_info.get('name', '')
+                if filename and filename.lower().endswith('.pdf'):
+                    # Extraer el número de factura del nombre del archivo
+                    invoice_key = filename[:-4]  # Quitar ".pdf"
+                    file_index[invoice_key.upper()] = {
+                        'id': file_info['id'],
+                        'name': filename
+                    }
+
+            logger.info(f"Created index with {len(file_index)} unique invoice PDFs")
+
+            # 4. Match números de factura con archivos en memoria (muy rápido)
+            all_files_to_cache = []
+            not_found_invoices = []
+
+            for invoice_number in invoice_numbers_to_process:
+                # Normalizar el número de factura
+                invoice_upper = invoice_number.upper().strip()
+
+                # Buscar en el índice
+                if invoice_upper in file_index:
+                    file_data = file_index[invoice_upper]
+                    all_files_to_cache.append({
+                        'uuid': invoice_number,  # Usamos 'uuid' para compatibilidad con la tabla
+                        'file_type': 'pdf',
+                        'drive_file_id': file_data['id'],
+                        'drive_file_name': file_data['name']
+                    })
+                else:
+                    not_found_invoices.append(invoice_number)
+
+            stats['not_found'] = len(not_found_invoices)
+
+            if not_found_invoices and len(not_found_invoices) <= 20:
+                logger.warning(f"PDFs not found for: {not_found_invoices}")
+            elif not_found_invoices:
+                logger.warning(f"PDFs not found for {len(not_found_invoices)} invoices (showing first 20): {not_found_invoices[:20]}")
+
+            # 5. Guardar en cache en batch
+            if all_files_to_cache:
+                logger.info(f"Caching {len(all_files_to_cache)} file IDs to Supabase...")
+                cached_count = cache_repo.cache_bulk_file_ids(all_files_to_cache, country)
+                stats['cached'] = cached_count
+                logger.info(f"Successfully cached {cached_count} file IDs")
+
+            logger.info(f"Precache CO completed: {stats}")
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error in precache_drive_file_ids CO: {str(e)}", exc_info=True)
+            stats['errors'] = 1
+            return stats
+
+
 # Singleton instance
 _drive_service_co_instance: Optional[GoogleDriveServiceCO] = None
 

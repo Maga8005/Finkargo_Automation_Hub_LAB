@@ -141,7 +141,8 @@ class MXFilterService:
 
         # Try pandas datetime parsing as fallback
         try:
-            parsed = pd.to_datetime(date_str, dayfirst=True)
+            # Use format='mixed' to avoid dayfirst warning with ISO format dates
+            parsed = pd.to_datetime(date_str, format='mixed', dayfirst=True)
             if not pd.isna(parsed):
                 return parsed.date()
         except Exception:

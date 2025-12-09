@@ -65,3 +65,9 @@ backend/test_contract_output.*
 *.csv
 *.xlsx
 *.xls
+
+# =========================================================
+# ARCHIVOS A IGNORAR ESPECÍFICAMENTE (NUL e IMG)
+# =========================================================
+backend/nul
+/img/

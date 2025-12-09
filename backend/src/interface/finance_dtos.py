@@ -90,11 +90,11 @@ class ExcelValidationError(BaseModel):
     Represents a validation error found in the Excel file.
 
     Attributes:
-        row: Row number where the error occurred (1-indexed)
+        row: Row number where the error occurred (1-indexed, 0 for header/structure errors)
         column: Column name where the error occurred
         message: Human-readable error message in Spanish
     """
-    row: int = Field(..., ge=1, description="Número de fila con error")
+    row: int = Field(..., ge=0, description="Número de fila con error (0 para errores de estructura)")
     column: str = Field(..., description="Nombre de la columna con error")
     message: str = Field(..., description="Mensaje de error")
 

@@ -144,7 +144,7 @@ export const downloadFilteredMXZip = async (
     request,
     {
       responseType: 'blob',
-      timeout: 300000, // 5 minutes for large ZIP files
+      timeout: 600000, // 10 minutes - Drive downloads can be slow
     }
   );
   return response.data;
@@ -156,6 +156,54 @@ export const downloadFilteredMXZip = async (
 export const clearMXFilterCache = async (): Promise<{ message: string }> => {
   const response = await apiClient.delete<{ message: string }>(
     `${BASE_URL}/mx/filter/cache`
+  );
+  return response.data;
+};
+
+/**
+ * Populate Drive file cache from master Excel.
+ * This pre-caches file IDs to speed up ZIP generation.
+ *
+ * @returns Cache population statistics
+ */
+export interface PopulateCacheResponse {
+  message: string;
+  stats: {
+    total: number;
+    cached: number;
+    not_found: number;
+    already_cached: number;
+  };
+}
+
+export const populateDriveCache = async (): Promise<PopulateCacheResponse> => {
+  const response = await apiClient.post<PopulateCacheResponse>(
+    `${BASE_URL}/populate-drive-cache`,
+    {},
+    { timeout: 600000 } // 10 minutes for large files
+  );
+  return response.data;
+};
+
+/**
+ * Get Drive file cache statistics for MX.
+ * Use this to check if the cache needs to be populated before generating ZIPs.
+ *
+ * @returns Cache statistics
+ */
+export interface CacheStatsResponse {
+  success: boolean;
+  country: string;
+  total_cached: number;
+  pdf_count: number;
+  xml_count: number;
+  cache_ready: boolean;
+  message: string;
+}
+
+export const getDriveCacheStats = async (): Promise<CacheStatsResponse> => {
+  const response = await apiClient.get<CacheStatsResponse>(
+    `${BASE_URL}/mx/cache-stats`
   );
   return response.data;
 };

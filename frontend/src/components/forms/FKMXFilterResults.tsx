@@ -53,6 +53,7 @@ interface FKMXFilterResultsProps {
   zipProgress?: number; // 0-100 percentage
   onDownload: () => void;
   onDownloadZip?: () => void;
+  cacheReady?: boolean; // Whether the Drive cache is populated
 }
 
 type Order = 'asc' | 'desc';
@@ -65,6 +66,7 @@ const FKMXFilterResults: React.FC<FKMXFilterResultsProps> = ({
   zipProgress,
   onDownload,
   onDownloadZip,
+  cacheReady = false,
 }) => {
   // Pagination state
   const [page, setPage] = useState(0);
@@ -467,7 +469,7 @@ const FKMXFilterResults: React.FC<FKMXFilterResultsProps> = ({
                 color="secondary"
                 startIcon={isDownloadingZip ? <CircularProgress size={20} color="inherit" /> : <ZipIcon />}
                 onClick={onDownloadZip}
-                disabled={isDownloading || isDownloadingZip}
+                disabled={isDownloading || isDownloadingZip || !cacheReady}
                 fullWidth
                 sx={{ height: 56 }}
               >
@@ -476,8 +478,18 @@ const FKMXFilterResults: React.FC<FKMXFilterResultsProps> = ({
             )}
           </Stack>
 
-          {/* ZIP info message - only show when not downloading */}
-          {onDownloadZip && !isDownloadingZip && (
+          {/* Cache warning message - show when cache is not ready */}
+          {onDownloadZip && !cacheReady && !isDownloadingZip && (
+            <Alert severity="warning" variant="outlined">
+              <Typography variant="body2">
+                <strong>Cache no configurado:</strong> Para descargar ZIPs con PDFs y XMLs, primero debe cargar el
+                archivo Excel maestro y ejecutar "Optimizar Cache" en la pestaña "Cargar Archivos".
+              </Typography>
+            </Alert>
+          )}
+
+          {/* ZIP info message - only show when cache is ready and not downloading */}
+          {onDownloadZip && cacheReady && !isDownloadingZip && (
             <Alert severity="info" variant="outlined">
               <Typography variant="body2">
                 <strong>Descargar con PDFs/XMLs:</strong> Genera un archivo ZIP con el reporte Excel y los archivos PDF/XML de

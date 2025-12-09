@@ -204,6 +204,9 @@ async def upload_excel(
                 invoice_records = merge_service.convert_dicts_to_invoice_records(merged_dicts)
                 result.data = invoice_records
                 logger.info(f"Converted {len(invoice_records)} records for session storage")
+
+                # NOTE: Pre-cache de Drive IDs se hace por separado con POST /populate-drive-cache
+                # para evitar timeouts con archivos grandes (6000+ filas)
             else:
                 logger.warning("Failed to upload to Drive - using uploaded data only")
 
@@ -332,6 +335,167 @@ async def get_session_stats(
         "unique_rfcs": len(unique_rfcs),
         "unique_operaciones": len(unique_operaciones)
     }
+
+
+@router.post(
+    "/populate-drive-cache",
+    summary="Populate Drive file cache from master Excel",
+    description="""
+    Populate the drive_file_cache table with file IDs from the master Excel in Drive.
+
+    This reads the master Excel file from Google Drive, extracts all UUIDs,
+    searches for their PDF/XML files in Drive, and caches the file IDs in the database.
+
+    **IMPORTANT**: This operation can take several minutes for large files (6000+ rows).
+    Run this ONCE after uploading a new master Excel, or when you add new invoice files to Drive.
+
+    After running this, ZIP generation will be much faster because it uses cached file IDs
+    instead of searching Drive for each file.
+    """
+)
+async def populate_drive_cache(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Populate drive file cache from master Excel in Drive.
+
+    Reads the master Excel, extracts UUIDs, and caches Drive file IDs.
+    This is a long-running operation for large files.
+
+    Returns:
+        Cache population statistics
+    """
+    import pandas as pd
+
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} starting drive cache population from master Excel")
+
+    drive_service = get_drive_service()
+
+    # 1. Download master Excel from Drive
+    logger.info("Downloading master Excel from Drive...")
+    master_bytes = drive_service.download_master_excel()
+
+    if not master_bytes:
+        raise HTTPException(
+            status_code=404,
+            detail="Master Excel not found in Drive. Upload an Excel file first."
+        )
+
+    # 2. Read Excel and extract UUIDs
+    logger.info("Reading Excel and extracting UUIDs...")
+    try:
+        df = pd.read_excel(io.BytesIO(master_bytes))
+
+        # Find UUID column (case-insensitive)
+        uuid_col = None
+        for col in df.columns:
+            if col.lower() == 'uuid':
+                uuid_col = col
+                break
+
+        if not uuid_col:
+            raise HTTPException(
+                status_code=400,
+                detail="Column 'UUID' not found in master Excel"
+            )
+
+        # Extract non-null UUIDs
+        uuids = df[uuid_col].dropna().astype(str).tolist()
+        uuids = [u.strip() for u in uuids if u.strip() and u.strip().lower() != 'nan']
+
+        logger.info(f"Found {len(uuids)} UUIDs in master Excel")
+
+        if not uuids:
+            return {
+                "message": "No UUIDs found in master Excel",
+                "stats": {"total": 0, "cached": 0, "not_found": 0, "already_cached": 0}
+            }
+
+    except Exception as e:
+        logger.error(f"Error reading Excel: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error reading master Excel: {str(e)}"
+        )
+
+    # 3. Pre-cache Drive file IDs
+    logger.info(f"Starting precache for {len(uuids)} UUIDs...")
+    try:
+        stats = drive_service.precache_drive_file_ids(uuids, country="MX", max_workers=4)
+        logger.info(f"Precache completed: {stats}")
+
+        return {
+            "message": f"Cache populated for {len(uuids)} invoices from master Excel",
+            "stats": stats
+        }
+    except Exception as e:
+        logger.error(f"Precache failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error during cache population: {str(e)}"
+        )
+
+
+@router.post(
+    "/precache-drive-ids",
+    summary="Pre-cache Drive file IDs for a session",
+    description="""
+    Pre-cache Google Drive file IDs for invoices in a specific session.
+
+    Use POST /populate-drive-cache instead to cache from master Excel directly.
+    """
+)
+async def precache_drive_ids(
+    session_id: str,
+    search_service: InvoiceSearchService = Depends(get_invoice_search_service),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Pre-cache Drive file IDs for invoices in session.
+
+    Args:
+        session_id: Session ID with invoice data
+        search_service: Invoice search service
+        current_user: Authenticated user
+
+    Returns:
+        Cache statistics
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} starting precache for session {session_id}")
+
+    # Get session data
+    data = search_service.get_session(session_id)
+    if not data:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Sesión no encontrada: {session_id}"
+        )
+
+    # Extract UUIDs
+    uuids = [record.uuid for record in data if record.uuid]
+    if not uuids:
+        return {
+            "message": "No UUIDs found in session",
+            "stats": {"total": 0, "cached": 0, "not_found": 0, "already_cached": 0}
+        }
+
+    # Run precache
+    drive_service = get_drive_service()
+    try:
+        stats = drive_service.precache_drive_file_ids(uuids, country="MX", max_workers=4)
+        logger.info(f"Precache completed for session {session_id}: {stats}")
+        return {
+            "message": f"Pre-cache completed for {len(uuids)} invoices",
+            "stats": stats
+        }
+    except Exception as e:
+        logger.error(f"Precache failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error durante pre-cache: {str(e)}"
+        )
 
 
 @router.delete(
@@ -497,11 +661,12 @@ async def generate_zip(
                 detail="No se encontraron facturas para incluir en el ZIP"
             )
 
-        # Generate ZIP
+        # Generate ZIP (country=MX for cache)
         zip_service = get_zip_service()
         zip_buffer = zip_service.generate_invoice_package(
             invoices_to_include,
-            metadata=request.metadata
+            metadata=request.metadata,
+            country="MX"
         )
 
         # Generate filename
@@ -1432,6 +1597,173 @@ async def download_filtered_co_zip(
 
 
 # ============================================================================
+# Colombia (CO) Cache Endpoints
+# ============================================================================
+
+@router.post(
+    "/co/populate-drive-cache",
+    summary="Populate Drive cache for Colombia",
+    description="""
+    Pre-cache Google Drive file IDs for Colombia invoices.
+
+    This endpoint reads the master Excel from Drive and caches the Drive file IDs
+    for all invoice PDFs found. This significantly speeds up ZIP generation.
+
+    **Process:**
+    1. Downloads master Excel from Drive (Reporte_Facturacion_CO_2025.xlsx)
+    2. Extracts all invoice numbers (# Factura column)
+    3. Lists ALL PDFs in Drive CO folder
+    4. Creates index mapping invoice numbers to Drive file IDs
+    5. Saves to Supabase cache table
+
+    **Note:** This process can take several minutes for large datasets.
+    Run this once after updating the master Excel file.
+    """,
+    tags=["Finance - Facturación CO - Cache"]
+)
+async def populate_co_drive_cache(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Populate Drive file cache for Colombia invoices.
+
+    Args:
+        current_user: Authenticated user
+
+    Returns:
+        Cache population statistics
+
+    Raises:
+        HTTPException: If cache population fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} starting CO Drive cache population")
+
+    try:
+        from src.core.servicios.google_drive_service_co import get_drive_service_co
+
+        # Get filter service to read master Excel
+        filter_service = get_filter_service_co()
+        drive_service = get_drive_service_co()
+
+        # 1. Load master Excel from Drive (CO uses _cached_data with DataFrames)
+        logger.info("Loading master Excel from Drive CO...")
+        data_dict = filter_service._load_excel_from_drive()
+
+        if not data_dict:
+            raise HTTPException(
+                status_code=400,
+                detail="No se pudo cargar el archivo maestro de Drive"
+            )
+
+        # 2. Extract unique invoice numbers from both sheets
+        # CO has two sheets: "Relacion facturas Costos Fijos" and "Relación facturas mandato"
+        invoice_numbers = set()
+
+        for sheet_name, df in data_dict.items():
+            # The column name is "# Factura" in both sheets
+            if "# Factura" in df.columns:
+                # Get non-null values
+                factura_values = df["# Factura"].dropna().astype(str)
+                for val in factura_values:
+                    val_clean = val.strip()
+                    if val_clean and val_clean.lower() != 'nan':
+                        invoice_numbers.add(val_clean)
+                logger.info(f"Found {len(factura_values)} invoices in sheet '{sheet_name}'")
+
+        invoice_numbers_list = list(invoice_numbers)
+        logger.info(f"Found {len(invoice_numbers_list)} unique invoice numbers to cache")
+
+        if not invoice_numbers_list:
+            raise HTTPException(
+                status_code=400,
+                detail="No se encontraron números de factura en el archivo maestro"
+            )
+
+        # 3. Pre-cache file IDs
+        stats = drive_service.precache_drive_file_ids(
+            invoice_numbers=invoice_numbers_list,
+            country="CO"
+        )
+
+        return {
+            "success": True,
+            "message": f"Cache CO poblado exitosamente",
+            "stats": stats
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error populating CO Drive cache: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al poblar cache de Drive CO: {str(e)}"
+        )
+
+
+@router.get(
+    "/co/cache-stats",
+    summary="Get Drive cache statistics for CO",
+    description="""
+    Get statistics about the Drive file cache for Colombia.
+
+    Returns the number of cached file IDs (PDFs) in the database.
+    Use this to check if the cache needs to be populated before generating ZIPs.
+
+    **Important**: If total_cached is 0, you should run POST /co/populate-drive-cache
+    before attempting to generate ZIPs, otherwise the process will be very slow.
+    """,
+    tags=["Finance - Facturación CO - Cache"]
+)
+async def get_co_cache_stats(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get Drive cache statistics for Colombia.
+
+    Args:
+        current_user: Authenticated user
+
+    Returns:
+        Cache statistics including total cached, PDF count
+
+    Raises:
+        HTTPException: If query fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} getting CO cache stats")
+
+    try:
+        from src.repositorio.drive_file_cache_repository import DriveFileCacheRepository
+
+        supabase = get_supabase_client()
+        cache_repo = DriveFileCacheRepository(supabase.admin_client)
+        stats = cache_repo.get_cache_stats(country="CO")
+
+        return {
+            "success": True,
+            "country": "CO",
+            "total_cached": stats.get("total_cached", 0),
+            "pdf_count": stats.get("pdf_count", 0),
+            "xml_count": 0,  # CO doesn't have XMLs
+            "cache_ready": stats.get("total_cached", 0) > 0,
+            "message": (
+                "Cache listo para generar ZIPs"
+                if stats.get("total_cached", 0) > 0
+                else "Cache vacío - ejecute 'Poblar Cache' antes de generar ZIPs"
+            )
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting CO cache stats: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener estadísticas del cache: {str(e)}"
+        )
+
+
+# ============================================================================
 # FINANCE REPORT HISTORY ENDPOINTS
 # ============================================================================
 
@@ -2305,7 +2637,8 @@ async def download_filtered_mx_zip(
 
         zip_buffer = zip_service.generate_invoice_package(
             invoices=invoices_for_zip,
-            metadata=metadata
+            metadata=metadata,
+            country="MX"
         )
 
         # 4. Generate filename and return
@@ -2380,3 +2713,64 @@ async def clear_mx_filter_cache(
     filter_service = get_filter_service_mx()
     filter_service.clear_cache()
     return {"message": "Cache de filtros MX limpiado exitosamente"}
+
+
+@router.get(
+    "/mx/cache-stats",
+    summary="Get Drive cache statistics for MX",
+    description="""
+    Get statistics about the Drive file cache for Mexico.
+
+    Returns the number of cached file IDs (PDFs and XMLs) in the database.
+    Use this to check if the cache needs to be populated before generating ZIPs.
+
+    **Important**: If total_cached is 0, you should run POST /populate-drive-cache
+    before attempting to generate ZIPs, otherwise the process will be very slow.
+    """,
+    tags=["Finance - Facturación MX - Filtros"]
+)
+async def get_mx_cache_stats(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get Drive cache statistics for Mexico.
+
+    Args:
+        current_user: Authenticated user
+
+    Returns:
+        Cache statistics including total cached, PDF count, XML count
+
+    Raises:
+        HTTPException: If query fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} getting MX cache stats")
+
+    try:
+        from src.repositorio.drive_file_cache_repository import DriveFileCacheRepository
+
+        supabase = get_supabase_client()
+        cache_repo = DriveFileCacheRepository(supabase.admin_client)
+        stats = cache_repo.get_cache_stats(country="MX")
+
+        return {
+            "success": True,
+            "country": "MX",
+            "total_cached": stats.get("total_cached", 0),
+            "pdf_count": stats.get("pdf_count", 0),
+            "xml_count": stats.get("xml_count", 0),
+            "cache_ready": stats.get("total_cached", 0) > 0,
+            "message": (
+                "Cache listo para generar ZIPs"
+                if stats.get("total_cached", 0) > 0
+                else "Cache vacío - ejecute 'Poblar Cache' antes de generar ZIPs"
+            )
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting MX cache stats: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener estadísticas del cache: {str(e)}"
+        )
