@@ -73,17 +73,39 @@ COLOMBIA_BANK_ACCOUNT_MAPPING: Dict[str, int] = {
 # MÉXICO AR ACCOUNT MAPPINGS
 # =============================================================================
 
+# Uses space-separated concept type names to match output format
 MEXICO_AR_ACCOUNTS: Dict[str, int] = {
     "CAPITAL": 2114,
     "SEGUROS": 2114,
-    "COMISION_DESEMBOLSO": 2114,
-    "COMISION_DISPOSICION": 2114,
-    "COMISION_SWIFT": 2114,
-    "COMISION_ADMINISTRACION": 2114,
-    "COMISION_APERTURA": 2114,
-    "COSTOS_ADICIONALES": 2114,
+    "COMISION DESEMBOLSO": 2114,
+    "COMISION DISPOSICION": 2114,
+    "COMISION SWIFT": 2114,
+    "COMISION ADMINISTRACION": 2114,
+    "COMISION APERTURA": 2114,
+    "COSTOS ADICIONALES": 2114,
     "INTERESES": 2115,
     "MORATORIOS": 2117,
+}
+
+
+# =============================================================================
+# MÉXICO BANK ACCOUNT MAPPINGS (Cuenta Remitente -> NetSuite Internal ID)
+# =============================================================================
+
+# Maps bank account numbers (Cuenta Remitente) to NetSuite internal account IDs
+# Used to populate the 'account' field in the output template for México
+# Note: Include both with and without leading zeros since Excel may store as integer (no leading zeros)
+MEXICO_BANK_ACCOUNT_MAPPING: Dict[str, int] = {
+    # With leading zeros (as provided)
+    "0123270165": 2322,
+    "0123375153": 2320,
+    "0118970882": 2111,
+    # Without leading zeros (as Excel stores integers)
+    "123270165": 2322,
+    "123375153": 2320,
+    "118970882": 2111,
+    # No leading zero variant
+    "669555222": 2110,
 }
 
 
@@ -164,28 +186,29 @@ MEXICO_OPTIONAL_COLUMNS: Dict[str, str] = {
 }
 
 # Concept columns for México
+# Uses space-separated concept type names for output (e.g., "COMISION DESEMBOLSO")
 MEXICO_CONCEPT_COLUMNS: Dict[str, str] = {
     "CAPITAL": "Capital",
-    "COMISION_DESEMBOLSO": "Comision del desembolso + IVA",
-    "COMISION_DISPOSICION": "Comision por disposicion de crédito + IVA",
-    "COMISION_SWIFT": "Comision swift",
-    "COMISION_ADMINISTRACION": "Comision administracion y manejo",
-    "COMISION_APERTURA": "Comision de apertura",
+    "COMISION DESEMBOLSO": "Comisión del desembolso + IVA",
+    "COMISION DISPOSICION": "Comisión por disposición de crédito",
+    "COMISION SWIFT": "Comisión SWIFT",
+    "COMISION ADMINISTRACION": "Comisión de administración y manejo",
+    "COMISION APERTURA": "Comisión de apertura del cupo aprobado",
     "SEGUROS": "Seguro + IVA",
-    "COSTOS_ADICIONALES": "Costos adicionales",
+    "COSTOS ADICIONALES": "Costos adicionales",
     "INTERESES_CORRIENTES": "Intereses Corrientes",
-    # Interest adjustment columns
-    "INTERESES_MORA_PAR_30": "Intereses de Mora PAR 30",
-    "INTERESES_MORA_PAR_60": "Intereses de Mora PAR 60",
-    "INTERESES_MORA_PAR_90": "Intereses de Mora PAR 90",
-    "INTERESES_MORA_PAR_120": "Intereses de Mora PAR 120+",
+    # Interest mora columns - PAR 60/61 with Tasa corriente/Tasa restante (same as Colombia)
+    "INTERESES_MORA_TASA_CORRIENTE_PAR_60": "Intereses de Mora (Tasa corriente) PAR 60",
+    "INTERESES_MORA_TASA_RESTANTE_PAR_60": "Intereses de Mora (Tasa restante de mora) PAR 60",
+    "INTERESES_MORA_TASA_CORRIENTE_PAR_61": "Intereses de Mora (Tasa corriente) PAR 61",
+    "INTERESES_MORA_TASA_RESTANTE_PAR_61": "Intereses de Mora (Tasa restante de mora) PAR 61",
     # Discount and forgiveness columns
     "DESCUENTO_APLICADO": "Descuento aplicado",
     "CONDONACION_INTERESES_CORRIENTES": "Condonación intereses corrientes",
-    "CONDONACION_MORA_30": "Condonación Mora 30",
-    "CONDONACION_MORA_60": "Condonación Mora 60",
-    "CONDONACION_MORA_90": "Condonación Mora 90",
-    "CONDONACION_MORA_120": "Condonación Mora 120+",
+    "CONDONACION_MORA_TASA_CORRIENTE_PAR_60": "Condonación intereses de mora (Tasa corriente) Par 60",
+    "CONDONACION_MORA_TASA_RESTANTE_PAR_60": "Condonación intereses de mora (Tasa restante de mora) Par 60",
+    "CONDONACION_MORA_TASA_CORRIENTE_PAR_61": "Condonación intereses de mora (Tasa corriente) Par 61",
+    "CONDONACION_MORA_TASA_RESTANTE_PAR_61": "Condonación intereses de mora (Tasa restante de mora) Par 61",
 }
 
 
@@ -322,5 +345,9 @@ def get_bank_account_id(cuenta_remitente: Optional[str], country: str) -> Option
         normalized = str(cuenta_remitente).strip()
         return COLOMBIA_BANK_ACCOUNT_MAPPING.get(normalized)
 
-    # México mapping not yet implemented
+    elif country_lower == "mexico":
+        # Normalize the account number by stripping whitespace
+        normalized = str(cuenta_remitente).strip()
+        return MEXICO_BANK_ACCOUNT_MAPPING.get(normalized)
+
     return None
