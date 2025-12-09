@@ -368,6 +368,24 @@ class PaymentTemplateService:
             except (ValueError, TypeError):
                 pass
 
+        # Extract payment method for exchange rate adjustment
+        medio_pago = get_value("medio_pago", optional_columns)
+
+        # Adjust exchange rate for "Pago en línea" with COP currency
+        # Business rule: When Medio de pago is "Pago en línea" and currency is COP,
+        # subtract the spread from the exchange rate
+        if (exchangerate is not None
+                and spread_value is not None
+                and medio_pago
+                and "pago en l" in medio_pago.lower()
+                and currency.upper() == "COP"):
+            original_rate = exchangerate
+            exchangerate = exchangerate - spread_value
+            logger.debug(
+                f"Adjusted exchangerate for Pago en línea COP: "
+                f"original={original_rate}, spread={spread_value}, adjusted={exchangerate}"
+            )
+
         # Extract Total Pagado (USD) for spread calculation
         total_pagado_usd_raw = get_value("total_pagado_usd", optional_columns)
         total_pagado_usd = None

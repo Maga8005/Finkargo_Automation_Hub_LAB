@@ -131,7 +131,7 @@ COLOMBIA_OPTIONAL_COLUMNS: Dict[str, str] = {
     "exchangerate": "Tasa de cambio de FK/en línea",
     "nt_flag": "NT",  # Operaciones Cedidas flag (also used for spread routing)
     "spread": "Spread",  # Spread value from input (column AX)
-    "medio_pago": "Medio de pago",  # Payment method: Manual, Pago en línea, etc.
+    "medio_pago": "Médio de pago",  # Payment method: Manual, Pago en línea, etc. (Note: accented 'é' in source file)
     "total_pagado_usd": "Total pagado [USD]",  # Total paid in USD for spread calculations
     "referencia_bancaria": "Referencia bancaria",  # Bank reference (for comision_banco)
     "short_code": "Short Code",  # Payment provider identifier (SUPRA vs PA)
@@ -178,7 +178,7 @@ MEXICO_REQUIRED_COLUMNS: Dict[str, str] = {
 # Optional columns for México
 MEXICO_OPTIONAL_COLUMNS: Dict[str, str] = {
     "exchangerate": "Tasa de cambio de FK/en línea",
-    "medio_pago": "Medio de pago",  # Payment method: Manual, Pago en línea, etc.
+    "medio_pago": "Médio de pago",  # Payment method: Manual, Pago en línea, etc. (Note: accented 'é' in source file)
     "total_pagado_usd": "Total pagado [USD]",  # Total paid in USD for spread calculations
     "referencia_bancaria": "Referencia bancaria",  # Bank reference (for comision_banco)
     "short_code": "Short Code",  # Payment provider identifier (SUPRA vs PA)
