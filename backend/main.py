@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from src.config.settings import get_settings
-from src.adapter.rest import legal_routes, operations_routes, auth_routes, finance_routes, tesoreria_routes
+from src.adapter.rest import legal_routes, operations_routes, auth_routes, finance_routes, tesoreria_routes, alianzas_routes
 import json
 import logging
 
@@ -58,6 +58,7 @@ app.include_router(legal_routes.router)
 app.include_router(operations_routes.router)
 app.include_router(finance_routes.router)
 app.include_router(tesoreria_routes.router)
+app.include_router(alianzas_routes.router)
 
 @app.get("/api/health")
 async def health_check():
@@ -87,6 +88,7 @@ async def get_departments():
             {"id": "sales", "name": "Ventas", "icon": "TrendingUp"},
             {"id": "finance", "name": "Finanzas", "icon": "AttachMoney"},
             {"id": "tesoreria", "name": "Tesorería", "icon": "AccountBalance"},
+            {"id": "alianzas", "name": "Alianzas", "icon": "People"},
             {"id": "hr", "name": "Recursos Humanos", "icon": "People"},
             {"id": "technology", "name": "Tecnología", "icon": "Code"},
             {"id": "customer-service", "name": "Atención al Cliente", "icon": "Support"},

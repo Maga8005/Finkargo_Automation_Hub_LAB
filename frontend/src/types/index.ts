@@ -77,7 +77,8 @@ export type UserRole =
   | 'manager'
   | 'user'
   | 'cliente' // Special role for external clients
-  | 'tesoreria'; // Treasury department role
+  | 'tesoreria' // Treasury department role
+  | 'alianzas'; // Partnerships department role
 
 export const UserRole = {
   ADMIN: 'admin' as const,
@@ -90,6 +91,7 @@ export const UserRole = {
   USER: 'user' as const,
   CLIENTE: 'cliente' as const, // Special role for external clients
   TESORERIA: 'tesoreria' as const, // Treasury department role
+  ALIANZAS: 'alianzas' as const, // Partnerships department role
 };
 
 /**
