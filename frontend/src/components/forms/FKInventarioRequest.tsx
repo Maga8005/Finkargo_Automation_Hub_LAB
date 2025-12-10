@@ -13,6 +13,9 @@ import {
   Alert,
   CircularProgress,
   Divider,
+  Checkbox,
+  FormControlLabel,
+  Tooltip,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -37,6 +40,9 @@ const FKInventarioRequest: React.FC = () => {
   const [rutFile, setRutFile] = useState<File | null>(null);
   const [rutFileName, setRutFileName] = useState<string>('');
   const [fileError, setFileError] = useState<string | null>(null);
+
+  // AI extraction state
+  const [useAiExtraction, setUseAiExtraction] = useState(false);
 
   const handleSearch = async () => {
     setSearching(true);
@@ -103,7 +109,11 @@ const FKInventarioRequest: React.FC = () => {
     setFileError(null);
 
     try {
-      const contract = await operationsService.requestInventarioBodegaGeneration(selectedClient.nit, rutFile);
+      const contract = await operationsService.requestInventarioBodegaGeneration(
+        selectedClient.nit,
+        rutFile,
+        useAiExtraction
+      );
 
       setRequestedContract(contract);
       setSearchQuery('');
@@ -111,6 +121,7 @@ const FKInventarioRequest: React.FC = () => {
       setSearchResults([]);
       setRutFile(null);
       setRutFileName('');
+      setUseAiExtraction(false);
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { detail?: string } } };
       const errorDetail = axiosError.response?.data?.detail || 'Error al solicitar el Inventario Bodega de 3ro';
@@ -346,6 +357,26 @@ const FKInventarioRequest: React.FC = () => {
                   Archivo cargado: {rutFileName}
                 </Alert>
               )}
+
+              {rutFile && !fileError && (
+                <Box sx={{ mt: 2 }}>
+                  <Tooltip
+                    title="Usa inteligencia artificial para extraer datos de documentos escaneados. Más robusto pero toma más tiempo (30-60 segundos)."
+                    arrow
+                    placement="right"
+                  >
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={useAiExtraction}
+                          onChange={(e) => setUseAiExtraction(e.target.checked)}
+                        />
+                      }
+                      label="Usar extracción AI (para PDFs escaneados)"
+                    />
+                  </Tooltip>
+                </Box>
+              )}
             </Box>
 
             <Divider sx={{ my: 3 }} />
@@ -360,6 +391,7 @@ const FKInventarioRequest: React.FC = () => {
                   setRutFile(null);
                   setRutFileName('');
                   setFileError(null);
+                  setUseAiExtraction(false);
                 }}
                 disabled={requesting}
               >
@@ -373,7 +405,9 @@ const FKInventarioRequest: React.FC = () => {
                 disabled={requesting || !rutFile}
                 sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
               >
-                {requesting ? 'Solicitando...' : 'Solicitar Inventario Bodega de 3ro'}
+                {requesting
+                  ? (useAiExtraction ? 'Extrayendo datos con AI...' : 'Solicitando...')
+                  : 'Solicitar Inventario Bodega de 3ro'}
               </Button>
             </Box>
           </CardContent>
