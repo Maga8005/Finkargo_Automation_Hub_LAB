@@ -127,6 +127,7 @@ const FKSidebar: React.FC = () => {
    * Admin has access to all departments
    * Legal role only has access to Legal department
    * Operations role only has access to Operations department
+   * Alianzas role only has access to Alianzas department
    */
   const hasAccessToDepartment = (departmentId: string): boolean => {
     if (!userProfile) return false;
@@ -141,6 +142,9 @@ const FKSidebar: React.FC = () => {
 
     // Operations role only has access to operations department
     if (userRole === 'operations' && departmentId === 'operations') return true;
+
+    // Alianzas role only has access to alianzas department
+    if (userRole === 'alianzas' && departmentId === 'alianzas') return true;
 
     // For other roles, deny access (can be extended later)
     return false;

@@ -20,6 +20,9 @@ import ReporteriaAutomaticaMX from './pages/finance/ReporteriaAutomaticaMX';
 import PlantillasNetSuite from './pages/tesoreria/PlantillasNetSuite';
 import PlantillasNetSuiteCO from './pages/tesoreria/PlantillasNetSuiteCO';
 import PlantillasNetSuiteMX from './pages/tesoreria/PlantillasNetSuiteMX';
+import BrokersPage from './pages/alianzas/BrokersPage';
+import ComisionesCalculo from './pages/alianzas/ComisionesCalculo';
+import PagosHistorial from './pages/alianzas/PagosHistorial';
 import { UserRole } from './types';
 
 function App() {
@@ -80,6 +83,32 @@ function App() {
               <Route path="operations/contratos-mexico" element={<OperationsContractsMexico />} />
               <Route path="operations/paga-local-colombia" element={<OperationsPagaLocalColombia />} />
 
+              {/* Alianzas Routes - Broker management */}
+              <Route
+                path="alianzas/brokers"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.ALIANZAS, UserRole.ADMIN]}>
+                    <BrokersPage />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="alianzas/comisiones"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.ALIANZAS, UserRole.ADMIN]}>
+                    <ComisionesCalculo />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="alianzas/pagos"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.ALIANZAS, UserRole.ADMIN]}>
+                    <PagosHistorial />
+                  </RoleProtectedRoute>
+                }
+              />
+
               {/* Department Routes - Accessible by funcionarios */}
               <Route
                 path="department/legal"
@@ -93,6 +122,11 @@ function App() {
               <Route
                 path="department/operations"
                 element={<Navigate to="/operations/contratos-colombia" replace />}
+              />
+              {/* Alianzas department route - Redirect to brokers page */}
+              <Route
+                path="department/alianzas"
+                element={<Navigate to="/alianzas/brokers" replace />}
               />
               <Route path="department/:departmentId" element={<DepartmentPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />

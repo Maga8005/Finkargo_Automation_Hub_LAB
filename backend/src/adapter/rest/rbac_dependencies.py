@@ -113,5 +113,6 @@ def require_roles(allowed_roles: List[str], allow_admin: bool = True):
 require_legal_role = require_roles(['legal'])
 require_operations_role = require_roles(['operations'])
 require_tesoreria_role = require_roles(['tesoreria'])
+require_alianzas_role = require_roles(['alianzas'])
 require_admin_role = require_roles(['admin'], allow_admin=False)  # Only admins
 require_legal_or_operations = require_roles(['legal', 'operations'])
