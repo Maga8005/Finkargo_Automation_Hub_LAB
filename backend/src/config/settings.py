@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # Invoice Processing
     SUPPORTED_INVOICE_FORMATS: str = '[".xlsx",".xls"]'
 
+    # LandingAI ADE (Agentic Document Extraction) Configuration
+    LANDINGAI_API_KEY: str = ""
+    LANDINGAI_PARSE_ENDPOINT: str = "https://api.va.landing.ai/v1/ade/parse"
+    LANDINGAI_EXTRACT_ENDPOINT: str = "https://api.va.landing.ai/v1/ade/extract"
+
     class Config:
         env_file = ".env"
         case_sensitive = True

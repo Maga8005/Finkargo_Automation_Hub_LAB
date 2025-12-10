@@ -134,16 +134,19 @@ export const operationsService = {
    *
    * @param clientNit - Client NIT
    * @param rutFile - RUT PDF document for custodian operator
+   * @param useAiExtraction - Use LandingAI for AI-powered extraction (for scanned PDFs)
    */
   async requestInventarioBodegaGeneration(
     clientNit: string,
-    rutFile: File
+    rutFile: File,
+    useAiExtraction: boolean = false
   ): Promise<ContractGeneration> {
     // Create FormData for multipart/form-data upload
     const formData = new FormData();
     formData.append('client_nit', clientNit);
     formData.append('contract_type', 'inventario_bodega');
     formData.append('rut_file', rutFile);
+    formData.append('use_ai_extraction', useAiExtraction.toString());
 
     const response = await apiClient.post<ContractGeneration>(
       `${BASE_URL}/contracts/generate`,
@@ -152,6 +155,8 @@ export const operationsService = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        // Increase timeout for AI extraction (can take 30-60 seconds)
+        timeout: useAiExtraction ? 120000 : 30000,
       }
     );
     return response.data;

@@ -16,6 +16,7 @@ from src.repositorio.template_repository import TemplateRepository
 from src.core.servicios.contract_service import ContractService
 from src.core.servicios.document_service import DocumentService
 from src.core.servicios.rut_parser_service import RUTParserService
+from src.core.servicios.landingai_rut_parser_service import LandingAIRUTParserService
 from src.core.servicios.cotizacion_parser_service import CotizacionParserService
 from src.core.servicios.bank_certificate_parser_service import BankCertificateParserService
 from src.adapter.rest.rbac_dependencies import require_operations_role
@@ -71,6 +72,7 @@ async def request_contract_generation(
     client_nit: str = Form(..., description="Client NIT"),
     contract_type: str = Form(..., description="Contract type (activos, otrosi, inventario_bodega)"),
     rut_file: Optional[UploadFile] = File(None, description="RUT PDF document (required for inventario_bodega)"),
+    use_ai_extraction: Optional[bool] = Form(False, description="Use LandingAI for AI-powered RUT extraction (for scanned PDFs)"),
     service: ContractService = Depends(get_contract_service),
     current_user: dict = Depends(require_operations_role)
 ):
@@ -125,18 +127,25 @@ async def request_contract_generation(
                     detail="RUT file size exceeds 5MB limit"
                 )
 
-            # Parse RUT document
-            logger.info(f"Parsing RUT document: {rut_file.filename}")
-            parser = RUTParserService()
+            # Parse RUT document - use AI extraction if requested
+            logger.info(f"Parsing RUT document: {rut_file.filename}, AI extraction: {use_ai_extraction}")
 
             try:
+                if use_ai_extraction:
+                    logger.info("Using LandingAI for RUT extraction (user requested AI mode)")
+                    parser = LandingAIRUTParserService()
+                else:
+                    logger.info("Using standard text-based RUT extraction")
+                    parser = RUTParserService()
+
                 custodian_data = parser.parse_rut_pdf(rut_bytes)
                 logger.info(f"RUT parsed successfully for custodian: {custodian_data.nombre_operador_custodio}")
             except ValueError as e:
                 logger.error(f"RUT parsing failed: {e}")
+                extraction_method = "AI extraction" if use_ai_extraction else "Text extraction"
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Error parsing RUT document: {str(e)}"
+                    detail=f"Error parsing RUT document ({extraction_method}): {str(e)}"
                 )
             except Exception as e:
                 logger.error(f"Unexpected error parsing RUT: {e}", exc_info=True)
