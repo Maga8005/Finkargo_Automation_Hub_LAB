@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     LANDINGAI_PARSE_ENDPOINT: str = "https://api.va.landing.ai/v1/ade/parse"
     LANDINGAI_EXTRACT_ENDPOINT: str = "https://api.va.landing.ai/v1/ade/extract"
 
+    # Banxico API Configuration (Mexico exchange rates)
+    BANXICO_API_TOKEN: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = True

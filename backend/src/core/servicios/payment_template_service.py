@@ -463,6 +463,24 @@ class PaymentTemplateService:
         # Get bank account ID from cuenta_remitente
         account_id = get_bank_account_id(cuenta_remitente, country)
 
+        # Check if this is a capital-only Pago en Linea (Colombia only)
+        # In this case, spread should be output as a separate SPREAD row instead of columns
+        should_create_separate_spread_line = self._is_capital_only_pago_en_linea(
+            medio_pago, processed_concepts, country
+        )
+
+        # Calculate spread amount for separate line if needed
+        separate_spread_amount = None
+        if should_create_separate_spread_line and spread_value is not None and total_pagado_usd is not None:
+            separate_spread_amount = spread_value * total_pagado_usd
+            logger.debug(
+                f"Creating separate SPREAD line for capital-only Pago en linea: "
+                f"customer={customer_external_id}, spread_amount={separate_spread_amount}"
+            )
+
+        # Determine which row should get spread values (first non-CAPITAL for Colombia)
+        spread_target_index = self._get_spread_target_index(processed_concepts, country)
+
         # Generate output rows for non-zero concepts
         for idx, (concept_type, amount) in enumerate(processed_concepts.items()):
             if abs(amount) > 0.001:  # Skip zero or near-zero amounts
@@ -470,12 +488,21 @@ class PaymentTemplateService:
                 if ar_account is None:
                     ar_account = get_ar_account("COSTOS_FIJOS", country, is_nt) or 0
 
-                # Only the first output row from this payment group gets spread/comision values
+                # comision_banco always goes to first row (idx == 0)
                 row_comision_banco = comision_banco if idx == 0 else None
-                # Multiply spread by Total Pagado (USD) for the first row only
-                row_spread_pa = round(spread_pa * total_pagado_usd, 2) if idx == 0 and spread_pa is not None and total_pagado_usd is not None else None
-                row_spread_fk = round(spread_fk * total_pagado_usd, 2) if idx == 0 and spread_fk is not None and total_pagado_usd is not None else None
-                row_spread_supra = spread_supra if idx == 0 else None
+
+                # Spread goes to spread_target_index (first non-CAPITAL for Colombia)
+                is_spread_target = (idx == spread_target_index)
+
+                # For capital-only Pago en Linea, spread goes to separate line, not columns
+                if should_create_separate_spread_line:
+                    row_spread_pa = None
+                    row_spread_fk = None
+                else:
+                    # Spread goes to spread_target_index row
+                    row_spread_pa = round(spread_pa * total_pagado_usd, 2) if is_spread_target and spread_pa is not None and total_pagado_usd is not None else None
+                    row_spread_fk = round(spread_fk * total_pagado_usd, 2) if is_spread_target and spread_fk is not None and total_pagado_usd is not None else None
+                row_spread_supra = spread_supra if is_spread_target else None
 
                 output_rows.append({
                     "customer_external_id": customer_external_id,
@@ -493,6 +520,18 @@ class PaymentTemplateService:
                     "Spread FK": row_spread_fk,
                     "Spread Supra": row_spread_supra,
                 })
+
+        # Add separate SPREAD row for capital-only Pago en Linea
+        if should_create_separate_spread_line and separate_spread_amount is not None and abs(separate_spread_amount) > 0.001:
+            spread_row = self._create_spread_output_row(
+                customer_external_id=customer_external_id,
+                invoice_core_id=invoice_core_id,
+                payment_date=payment_date,
+                payment_ref=payment_ref,
+                exchangerate=exchangerate,
+                spread_amount=separate_spread_amount
+            )
+            output_rows.append(spread_row)
 
         return output_rows
 
@@ -842,6 +881,118 @@ class PaymentTemplateService:
         stats.sort(key=lambda x: x.count, reverse=True)
 
         return stats
+
+    def _is_capital_only_pago_en_linea(
+        self,
+        medio_pago: Optional[str],
+        processed_concepts: Dict[str, float],
+        country: str
+    ) -> bool:
+        """
+        Check if this is a capital-only Pago en Linea payment (Colombia only).
+
+        Returns True if:
+        1. Country is Colombia
+        2. Payment method is "Pago en linea" (case-insensitive)
+        3. CAPITAL is the only non-zero concept
+
+        Args:
+            medio_pago: Payment method string
+            processed_concepts: Dictionary of concept_type -> amount
+            country: Country code
+
+        Returns:
+            True if this is a capital-only Pago en Linea payment
+        """
+        # Only applies to Colombia
+        if country.lower() != "colombia":
+            return False
+
+        # Check payment method contains "pago en l" (handles "Pago en linea", "Pago en Linea", etc.)
+        if not medio_pago or "pago en l" not in medio_pago.lower():
+            return False
+
+        # Check if only CAPITAL has a non-zero value
+        non_zero_concepts = [k for k, v in processed_concepts.items() if abs(v) > 0.001]
+        return non_zero_concepts == ["CAPITAL"]
+
+    def _get_spread_target_index(
+        self,
+        processed_concepts: Dict[str, float],
+        country: str
+    ) -> int:
+        """
+        Determine which output row index should receive spread values.
+
+        For Colombia:
+        - If multiple concepts exist, return index of first non-CAPITAL concept
+        - If only CAPITAL exists, return 0 (will be handled separately or go to CAPITAL)
+
+        For México:
+        - Always return 0 (standard behavior, spread on first row)
+
+        Args:
+            processed_concepts: Dictionary of concept_type -> amount
+            country: Country code
+
+        Returns:
+            Index of the row that should receive spread values
+        """
+        if country.lower() != "colombia":
+            return 0  # México uses standard behavior (first row)
+
+        # Get list of non-zero concepts in order
+        non_zero_concepts = [k for k, v in processed_concepts.items() if abs(v) > 0.001]
+
+        # Find first non-CAPITAL concept
+        for idx, concept in enumerate(non_zero_concepts):
+            if concept != "CAPITAL":
+                return idx
+
+        # If only CAPITAL exists, return 0
+        return 0
+
+    def _create_spread_output_row(
+        self,
+        customer_external_id: str,
+        invoice_core_id: str,
+        payment_date: str,
+        payment_ref: str,
+        exchangerate: Optional[float],
+        spread_amount: float
+    ) -> Dict:
+        """
+        Create a separate SPREAD output row for capital-only Pago en Linea payments.
+
+        The SPREAD row has blank account and araccount fields.
+
+        Args:
+            customer_external_id: Customer identifier
+            invoice_core_id: Invoice/desembolso code
+            payment_date: Formatted payment date
+            payment_ref: Payment reference for grouping
+            exchangerate: Exchange rate value
+            spread_amount: Calculated spread amount (spread_value * total_pagado_usd)
+
+        Returns:
+            Dictionary representing the SPREAD output row
+        """
+        return {
+            "customer_external_id": customer_external_id,
+            "invoice_core_id": invoice_core_id,
+            "concept_type": "SPREAD",
+            "payment_date": payment_date,
+            "payment_amount": round(spread_amount, 2),
+            "currency": "COP",  # Spread is always in COP for Colombia
+            "payment_ref": payment_ref,
+            "account": None,  # Blank for SPREAD
+            "araccount": None,  # Blank for SPREAD
+            "exchangerate": exchangerate,
+            "comision_banco": None,
+            "Spread PA": None,
+            "Spread FK": None,
+            "Spread Supra": None,
+        }
 
     def _parse_comision_banco(self, referencia_bancaria) -> Optional[float]:
         """
