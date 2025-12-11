@@ -8,7 +8,7 @@
  * - View history of reports generated (Historial tab)
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Container,
   Typography,
@@ -56,8 +56,10 @@ import {
   downloadFilteredMXZip,
   triggerDownload,
   clearMXFilterCache,
+  getDriveCacheStatsMX,
   type MXFilterRequest,
   type MXFilterResponse,
+  type CacheStatsResponse,
 } from '../../services/financeServiceMX';
 
 // Tab panel component
@@ -100,6 +102,11 @@ const ReporteriaAutomaticaMX: React.FC = () => {
   const [filterError, setFilterError] = useState<string | null>(null);
 
   // =========================================================================
+  // Cache state
+  // =========================================================================
+  const [cacheStats, setCacheStats] = useState<CacheStatsResponse | null>(null);
+
+  // =========================================================================
   // Combined Upload tab state (Tab 1 - Facturas + Complementos)
   // =========================================================================
   const [combinedSessionId, setCombinedSessionId] = useState<string | null>(null);
@@ -113,6 +120,22 @@ const ReporteriaAutomaticaMX: React.FC = () => {
   } | null>(null);
   const [isRefreshingCache, setIsRefreshingCache] = useState(false);
   const [cacheRefreshSuccess, setCacheRefreshSuccess] = useState(false);
+
+  // =========================================================================
+  // Load cache stats on mount
+  // =========================================================================
+  useEffect(() => {
+    const loadCacheStats = async () => {
+      try {
+        const stats = await getDriveCacheStatsMX();
+        setCacheStats(stats);
+      } catch (error) {
+        console.error('Error loading cache stats:', error);
+        // Don't show error to user, just leave cache as not ready
+      }
+    };
+    loadCacheStats();
+  }, []);
 
   // =========================================================================
   // Filter handlers (Tab 0)
@@ -355,6 +378,7 @@ const ReporteriaAutomaticaMX: React.FC = () => {
             isDownloadingZip={isDownloadingZip}
             onDownload={handleDownloadFiltered}
             onDownloadZip={handleDownloadZipFiltered}
+            cacheReady={cacheStats?.cache_ready ?? false}
           />
         </Stack>
       </TabPanel>

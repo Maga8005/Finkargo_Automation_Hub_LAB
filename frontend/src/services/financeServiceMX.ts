@@ -188,6 +188,33 @@ export const clearMXFilterCache = async (): Promise<{ message: string }> => {
   return response.data;
 };
 
+// ============================================================================
+// Cache Statistics Types and Functions
+// ============================================================================
+
+export interface CacheStatsResponse {
+  success: boolean;
+  total_cached: number;
+  pdf_count: number;
+  xml_count: number;
+  cache_ready: boolean;
+  country: string;
+}
+
+/**
+ * Get Drive cache statistics for MX.
+ *
+ * Returns information about cached file IDs including total count and ready status.
+ *
+ * @returns Cache statistics
+ */
+export const getDriveCacheStatsMX = async (): Promise<CacheStatsResponse> => {
+  const response = await apiClient.get<CacheStatsResponse>(
+    `${BASE_URL}/mx/cache-stats`
+  );
+  return response.data;
+};
+
 /**
  * Trigger file download in browser.
  *

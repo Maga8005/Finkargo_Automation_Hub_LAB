@@ -71,3 +71,4 @@ backend/test_contract_output.*
 # =========================================================
 backend/nul
 /img/
+nul
