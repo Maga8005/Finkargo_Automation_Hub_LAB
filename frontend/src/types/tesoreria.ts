@@ -9,12 +9,18 @@ export type CountryCode = 'colombia' | 'mexico';
 
 /**
  * Payment concept types for NetSuite template.
+ *
+ * Colombia uses underscore-separated names (e.g., COSTOS_FIJOS)
+ * México uses space-separated names (e.g., COMISION DESEMBOLSO)
  */
 export type ConceptType =
+  // Common types
   | 'CAPITAL'
   | 'SEGUROS'
   | 'INTERESES'
   | 'MORATORIOS'
+  // Colombia-specific (underscore-separated)
+  | 'COSTOS_FIJOS'
   | 'COSTOS_ADICIONALES'
   | '4X1000'
   | 'FONDO_GARANTIAS'
@@ -25,7 +31,16 @@ export type ConceptType =
   | 'COMISION_DISPOSICION'
   | 'COMISION_SWIFT'
   | 'COMISION_ADMINISTRACION'
-  | 'COMISION_APERTURA';
+  | 'COMISION_APERTURA'
+  // Special type for capital-only Pago en Línea (Colombia)
+  | 'SPREAD'
+  // México-specific (space-separated)
+  | 'COSTOS ADICIONALES'
+  | 'COMISION DESEMBOLSO'
+  | 'COMISION DISPOSICION'
+  | 'COMISION SWIFT'
+  | 'COMISION ADMINISTRACION'
+  | 'COMISION APERTURA';
 
 /**
  * Represents a validation error found in the Historial de Pagos file.
