@@ -9,19 +9,28 @@ Optimizado con descargas paralelas usando ThreadPoolExecutor para mejor rendimie
 
 import io
 import logging
+import time
 import zipfile
 from typing import List, Dict, Optional
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from .google_drive_service import get_drive_service
+from .google_drive_service import get_drive_service, _get_file_cache_repo
 from .excel_report_service import get_excel_service
 
 logger = logging.getLogger(__name__)
 
+# Tipo para cache de file_ids: {uuid: {'pdf': file_id, 'xml': file_id}}
+FileIdCache = Dict[str, Dict[str, str]]
+
 # Número máximo de descargas paralelas
-# Con cache de archivos, podemos aumentar a 8 ya que las búsquedas son instantáneas
-MAX_PARALLEL_DOWNLOADS = 8
+# Reducido a 1 para evitar timeouts por competencia de recursos
+# Con 1 hilo, cada archivo tiene el timeout completo sin interferencia
+MAX_PARALLEL_DOWNLOADS = 1
+
+# Delay entre descargas para evitar rate limiting de Google Drive (en segundos)
+# Un pequeño delay reduce la presión sobre el API y evita throttling
+DOWNLOAD_DELAY_SECONDS = 0.5
 
 
 class ZipGeneratorService:
@@ -43,7 +52,8 @@ class ZipGeneratorService:
     def generate_invoice_package(
         self,
         invoices: List[Dict],
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
+        country: str = "MX"
     ) -> io.BytesIO:
         """
         Genera un paquete ZIP con facturas y reporte Excel.
@@ -52,6 +62,7 @@ class ZipGeneratorService:
             invoices: Lista de facturas con datos completos.
                 Cada factura debe tener: uuid, fecha_emision, codigo_operacion, etc.
             metadata: Metadata del paquete (código operación, RFC, fechas, etc.).
+            country: País para el cache de file_ids ('MX' o 'CO').
 
         Returns:
             BytesIO: Contenido del archivo ZIP.
@@ -60,15 +71,15 @@ class ZipGeneratorService:
             Exception: Si falla la generación del ZIP.
         """
         try:
-            logger.info(f"Iniciando generación de paquete ZIP para {len(invoices)} facturas")
+            logger.info(f"Iniciando generación de paquete ZIP para {len(invoices)} facturas (country={country})")
 
             # 1. Pre-cachear carpetas de meses necesarias (optimización)
             logger.info("Pre-cacheando carpetas de Google Drive...")
             self._precache_month_folders(invoices)
 
-            # 2. Descargar archivos de Google Drive (en paralelo)
-            logger.info("Descargando archivos desde Google Drive (paralelo)...")
-            file_downloads = self._download_invoice_files_parallel(invoices)
+            # 2. Descargar archivos de Google Drive (en paralelo, con cache pre-cargado)
+            logger.info("Descargando archivos desde Google Drive (paralelo con cache)...")
+            file_downloads = self._download_invoice_files_parallel(invoices, country=country)
 
             # 3. Generar reporte Excel
             logger.info("Generando reporte Excel...")
@@ -134,12 +145,22 @@ class ZipGeneratorService:
 
         logger.info("Pre-cache completado")
 
-    def _download_single_invoice(self, invoice: Dict) -> Optional[Dict]:
+    def _download_single_invoice(
+        self,
+        invoice: Dict,
+        file_id_cache: Optional[FileIdCache] = None,
+        country: str = "MX"
+    ) -> Optional[Dict]:
         """
         Descarga los archivos de una sola factura.
 
+        OPTIMIZADO: Si se proporciona file_id_cache, usa los IDs pre-cargados
+        en lugar de consultar el cache de Supabase individualmente.
+
         Args:
             invoice: Diccionario con uuid, fecha_emision, codigo_operacion.
+            file_id_cache: Cache pre-cargado de file_ids {uuid: {'pdf': id, 'xml': id}}.
+            country: País para el cache ('MX' o 'CO').
 
         Returns:
             Dict con resultado de descarga o None si hay error.
@@ -160,8 +181,36 @@ class ZipGeneratorService:
                 return None
 
         try:
-            # Descargar archivos
-            pdf_content, xml_content = self.drive_service.get_invoice_files(uuid, fecha_emision)
+            # Pequeño delay para evitar saturar Google Drive API
+            time.sleep(DOWNLOAD_DELAY_SECONDS)
+
+            pdf_content = None
+            xml_content = None
+
+            # Si tenemos cache pre-cargado, usar los IDs directamente con retry
+            if file_id_cache and uuid in file_id_cache:
+                cached_ids = file_id_cache[uuid]
+
+                # Descargar PDF si tenemos el ID (con retry y backoff)
+                if 'pdf' in cached_ids:
+                    pdf_content = self.drive_service.download_file_with_retry(
+                        file_id=cached_ids['pdf'],
+                        file_name=f"{uuid}.pdf",
+                        max_retries=2
+                    )
+
+                # Descargar XML si tenemos el ID (con retry y backoff)
+                if 'xml' in cached_ids:
+                    xml_content = self.drive_service.download_file_with_retry(
+                        file_id=cached_ids['xml'],
+                        file_name=f"{uuid}.xml",
+                        max_retries=2
+                    )
+            else:
+                # Fallback: usar método normal (consulta cache individualmente)
+                pdf_content, xml_content = self.drive_service.get_invoice_files(
+                    uuid, fecha_emision, country=country
+                )
 
             return {
                 "uuid": uuid,
@@ -182,15 +231,20 @@ class ZipGeneratorService:
                 "xml_found": False,
             }
 
-    def _download_invoice_files_parallel(self, invoices: List[Dict]) -> List[Dict]:
+    def _download_invoice_files_parallel(
+        self,
+        invoices: List[Dict],
+        country: str = "MX"
+    ) -> List[Dict]:
         """
         Descarga archivos PDF y XML de todas las facturas en paralelo.
 
-        Usa ThreadPoolExecutor para descargas concurrentes, mejorando
-        significativamente el tiempo de respuesta para múltiples facturas.
+        OPTIMIZADO: Pre-carga TODOS los file_ids del cache en UNA sola consulta
+        antes de iniciar las descargas paralelas. Esto evita rate limiting de Supabase.
 
         Args:
             invoices: Lista de facturas.
+            country: País para el cache ('MX' o 'CO').
 
         Returns:
             List[Dict]: Lista con información de descargas.
@@ -201,10 +255,28 @@ class ZipGeneratorService:
         logger.info(f"Iniciando descarga paralela de {total_invoices} facturas (max {MAX_PARALLEL_DOWNLOADS} hilos)")
         start_time = datetime.now()
 
+        # OPTIMIZACIÓN: Pre-cargar TODOS los file_ids en UNA sola consulta
+        file_id_cache: FileIdCache = {}
+        cache_repo = _get_file_cache_repo()
+        if cache_repo:
+            try:
+                uuids = [inv.get("uuid") for inv in invoices if inv.get("uuid")]
+                if uuids:
+                    logger.info(f"Pre-cargando {len(uuids)} file_ids del cache...")
+                    file_id_cache = cache_repo.get_bulk_file_ids(uuids, country)
+                    logger.info(f"Cache pre-cargado: {len(file_id_cache)} UUIDs encontrados")
+            except Exception as e:
+                logger.warning(f"Error pre-cargando cache: {e}. Continuando sin cache pre-cargado.")
+
         with ThreadPoolExecutor(max_workers=MAX_PARALLEL_DOWNLOADS) as executor:
-            # Enviar todas las tareas
+            # Enviar todas las tareas CON el cache pre-cargado
             future_to_invoice = {
-                executor.submit(self._download_single_invoice, invoice): invoice
+                executor.submit(
+                    self._download_single_invoice,
+                    invoice,
+                    file_id_cache,
+                    country
+                ): invoice
                 for invoice in invoices
             }
 

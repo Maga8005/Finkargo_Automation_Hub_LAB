@@ -262,8 +262,86 @@ export const downloadFilteredCOZip = async (
     filters,
     {
       responseType: 'blob',
-      // Allow longer timeout for PDF search and download (10 minutes)
+      // Allow longer timeout for PDF search and download (30 minutes for large ZIPs)
+      timeout: 1800000,
+    }
+  );
+  return response.data;
+};
+
+// ============================================================================
+// Cache Optimization Functions
+// ============================================================================
+
+export interface PrecacheStats {
+  total: number;
+  cached: number;
+  not_found: number;
+  already_cached: number;
+}
+
+export interface PrecacheResponse {
+  success: boolean;
+  message: string;
+  stats: PrecacheStats;
+}
+
+/**
+ * Pre-populate the Drive file cache for CO invoices.
+ *
+ * This dramatically speeds up ZIP downloads by:
+ * 1. Listing all PDF files from Drive in one API call
+ * 2. Matching invoice numbers in memory
+ * 3. Storing file IDs in Supabase cache
+ *
+ * Recommended to run once before downloading large ZIPs.
+ *
+ * @returns Precache response with statistics
+ */
+export const precacheDriveFilesCO = async (): Promise<PrecacheResponse> => {
+  const response = await apiClient.post<PrecacheResponse>(
+    '/finance/co/precache-drive-files',
+    {},
+    {
+      // Allow longer timeout for precache operation (10 minutes)
       timeout: 600000,
+    }
+  );
+  return response.data;
+};
+
+export interface InitializeFromHistoricalStats {
+  historical_invoices: number;
+  total: number;
+  cached: number;
+  not_found: number;
+  already_cached: number;
+}
+
+export interface InitializeFromHistoricalResponse {
+  success: boolean;
+  message: string;
+  stats: InitializeFromHistoricalStats;
+}
+
+/**
+ * ONE-TIME initialization from historical invoice control file.
+ *
+ * Reads "Archivo control facturacion mensual Finkargo Def.xlsx" to:
+ * 1. Extract ALL invoice numbers from historical record (3 sheets)
+ * 2. Pre-populate Supabase cache with Drive file IDs
+ *
+ * This allows using the system immediately without uploading Noova/Netsuite files.
+ *
+ * @returns Initialization response with statistics
+ */
+export const initializeFromHistoricalCO = async (): Promise<InitializeFromHistoricalResponse> => {
+  const response = await apiClient.post<InitializeFromHistoricalResponse>(
+    '/finance/co/initialize-from-historical',
+    {},
+    {
+      // Allow longer timeout for initialization (15 minutes)
+      timeout: 900000,
     }
   );
   return response.data;

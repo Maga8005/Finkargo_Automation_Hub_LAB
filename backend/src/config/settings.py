@@ -47,7 +47,8 @@ class Settings(BaseSettings):
 
     # Google Drive Configuration - Colombia (CO)
     GOOGLE_DRIVE_CO_FOLDER_ID: str = "1l3zOaD7Qt-KOHz97FLib4HwSEQqwjN2y"  # CO folder ID
-    GOOGLE_DRIVE_CO_MASTER_EXCEL_NAME: str = "Reporte_Facturacion_CO_2025.xlsx"
+    GOOGLE_DRIVE_CO_MASTER_EXCEL_NAME: str = "Reporte_Facturacion_CO.xlsx"
+    GOOGLE_DRIVE_CO_HISTORICAL_EXCEL_NAME: str = "Archivo control facturacion mensual Finkargo Def.xlsx"
 
     # Session Cache Configuration
     SESSION_CACHE_TTL_MINUTES: int = 30

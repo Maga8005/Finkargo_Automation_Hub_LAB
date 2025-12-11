@@ -32,11 +32,14 @@ import {
   Clear as ClearIcon,
   Refresh as RefreshIcon,
   FilterList as FilterIcon,
+  Speed as SpeedIcon,
 } from '@mui/icons-material';
 import {
   getCODistinctValues,
   getCOOperationsByNit,
+  precacheDriveFilesCO,
   type COFilterRequest,
+  type PrecacheResponse,
 } from '../../services/financeServiceCO';
 
 interface FKCOFilterPanelProps {
@@ -71,6 +74,10 @@ const FKCOFilterPanel: React.FC<FKCOFilterPanelProps> = ({
 
   // Track if a NIT has been selected
   const [nitSelected, setNitSelected] = useState(false);
+
+  // Precache state
+  const [isPrecaching, setIsPrecaching] = useState(false);
+  const [precacheMessage, setPrecacheMessage] = useState<string | null>(null);
 
   // Load NITs on mount
   useEffect(() => {
@@ -188,6 +195,29 @@ const FKCOFilterPanel: React.FC<FKCOFilterPanelProps> = ({
   const hasActiveFilters =
     nit.trim() || operaciones.length > 0 || fechaInicio || fechaFin || hoja;
 
+  // Handle precache
+  const handlePrecache = async () => {
+    setIsPrecaching(true);
+    setPrecacheMessage(null);
+    setError(null);
+
+    try {
+      const result: PrecacheResponse = await precacheDriveFilesCO();
+      if (result.success) {
+        setPrecacheMessage(
+          `Cache optimizado: ${result.stats.cached} archivos nuevos, ${result.stats.already_cached} ya en cache, ${result.stats.not_found} no encontrados`
+        );
+      } else {
+        setError(result.message || 'Error al optimizar cache');
+      }
+    } catch (err) {
+      console.error('Error during precache:', err);
+      setError('Error al optimizar cache de archivos');
+    } finally {
+      setIsPrecaching(false);
+    }
+  };
+
   return (
     <Card elevation={2}>
       <CardContent>
@@ -199,19 +229,31 @@ const FKCOFilterPanel: React.FC<FKCOFilterPanelProps> = ({
               Consultar Reporte de Facturación
             </Typography>
           </Box>
-          <Tooltip title="Recargar opciones de NITs">
-            <IconButton
-              size="small"
-              onClick={loadNitOptions}
-              disabled={loadingNits}
-            >
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
+          <Box display="flex" alignItems="center" gap={1}>
+            <Tooltip title="⚡ Optimizar cache: Ejecutar 1 vez antes de descargar ZIPs grandes. Tarda ~5 min pero acelera todas las descargas futuras.">
+              <IconButton
+                size="small"
+                onClick={handlePrecache}
+                disabled={isPrecaching}
+                color="secondary"
+              >
+                {isPrecaching ? <CircularProgress size={20} /> : <SpeedIcon />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Recargar opciones de NITs">
+              <IconButton
+                size="small"
+                onClick={loadNitOptions}
+                disabled={loadingNits}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
 
         <Typography variant="body2" color="text.secondary" mb={3}>
-          Consulta el archivo Reporte_Facturacion_CO_2025.xlsx desde Google Drive
+          Consulta el archivo Reporte_Facturacion_CO.xlsx desde Google Drive
         </Typography>
 
         <Stack spacing={3}>
@@ -391,6 +433,13 @@ const FKCOFilterPanel: React.FC<FKCOFilterPanelProps> = ({
               <MenuItem value="mandato">Mandato</MenuItem>
             </Select>
           </FormControl>
+
+          {/* Precache Success Message */}
+          {precacheMessage && (
+            <Alert severity="success" onClose={() => setPrecacheMessage(null)}>
+              {precacheMessage}
+            </Alert>
+          )}
 
           {/* Error Display */}
           {error && (

@@ -144,7 +144,35 @@ export const downloadFilteredMXZip = async (
     request,
     {
       responseType: 'blob',
-      timeout: 300000, // 5 minutes for large ZIP files
+      timeout: 1800000, // 30 minutes for large ZIP files with many PDFs/XMLs
+    }
+  );
+  return response.data;
+};
+
+/**
+ * Pre-populate Drive file cache for faster ZIP downloads.
+ *
+ * Lists all files from Drive in one API call and caches their IDs.
+ * Run this once to speed up all subsequent ZIP downloads.
+ *
+ * @returns Cache statistics
+ */
+export const precacheDriveFilesMX = async (): Promise<{
+  success: boolean;
+  message: string;
+  stats: {
+    total: number;
+    cached: number;
+    not_found: number;
+    already_cached: number;
+  };
+}> => {
+  const response = await apiClient.post(
+    `${BASE_URL}/mx/precache-drive-files`,
+    {},
+    {
+      timeout: 600000, // 10 minutes - listing all Drive files takes time
     }
   );
   return response.data;

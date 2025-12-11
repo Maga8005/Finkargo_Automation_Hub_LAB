@@ -47,6 +47,7 @@ interface FKCOFilterResultsProps {
   zipProgress?: number; // 0-100 percentage
   onDownload: () => void;
   onDownloadZip?: () => void;
+  cacheReady?: boolean; // Whether the Drive cache is populated
 }
 
 type Order = 'asc' | 'desc';
@@ -59,6 +60,7 @@ const FKCOFilterResults: React.FC<FKCOFilterResultsProps> = ({
   zipProgress,
   onDownload,
   onDownloadZip,
+  cacheReady = false,
 }) => {
   // Pagination state
   const [page, setPage] = useState(0);
@@ -448,7 +450,7 @@ const FKCOFilterResults: React.FC<FKCOFilterResultsProps> = ({
                 color="secondary"
                 startIcon={isDownloadingZip ? <CircularProgress size={20} color="inherit" /> : <ZipIcon />}
                 onClick={onDownloadZip}
-                disabled={isDownloading || isDownloadingZip}
+                disabled={isDownloading || isDownloadingZip || !cacheReady}
                 fullWidth
                 sx={{ height: 56 }}
               >
@@ -457,8 +459,18 @@ const FKCOFilterResults: React.FC<FKCOFilterResultsProps> = ({
             )}
           </Stack>
 
-          {/* ZIP info message - only show when not downloading */}
-          {onDownloadZip && !isDownloadingZip && (
+          {/* Cache warning message - show when cache is not ready */}
+          {onDownloadZip && !cacheReady && !isDownloadingZip && (
+            <Alert severity="warning" variant="outlined">
+              <Typography variant="body2">
+                <strong>Cache no configurado:</strong> Para descargar ZIPs con PDFs, primero debe cargar los
+                archivos y ejecutar "Optimizar Cache" en la pestaña "Cargar Archivos".
+              </Typography>
+            </Alert>
+          )}
+
+          {/* ZIP info message - only show when cache is ready and not downloading */}
+          {onDownloadZip && cacheReady && !isDownloadingZip && (
             <Alert severity="info" variant="outlined">
               <Typography variant="body2">
                 <strong>Descargar con PDFs:</strong> Genera un archivo ZIP con el reporte Excel y los archivos PDF de

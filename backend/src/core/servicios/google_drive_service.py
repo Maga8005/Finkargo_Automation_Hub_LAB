@@ -10,17 +10,41 @@ import io
 import json
 import base64
 import logging
+import time
+import httplib2
 from typing import Optional, Dict, List, Tuple
 from datetime import datetime
 from google.oauth2.service_account import Credentials
+from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build, Resource
 from googleapiclient.http import MediaIoBaseDownload
 from googleapiclient.errors import HttpError
 
 from src.config.settings import get_settings
+from src.config.supabase_config import get_supabase_client
 
 # Configurar logging
 logger = logging.getLogger(__name__)
+
+# Cache repository (lazy initialization)
+_file_cache_repo = None
+
+
+def _get_file_cache_repo():
+    """Get or initialize the file cache repository."""
+    global _file_cache_repo
+    if _file_cache_repo is None:
+        try:
+            from src.repositorio.drive_file_cache_repository import DriveFileCacheRepository
+            supabase_wrapper = get_supabase_client()
+            # Use admin_client (service_role) for full cache access (read/write)
+            # RLS policy grants service_role full access to drive_file_cache table
+            _file_cache_repo = DriveFileCacheRepository(supabase_wrapper.admin_client)
+            logger.info("Drive file cache repository initialized with admin_client")
+        except Exception as e:
+            logger.warning(f"Could not initialize file cache repository: {e}")
+            _file_cache_repo = None
+    return _file_cache_repo
 
 
 class GoogleDriveService:
@@ -174,13 +198,24 @@ class GoogleDriveService:
                     scopes=self.scopes
                 )
 
-            self.service = build("drive", "v3", credentials=creds)
-            logger.info("Autenticación con Google Drive exitosa")
+            # Create HTTP client with timeout of 90 seconds
+            # 90s: Realistic for large PDF files on slow connections
+            # Google Drive can be slow, especially for files in cold storage
+            http = httplib2.Http(timeout=90)
+            authorized_http = AuthorizedHttp(creds, http=http)
+
+            self.service = build("drive", "v3", http=authorized_http)
+            logger.info("Autenticación con Google Drive exitosa (timeout=90s)")
             return self.service
 
         except Exception as e:
             logger.error(f"Error al autenticar con Google Drive: {str(e)}")
             raise
+
+    def _reset_service(self):
+        """Resetea el servicio para forzar reconexión en caso de problemas."""
+        self.service = None
+        logger.debug("Servicio de Google Drive reseteado")
 
     def _get_year_folder_id(self, year: int, retries: int = 2) -> Optional[str]:
         """
@@ -344,6 +379,36 @@ class GoogleDriveService:
             logger.error(f"Error al cachear archivos de carpeta {folder_id}: {str(e)}")
             return {}
 
+    def _precache_all_month_folders(self, year: int = 2025) -> None:
+        """
+        Pre-cachea todas las carpetas de meses del año y sus archivos.
+
+        Esto permite buscar archivos en cualquier carpeta de mes sin hacer
+        múltiples llamadas a la API.
+
+        Args:
+            year: Año a pre-cachear (default: 2025).
+        """
+        if hasattr(self, '_all_months_cached') and self._all_months_cached.get(year):
+            logger.debug(f"Carpetas del año {year} ya están cacheadas")
+            return
+
+        logger.info(f"Pre-cacheando todas las carpetas de meses del año {year}...")
+
+        for month in range(1, 13):
+            try:
+                month_folder_id = self.get_month_folder_id(month, year)
+                if month_folder_id:
+                    self._cache_folder_files(month_folder_id)
+            except Exception as e:
+                logger.warning(f"Error al pre-cachear carpeta {month}/{year}: {str(e)}")
+
+        # Marcar como cacheado
+        if not hasattr(self, '_all_months_cached'):
+            self._all_months_cached: Dict[int, bool] = {}
+        self._all_months_cached[year] = True
+        logger.info(f"Pre-cache de carpetas {year} completado")
+
     def search_file_by_uuid(
         self,
         uuid: str,
@@ -395,77 +460,254 @@ class GoogleDriveService:
             logger.error(f"Error al buscar archivo {uuid}.{extension}: {str(e)}")
             return None
 
-    def download_file(self, file_id: str) -> Optional[bytes]:
+    def search_file_global(
+        self,
+        uuid: str,
+        extension: str = "pdf",
+        max_retries: int = 2,
+        country: str = "MX"
+    ) -> Optional[Dict]:
         """
-        Descarga un archivo de Google Drive.
+        Busca un archivo en TODO el Drive usando CACHE PRIMERO, luego búsqueda global.
+
+        Estrategia:
+        1. Primero busca en el cache de base de datos (instantáneo)
+        2. Si no está en cache, busca en Drive (una llamada API)
+        3. Si lo encuentra, guarda el ID en cache para futuras consultas
+
+        Args:
+            uuid: UUID del documento.
+            extension: Extensión del archivo ('pdf' o 'xml').
+            max_retries: Número máximo de reintentos en caso de timeout.
+            country: País ('MX' o 'CO') para el cache.
+
+        Returns:
+            Dict con información del archivo encontrado, o None si no existe.
+            Formato: {'id': str, 'name': str}
+        """
+        import time
+        filename = f"{uuid}.{extension}"
+
+        # 1. PRIMERO: Buscar en cache de base de datos (INSTANTÁNEO)
+        cache_repo = _get_file_cache_repo()
+        if cache_repo:
+            try:
+                cached_id = cache_repo.get_file_id(uuid, extension, country)
+                if cached_id:
+                    logger.debug(f"Cache HIT: {filename} -> {cached_id[:15]}...")
+                    return {"id": cached_id, "name": filename}
+            except Exception as e:
+                logger.warning(f"Error checking cache for {filename}: {e}")
+
+        # 2. FALLBACK: Buscar en Google Drive API
+        logger.debug(f"Cache MISS: {filename}, buscando en Drive...")
+
+        for attempt in range(max_retries + 1):
+            try:
+                service = self.authenticate()
+
+                # Búsqueda global: buscar por nombre exacto (recursivo en todo el Drive)
+                query = (
+                    f"name = '{filename}' and "
+                    f"trashed = false"
+                )
+
+                results = service.files().list(
+                    q=query,
+                    fields="files(id, name)",
+                    pageSize=1  # Solo necesitamos uno
+                ).execute()
+
+                files = results.get("files", [])
+                if files:
+                    file_info = files[0]
+                    file_id = file_info["id"]
+                    logger.debug(f"Archivo {filename} encontrado via búsqueda global")
+
+                    # 3. GUARDAR EN CACHE para futuras consultas (async-safe)
+                    if cache_repo:
+                        try:
+                            cache_repo.cache_file_id(
+                                uuid=uuid,
+                                file_type=extension,
+                                drive_file_id=file_id,
+                                drive_file_name=file_info["name"],
+                                country=country
+                            )
+                            logger.debug(f"Cache STORED: {filename}")
+                        except Exception as e:
+                            logger.warning(f"Error caching {filename}: {e}")
+
+                    return {"id": file_id, "name": file_info["name"]}
+
+                logger.debug(f"Archivo {filename} no encontrado en búsqueda global")
+                return None
+
+            except HttpError as e:
+                logger.error(f"Error HTTP en búsqueda global de {filename}: {str(e)}")
+                return None
+            except Exception as e:
+                # Timeout u otro error - reintentar
+                self._reset_service()  # Resetear conexión
+                if attempt < max_retries:
+                    wait_time = (attempt + 1) * 1  # 1s, 2s
+                    logger.warning(f"Timeout buscando {filename}, reintento {attempt + 1}/{max_retries} en {wait_time}s")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Error en búsqueda global de {filename} después de {max_retries + 1} intentos: {str(e)}")
+                    return None
+
+        return None
+
+    def search_file_in_all_months(
+        self,
+        uuid: str,
+        year: int = 2025,
+        extension: str = "pdf"
+    ) -> Optional[Dict]:
+        """
+        Busca un archivo usando búsqueda global de Drive (fallback al método anterior).
+
+        Args:
+            uuid: UUID del documento.
+            year: Año donde buscar (no usado, mantenido por compatibilidad).
+            extension: Extensión del archivo ('pdf' o 'xml').
+
+        Returns:
+            Dict con información del archivo encontrado, o None si no existe.
+        """
+        # Usar búsqueda global - mucho más rápido
+        return self.search_file_global(uuid, extension)
+
+    def _search_and_download(self, uuid: str, extension: str, country: str = "MX") -> Optional[bytes]:
+        """
+        Busca y descarga un archivo en una sola operación.
+
+        Args:
+            uuid: UUID del documento.
+            extension: Extensión del archivo ('pdf' o 'xml').
+            country: País ('MX' o 'CO') para el cache.
+
+        Returns:
+            bytes: Contenido del archivo, o None si no se encuentra.
+        """
+        file_info = self.search_file_global(uuid, extension, country=country)
+        if file_info:
+            return self.download_file(file_info["id"])
+        else:
+            logger.warning(f"{extension.upper()} no encontrado para UUID: {uuid}")
+            return None
+
+    def get_invoice_files_extended(
+        self,
+        uuid: str,
+        fecha_emision: datetime,
+        search_all_months: bool = True,
+        country: str = "MX"
+    ) -> Tuple[Optional[bytes], Optional[bytes]]:
+        """
+        Obtiene los archivos PDF y XML de una factura usando búsqueda global EN PARALELO.
+
+        Busca PDF y XML simultáneamente para mejor rendimiento.
+        Usa cache de base de datos para evitar búsquedas costosas en Drive.
+
+        Args:
+            uuid: UUID del documento.
+            fecha_emision: Fecha de emisión del documento (no usado, mantenido por compatibilidad).
+            search_all_months: No usado, mantenido por compatibilidad.
+            country: País ('MX' o 'CO') para el cache.
+
+        Returns:
+            Tuple[Optional[bytes], Optional[bytes]]: (PDF content, XML content)
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        pdf_content = None
+        xml_content = None
+
+        # Buscar y descargar PDF y XML en paralelo
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            pdf_future = executor.submit(self._search_and_download, uuid, "pdf", country)
+            xml_future = executor.submit(self._search_and_download, uuid, "xml", country)
+
+            # Esperar resultados
+            pdf_content = pdf_future.result()
+            xml_content = xml_future.result()
+
+        return pdf_content, xml_content
+
+    def download_file(self, file_id: str, max_retries: int = 2) -> Optional[bytes]:
+        """
+        Descarga un archivo de Google Drive con reintentos automáticos.
 
         Args:
             file_id: ID del archivo en Google Drive.
+            max_retries: Número máximo de reintentos en caso de timeout.
 
         Returns:
             bytes: Contenido del archivo, o None si falla la descarga.
         """
-        try:
-            service = self.authenticate()
+        import time
 
-            request = service.files().get_media(fileId=file_id)
-            file_buffer = io.BytesIO()
+        for attempt in range(max_retries):
+            try:
+                service = self.authenticate()
 
-            downloader = MediaIoBaseDownload(file_buffer, request)
-            done = False
+                request = service.files().get_media(fileId=file_id)
+                file_buffer = io.BytesIO()
 
-            while not done:
-                status, done = downloader.next_chunk()
-                if status:
-                    logger.debug(f"Descarga progreso: {int(status.progress() * 100)}%")
+                downloader = MediaIoBaseDownload(file_buffer, request)
+                done = False
 
-            file_buffer.seek(0)
-            content = file_buffer.read()
+                while not done:
+                    status, done = downloader.next_chunk()
+                    if status:
+                        logger.debug(f"Descarga progreso: {int(status.progress() * 100)}%")
 
-            logger.info(f"Archivo descargado exitosamente (ID: {file_id}, Tamaño: {len(content)} bytes)")
-            return content
+                file_buffer.seek(0)
+                content = file_buffer.read()
 
-        except HttpError as e:
-            logger.error(f"Error HTTP al descargar archivo {file_id}: {str(e)}")
-            return None
-        except Exception as e:
-            logger.error(f"Error al descargar archivo {file_id}: {str(e)}")
-            return None
+                logger.debug(f"Archivo descargado (ID: {file_id[:10]}..., {len(content)} bytes)")
+                return content
+
+            except HttpError as e:
+                logger.warning(f"Error HTTP descargando {file_id[:10]}...: {str(e)}")
+                return None
+            except Exception as e:
+                # Timeout u otro error - reintentar solo una vez
+                self._reset_service()
+                if attempt < max_retries - 1:
+                    logger.warning(f"Error descargando {file_id[:10]}..., reintento {attempt + 1}/{max_retries}")
+                    time.sleep(1)  # Solo 1 segundo de espera
+                else:
+                    logger.warning(f"Omitiendo archivo {file_id[:10]}... después de {max_retries} intentos")
+                    return None
+
+        return None
 
     def get_invoice_files(
         self,
         uuid: str,
-        fecha_emision: datetime
+        fecha_emision: datetime,
+        country: str = "MX"
     ) -> Tuple[Optional[bytes], Optional[bytes]]:
         """
-        Obtiene los archivos PDF y XML de una factura.
+        Obtiene los archivos PDF y XML de una factura usando cache de Supabase.
+
+        OPTIMIZADO: Usa search_file_global que consulta el cache de Supabase primero,
+        evitando búsquedas costosas en Google Drive.
 
         Args:
             uuid: UUID del documento.
             fecha_emision: Fecha de emisión del documento.
+            country: País para el cache ('MX' o 'CO').
 
         Returns:
             Tuple[Optional[bytes], Optional[bytes]]: (PDF content, XML content)
             Retorna None para archivos no encontrados.
         """
-        pdf_content = None
-        xml_content = None
-
-        # Buscar y descargar PDF
-        pdf_file = self.search_file_by_uuid(uuid, fecha_emision, "pdf")
-        if pdf_file:
-            pdf_content = self.download_file(pdf_file["id"])
-        else:
-            logger.warning(f"PDF no encontrado para UUID: {uuid}")
-
-        # Buscar y descargar XML
-        xml_file = self.search_file_by_uuid(uuid, fecha_emision, "xml")
-        if xml_file:
-            xml_content = self.download_file(xml_file["id"])
-        else:
-            logger.warning(f"XML no encontrado para UUID: {uuid}")
-
-        return pdf_content, xml_content
+        # Usar get_invoice_files_extended que usa cache y búsqueda en paralelo
+        return self.get_invoice_files_extended(uuid, fecha_emision, country=country)
 
     def batch_get_invoice_files(
         self,
@@ -511,44 +753,59 @@ class GoogleDriveService:
 
         return results
 
-    def find_master_excel_file(self) -> Optional[Dict]:
+    def find_master_excel_file(self, max_retries: int = 2) -> Optional[Dict]:
         """
         Busca el archivo maestro de Excel en la carpeta raíz de Drive.
+
+        Args:
+            max_retries: Número máximo de reintentos en caso de timeout.
 
         Returns:
             Dict: Información del archivo encontrado (id, name, mimeType), o None si no existe.
         """
-        try:
-            service = self.authenticate()
+        import time
 
-            query = (
-                f"'{self.folder_id}' in parents and "
-                f"name = '{self.master_excel_name}' and "
-                f"trashed = false"
-            )
+        for attempt in range(max_retries + 1):
+            try:
+                service = self.authenticate()
 
-            results = service.files().list(
-                q=query,
-                fields="files(id, name, mimeType, modifiedTime, size)",
-                pageSize=1
-            ).execute()
+                query = (
+                    f"'{self.folder_id}' in parents and "
+                    f"name = '{self.master_excel_name}' and "
+                    f"trashed = false"
+                )
 
-            files = results.get("files", [])
+                results = service.files().list(
+                    q=query,
+                    fields="files(id, name, mimeType, modifiedTime, size)",
+                    pageSize=1
+                ).execute()
 
-            if files:
-                file_info = files[0]
-                logger.info(f"Master Excel encontrado: {file_info['name']} (ID: {file_info['id']})")
-                return file_info
-            else:
-                logger.warning(f"Master Excel no encontrado: {self.master_excel_name}")
+                files = results.get("files", [])
+
+                if files:
+                    file_info = files[0]
+                    logger.info(f"Master Excel encontrado: {file_info['name']} (ID: {file_info['id']})")
+                    return file_info
+                else:
+                    logger.warning(f"Master Excel no encontrado: {self.master_excel_name}")
+                    return None
+
+            except HttpError as e:
+                logger.error(f"Error HTTP al buscar master Excel: {str(e)}")
                 return None
+            except Exception as e:
+                # Timeout u otro error - reintentar
+                self._reset_service()
+                if attempt < max_retries:
+                    wait_time = (attempt + 1) * 2
+                    logger.warning(f"Timeout buscando master Excel, reintento {attempt + 1}/{max_retries} en {wait_time}s")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Error al buscar master Excel después de {max_retries + 1} intentos: {str(e)}")
+                    return None
 
-        except HttpError as e:
-            logger.error(f"Error HTTP al buscar master Excel: {str(e)}")
-            return None
-        except Exception as e:
-            logger.error(f"Error al buscar master Excel: {str(e)}")
-            return None
+        return None
 
     def download_master_excel(self) -> Optional[bytes]:
         """
@@ -632,6 +889,279 @@ class GoogleDriveService:
         except Exception as e:
             logger.error(f"Error al subir master Excel: {str(e)}")
             return False
+
+
+    def precache_drive_file_ids(
+        self,
+        uuids: List[str],
+        country: str = "MX",
+        max_workers: int = 4
+    ) -> Dict[str, int]:
+        """
+        Pre-cachea los file IDs de Drive para una lista de UUIDs.
+
+        OPTIMIZADO: Lista todos los archivos del Drive una sola vez
+        y hace el match en memoria (segundos en lugar de horas).
+
+        Args:
+            uuids: Lista de UUIDs a pre-cachear.
+            country: País ('MX' o 'CO') para el cache.
+            max_workers: No usado en versión optimizada.
+
+        Returns:
+            Dict con estadísticas: {'total': int, 'cached': int, 'not_found': int, 'already_cached': int}
+        """
+        cache_repo = _get_file_cache_repo()
+        if not cache_repo:
+            logger.warning("Cache repository not available, skipping precache")
+            return {'total': len(uuids), 'cached': 0, 'not_found': 0, 'already_cached': 0}
+
+        stats = {
+            'total': len(uuids),
+            'cached': 0,
+            'not_found': 0,
+            'already_cached': 0
+        }
+
+        logger.info(f"Starting OPTIMIZED precache for {len(uuids)} UUIDs (country={country})...")
+
+        # 1. Verificar cuáles ya están en cache
+        existing_cache = cache_repo.get_bulk_file_ids(uuids, country)
+        uuids_to_search = set()
+
+        for uuid in uuids:
+            if uuid in existing_cache:
+                cached_types = existing_cache[uuid]
+                if 'pdf' in cached_types and 'xml' in cached_types:
+                    stats['already_cached'] += 1
+                    continue
+            uuids_to_search.add(uuid)
+
+        if not uuids_to_search:
+            logger.info(f"All {len(uuids)} UUIDs already in cache")
+            return stats
+
+        logger.info(f"Need to search Drive for {len(uuids_to_search)} UUIDs not in cache...")
+
+        # 2. OPTIMIZACIÓN: Listar TODOS los archivos del Drive una sola vez
+        logger.info("Listing ALL files from Google Drive (this may take a moment)...")
+        all_drive_files = self._list_all_drive_files()
+        logger.info(f"Found {len(all_drive_files)} files in Drive")
+
+        # 3. Crear índice por nombre de archivo para búsqueda O(1)
+        # Formato: {"uuid.pdf": {"id": "...", "name": "..."}, ...}
+        file_index: Dict[str, Dict[str, str]] = {}
+        for file_info in all_drive_files:
+            filename = file_info.get('name', '')
+            if filename:
+                file_index[filename.lower()] = {
+                    'id': file_info['id'],
+                    'name': filename
+                }
+
+        logger.info(f"Indexed {len(file_index)} files for fast lookup")
+
+        # 4. Match UUIDs con archivos en memoria (muy rápido)
+        all_files_to_cache = []
+        uuids_found = set()
+
+        for uuid in uuids_to_search:
+            found_any = False
+            for ext in ['pdf', 'xml']:
+                filename = f"{uuid}.{ext}".lower()
+                if filename in file_index:
+                    file_info = file_index[filename]
+                    all_files_to_cache.append({
+                        'uuid': uuid,
+                        'file_type': ext,
+                        'drive_file_id': file_info['id'],
+                        'drive_file_name': file_info['name']
+                    })
+                    found_any = True
+
+            if found_any:
+                uuids_found.add(uuid)
+            else:
+                stats['not_found'] += 1
+
+        logger.info(f"Matched {len(uuids_found)} UUIDs with {len(all_files_to_cache)} files")
+
+        # 5. Guardar en cache en batch
+        if all_files_to_cache:
+            cached_count = cache_repo.cache_bulk_file_ids(all_files_to_cache, country)
+            stats['cached'] = cached_count
+            logger.info(f"Cached {cached_count} file IDs for {len(uuids_found)} UUIDs")
+        else:
+            logger.warning("No files found to cache")
+
+        return stats
+
+    def _list_all_drive_files(self) -> List[Dict]:
+        """
+        Lista TODOS los archivos del Google Drive (recursivamente).
+
+        Usa paginación para obtener todos los archivos sin límite.
+
+        Returns:
+            Lista de dicts con {id, name, mimeType} de cada archivo.
+        """
+        service = self.authenticate()
+        all_files = []
+        page_token = None
+        page_count = 0
+
+        # Buscar solo PDFs y XMLs para optimizar
+        query = "(mimeType='application/pdf' or mimeType='text/xml' or mimeType='application/xml' or name contains '.xml') and trashed=false"
+
+        while True:
+            try:
+                page_count += 1
+                results = service.files().list(
+                    q=query,
+                    fields="nextPageToken, files(id, name, mimeType)",
+                    pageSize=1000,  # Máximo permitido por API
+                    pageToken=page_token
+                ).execute()
+
+                files = results.get('files', [])
+                all_files.extend(files)
+
+                if page_count % 5 == 0:
+                    logger.info(f"Listed {len(all_files)} files so far (page {page_count})...")
+
+                page_token = results.get('nextPageToken')
+                if not page_token:
+                    break
+
+            except HttpError as e:
+                logger.error(f"Error listing files (page {page_count}): {e}")
+                break
+            except Exception as e:
+                logger.error(f"Unexpected error listing files: {e}")
+                break
+
+        logger.info(f"Finished listing: {len(all_files)} total files in {page_count} pages")
+        return all_files
+
+    def _search_file_in_drive_only(
+        self,
+        uuid: str,
+        extension: str = "pdf"
+    ) -> Optional[Dict]:
+        """
+        Busca un archivo SOLO en Drive (sin cache).
+
+        Usado internamente para pre-caching.
+
+        Args:
+            uuid: UUID del documento.
+            extension: Extensión del archivo ('pdf' o 'xml').
+
+        Returns:
+            Dict con información del archivo, o None si no existe.
+        """
+        import time
+        filename = f"{uuid}.{extension}"
+        max_retries = 2
+
+        for attempt in range(max_retries + 1):
+            try:
+                service = self.authenticate()
+
+                query = (
+                    f"name = '{filename}' and "
+                    f"trashed = false"
+                )
+
+                results = service.files().list(
+                    q=query,
+                    fields="files(id, name)",
+                    pageSize=1
+                ).execute()
+
+                files = results.get("files", [])
+                if files:
+                    return {"id": files[0]["id"], "name": files[0]["name"]}
+
+                return None
+
+            except Exception as e:
+                self._reset_service()
+                if attempt < max_retries:
+                    time.sleep((attempt + 1) * 0.5)
+                else:
+                    logger.debug(f"Error searching {filename}: {e}")
+                    return None
+
+        return None
+
+    def download_file_with_retry(
+        self,
+        file_id: str,
+        file_name: str,
+        max_retries: int = 2,
+        max_total_time: int = 210
+    ) -> Optional[bytes]:
+        """
+        Descarga un archivo de Google Drive con backoff exponencial.
+
+        Implementa reintentos con tiempos de espera para manejar
+        timeouts transitorios sin saturar la conexión.
+
+        CONFIGURACIÓN:
+        - Timeout por intento: 90s (configurado en httplib2)
+        - Máximo 2 reintentos (total 3 intentos)
+        - Tiempo total máximo: 210s (3.5 minutos)
+        - Backoff: 3s, 6s entre intentos
+
+        Args:
+            file_id: ID del archivo en Google Drive.
+            file_name: Nombre del archivo (para logging).
+            max_retries: Número máximo de reintentos (default 2).
+            max_total_time: Tiempo máximo total en segundos (default 210s).
+
+        Returns:
+            bytes: Contenido del archivo o None si falla.
+        """
+        start_time = time.time()
+
+        for attempt in range(1, max_retries + 2):  # +2 porque max_retries=2 significa 3 intentos totales
+            # Verificar si excedimos el tiempo total
+            elapsed = time.time() - start_time
+            if elapsed >= max_total_time:
+                logger.warning(
+                    f"[MX] Tiempo límite excedido para {file_name}: "
+                    f"{elapsed:.1f}s >= {max_total_time}s (intento {attempt})"
+                )
+                break
+
+            try:
+                content = self.download_file(file_id)
+                if content:
+                    if attempt > 1:
+                        logger.info(f"[MX] Descarga exitosa de {file_name} en intento {attempt} ({elapsed:.1f}s)")
+                    return content
+                else:
+                    logger.warning(f"[MX] Intento {attempt}: descarga vacía para {file_name}")
+
+            except Exception as e:
+                logger.warning(f"[MX] Intento {attempt} error para {file_name}: {e}")
+
+            # Backoff exponencial: 3s, 6s
+            if attempt <= max_retries:
+                # Verificar que tenemos tiempo para otro intento (necesitamos ~60s)
+                remaining_time = max_total_time - (time.time() - start_time)
+                if remaining_time < 30:
+                    logger.warning(f"[MX] Sin tiempo suficiente para reintentar {file_name} ({remaining_time:.0f}s restantes)")
+                    break
+
+                wait_time = 3 * attempt  # 3s, 6s
+                logger.info(f"[MX] Esperando {wait_time}s antes de reintentar {file_name}...")
+                time.sleep(wait_time)
+
+        total_elapsed = time.time() - start_time
+        logger.error(f"[MX] Descarga fallida para {file_name} después de {total_elapsed:.1f}s (ID: {file_id})")
+        return None
 
 
 # Singleton instance
