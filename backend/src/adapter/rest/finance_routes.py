@@ -1510,6 +1510,50 @@ async def precache_drive_files_co(
         )
 
 
+@router.get(
+    "/co/cache-stats",
+    summary="Get CO Drive cache statistics",
+    description="Returns statistics about the Drive file cache for Colombia invoices.",
+    tags=["Finance - Facturación CO - Cache"]
+)
+async def get_co_cache_stats(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get cache statistics for CO Drive files.
+
+    Returns:
+        Dict with cache statistics including total_cached, pdf_count, and cache_ready flag.
+    """
+    try:
+        from src.repositorio.drive_file_cache_repository import get_drive_file_cache_repository
+        from src.config.supabase_config import get_supabase_client
+
+        supabase = get_supabase_client()
+        # Use admin_client to bypass RLS
+        cache_repo = get_drive_file_cache_repository(supabase.admin_client)
+        stats = cache_repo.get_cache_stats(country="CO")
+
+        # Cache is ready if we have at least some files cached
+        cache_ready = stats.get('total_cached', 0) > 0
+
+        return {
+            "success": True,
+            "total_cached": stats.get('total_cached', 0),
+            "pdf_count": stats.get('pdf_count', 0),
+            "xml_count": stats.get('xml_count', 0),
+            "cache_ready": cache_ready,
+            "country": "CO"
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting CO cache stats: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener estadísticas del cache: {str(e)}"
+        )
+
+
 @router.post(
     "/co/initialize-from-historical",
     summary="Initialize cache from historical file",
@@ -3110,4 +3154,48 @@ async def precache_drive_files_mx(
         raise HTTPException(
             status_code=500,
             detail=f"Error al pre-cachear archivos: {str(e)}"
+        )
+
+
+@router.get(
+    "/mx/cache-stats",
+    summary="Get MX Drive cache statistics",
+    description="Returns statistics about the Drive file cache for Mexico invoices.",
+    tags=["Finance - Facturación MX - Cache"]
+)
+async def get_mx_cache_stats(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get cache statistics for MX Drive files.
+
+    Returns:
+        Dict with cache statistics including total_cached, pdf_count, xml_count, and cache_ready flag.
+    """
+    try:
+        from src.repositorio.drive_file_cache_repository import get_drive_file_cache_repository
+        from src.config.supabase_config import get_supabase_client
+
+        supabase = get_supabase_client()
+        # Use admin_client to bypass RLS
+        cache_repo = get_drive_file_cache_repository(supabase.admin_client)
+        stats = cache_repo.get_cache_stats(country="MX")
+
+        # Cache is ready if we have at least some files cached
+        cache_ready = stats.get('total_cached', 0) > 0
+
+        return {
+            "success": True,
+            "total_cached": stats.get('total_cached', 0),
+            "pdf_count": stats.get('pdf_count', 0),
+            "xml_count": stats.get('xml_count', 0),
+            "cache_ready": cache_ready,
+            "country": "MX"
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting MX cache stats: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al obtener estadísticas del cache: {str(e)}"
         )
