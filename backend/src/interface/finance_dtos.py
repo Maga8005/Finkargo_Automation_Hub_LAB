@@ -45,7 +45,7 @@ class InvoiceRecord(BaseModel):
         tipo_comprobante: Fiscal document type
     """
     uuid: str = Field(..., min_length=1, max_length=100, description="UUID del documento fiscal")
-    codigo_operacion: str = Field(..., min_length=1, max_length=50, description="Código de operación")
+    codigo_operacion: str = Field(..., min_length=1, max_length=500, description="Código de operación")
     conceptos: str = Field(..., max_length=500, description="Descripción de conceptos")
     fecha_emision: date = Field(..., description="Fecha de emisión")
     rfc_receptor: str = Field(..., min_length=12, max_length=13, description="RFC del receptor")
@@ -238,3 +238,135 @@ class DriveStatusResponse(BaseModel):
     folder_name: str = Field(default="", description="Nombre de la carpeta")
     total_files: int = Field(default=0, ge=0, description="Total de archivos")
     last_sync: Optional[str] = Field(None, description="Última sincronización")
+
+
+# =============================================================================
+# Complementos de Pago (Payment Supplements) - Combined Upload DTOs
+# =============================================================================
+
+class DocumentType(str, Enum):
+    """Types of fiscal documents."""
+    FACTURA = "factura"
+    COMPLEMENTO_PAGO = "complemento_pago"
+
+
+class CombinedRecord(BaseModel):
+    """
+    Represents a single record that can be either an invoice or payment supplement.
+
+    Payment supplements are identified by:
+    - tipo_comprobante containing "CPO1 - Pagos"
+    - conceptos containing "COMPLEMENTO DE PAGO"
+    """
+    uuid: str = Field(..., min_length=1, max_length=100, description="UUID del documento fiscal")
+    codigo_operacion: str = Field(..., min_length=1, max_length=500, description="Código de operación")
+    conceptos: str = Field(default="", max_length=1000, description="Descripción de conceptos")
+    fecha_emision: date = Field(..., description="Fecha de emisión")
+    rfc_receptor: str = Field(..., min_length=12, max_length=13, description="RFC del receptor")
+    razon_receptor: str = Field(..., max_length=255, description="Razón social del receptor")
+    subtotal: float = Field(default=0.0, description="Subtotal en USD")
+    iva_trasladado: float = Field(default=0.0, ge=0, description="IVA Trasladado en USD")
+    iva_exento: float = Field(default=0.0, ge=0, description="IVA Exento en USD")
+    total: float = Field(default=0.0, description="Total en USD")
+    uuid_relacionados: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="UUIDs de documentos relacionados"
+    )
+    tipo_comprobante: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Tipo de comprobante fiscal"
+    )
+    document_type: DocumentType = Field(
+        default=DocumentType.FACTURA,
+        description="Tipo de documento: factura o complemento_pago"
+    )
+
+    @field_validator('rfc_receptor')
+    @classmethod
+    def validate_rfc(cls, v: str) -> str:
+        """Validate Mexican RFC format."""
+        pattern = r'^[A-ZÑ&]{3,4}\d{6}[A-Z\d]{3}$'
+        if not re.match(pattern, v.upper()):
+            raise ValueError('RFC inválido. Debe tener formato válido de 12 o 13 caracteres.')
+        return v.upper()
+
+    @field_validator('uuid')
+    @classmethod
+    def validate_uuid(cls, v: str) -> str:
+        """Ensure UUID is trimmed and uppercase."""
+        return v.strip().upper()
+
+
+class CombinedUploadResponse(BaseModel):
+    """
+    Response from combined Excel upload (facturas + complementos de pago).
+    """
+    success: bool = Field(..., description="Si la validación fue exitosa")
+    session_id: str = Field(..., description="ID de sesión para operaciones subsecuentes")
+
+    # Facturas stats
+    facturas_total_rows: int = Field(default=0, ge=0, description="Total de filas en Excel de facturas")
+    facturas_valid_rows: int = Field(default=0, ge=0, description="Filas válidas de facturas")
+    facturas_data: List[CombinedRecord] = Field(default_factory=list, description="Registros de facturas")
+    facturas_errors: List[ExcelValidationError] = Field(default_factory=list, description="Errores en facturas")
+
+    # Complementos stats
+    complementos_total_rows: int = Field(default=0, ge=0, description="Total de filas en Excel de complementos")
+    complementos_valid_rows: int = Field(default=0, ge=0, description="Filas válidas de complementos")
+    complementos_data: List[CombinedRecord] = Field(default_factory=list, description="Registros de complementos")
+    complementos_errors: List[ExcelValidationError] = Field(default_factory=list, description="Errores en complementos")
+
+    # Combined totals
+    total_records: int = Field(default=0, ge=0, description="Total de registros combinados")
+    drive_sync_stats: Optional[Dict] = Field(
+        default=None,
+        description="Estadísticas de sincronización con Drive"
+    )
+
+
+class CombinedSearchRequest(BaseModel):
+    """
+    Request for searching in combined data (facturas + complementos).
+    """
+    session_id: str = Field(..., description="ID de sesión")
+    search_type: SearchType = Field(..., description="Tipo de búsqueda")
+    codigo_operacion: Optional[str] = Field(None, description="Código(s) de operación (separados por coma)")
+    rfc: Optional[str] = Field(None, description="RFC a buscar")
+    fecha_inicio: Optional[date] = Field(None, description="Fecha inicio del rango")
+    fecha_fin: Optional[date] = Field(None, description="Fecha fin del rango")
+    include_facturas: bool = Field(default=True, description="Incluir facturas en resultados")
+    include_complementos: bool = Field(default=True, description="Incluir complementos en resultados")
+
+    @field_validator('fecha_fin')
+    @classmethod
+    def validate_date_range(cls, v: Optional[date], info) -> Optional[date]:
+        """Ensure end date is after start date when both are provided."""
+        fecha_inicio = info.data.get('fecha_inicio')
+        if v and fecha_inicio and v < fecha_inicio:
+            raise ValueError('Fecha fin debe ser mayor o igual a fecha inicio')
+        return v
+
+
+class CombinedSearchResult(CombinedRecord):
+    """
+    Combined record with file availability status.
+    """
+    archivo_estado: ArchivoEstado = Field(
+        default=ArchivoEstado.PENDIENTE,
+        description="Estado del archivo en Drive"
+    )
+
+
+class CombinedSearchResponse(BaseModel):
+    """
+    Response from combined search endpoint.
+    """
+    results: List[CombinedSearchResult] = Field(default_factory=list, description="Resultados combinados")
+    total_found: int = Field(..., ge=0, description="Total de registros encontrados")
+    facturas_count: int = Field(default=0, ge=0, description="Cantidad de facturas")
+    complementos_count: int = Field(default=0, ge=0, description="Cantidad de complementos de pago")
+    total_amount: float = Field(default=0.0, description="Suma total en USD")
+    facturas_amount: float = Field(default=0.0, description="Suma facturas en USD")
+    complementos_amount: float = Field(default=0.0, description="Suma complementos en USD")

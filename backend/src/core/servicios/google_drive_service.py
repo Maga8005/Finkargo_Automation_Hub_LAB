@@ -10,9 +10,12 @@ import io
 import json
 import base64
 import logging
+import time
+import httplib2
 from typing import Optional, Dict, List, Tuple
 from datetime import datetime
 from google.oauth2.service_account import Credentials
+from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build, Resource
 from googleapiclient.http import MediaIoBaseDownload
 from googleapiclient.errors import HttpError
@@ -195,16 +198,14 @@ class GoogleDriveService:
                     scopes=self.scopes
                 )
 
-            # Configurar cliente HTTP con timeout extendido (120 segundos)
-            # para evitar timeouts en descargas de archivos grandes
-            import httplib2
-            from google_auth_httplib2 import AuthorizedHttp
-
-            http = httplib2.Http(timeout=120)
+            # Create HTTP client with timeout of 90 seconds
+            # 90s: Realistic for large PDF files on slow connections
+            # Google Drive can be slow, especially for files in cold storage
+            http = httplib2.Http(timeout=90)
             authorized_http = AuthorizedHttp(creds, http=http)
 
             self.service = build("drive", "v3", http=authorized_http)
-            logger.info("Autenticación con Google Drive exitosa (timeout=120s)")
+            logger.info("Autenticación con Google Drive exitosa (timeout=90s)")
             return self.service
 
         except Exception as e:
@@ -635,9 +636,9 @@ class GoogleDriveService:
 
         return pdf_content, xml_content
 
-    def download_file(self, file_id: str, max_retries: int = 3) -> Optional[bytes]:
+    def download_file(self, file_id: str, max_retries: int = 2) -> Optional[bytes]:
         """
-        Descarga un archivo de Google Drive con reintentos automáticos y backoff.
+        Descarga un archivo de Google Drive con reintentos automáticos.
 
         Args:
             file_id: ID del archivo en Google Drive.
@@ -647,28 +648,20 @@ class GoogleDriveService:
             bytes: Contenido del archivo, o None si falla la descarga.
         """
         import time
-        import socket
 
         for attempt in range(max_retries):
             try:
-                # Resetear servicio en reintentos para obtener conexión fresca
-                if attempt > 0:
-                    self._reset_service()
-
                 service = self.authenticate()
 
                 request = service.files().get_media(fileId=file_id)
                 file_buffer = io.BytesIO()
 
-                # Usar chunk size de 1MB para mejor resiliencia en conexiones lentas
-                # Default es 100MB, lo cual puede causar timeouts
-                chunk_size = 1024 * 1024  # 1MB
-                downloader = MediaIoBaseDownload(file_buffer, request, chunksize=chunk_size)
+                downloader = MediaIoBaseDownload(file_buffer, request)
                 done = False
 
                 while not done:
                     status, done = downloader.next_chunk()
-                    if status and status.progress() < 1.0:
+                    if status:
                         logger.debug(f"Descarga progreso: {int(status.progress() * 100)}%")
 
                 file_buffer.seek(0)
@@ -678,41 +671,16 @@ class GoogleDriveService:
                 return content
 
             except HttpError as e:
-                error_code = e.resp.status if hasattr(e, 'resp') else 0
-                # Reintentar en errores 5xx (servidor) y 429 (rate limit)
-                if error_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
-                    wait_time = (attempt + 1) * 2  # 2s, 4s, 6s
-                    logger.warning(f"Error HTTP {error_code} descargando {file_id[:10]}..., reintento en {wait_time}s")
-                    time.sleep(wait_time)
-                else:
-                    logger.warning(f"Error HTTP descargando {file_id[:10]}...: {str(e)}")
-                    return None
-
-            except (socket.timeout, TimeoutError) as e:
-                # Timeout específico - reintentar con backoff exponencial
-                if attempt < max_retries - 1:
-                    wait_time = (2 ** attempt) * 2  # 2s, 4s, 8s
-                    logger.warning(f"Timeout descargando {file_id[:10]}..., reintento {attempt + 1}/{max_retries} en {wait_time}s")
-                    time.sleep(wait_time)
-                else:
-                    logger.warning(f"Timeout persistente para {file_id[:10]}... después de {max_retries} intentos")
-                    return None
-
+                logger.warning(f"Error HTTP descargando {file_id[:10]}...: {str(e)}")
+                return None
             except Exception as e:
-                error_msg = str(e).lower()
-                # Detectar timeouts en el mensaje de error
-                is_timeout = 'timeout' in error_msg or 'timed out' in error_msg
-
-                if is_timeout and attempt < max_retries - 1:
-                    wait_time = (2 ** attempt) * 2  # 2s, 4s, 8s
-                    logger.warning(f"Timeout descargando {file_id[:10]}..., reintento {attempt + 1}/{max_retries} en {wait_time}s")
-                    time.sleep(wait_time)
-                elif attempt < max_retries - 1:
-                    # Otro error - reintentar una vez más
-                    logger.warning(f"Error descargando {file_id[:10]}...: {e}, reintentando...")
-                    time.sleep(1)
+                # Timeout u otro error - reintentar solo una vez
+                self._reset_service()
+                if attempt < max_retries - 1:
+                    logger.warning(f"Error descargando {file_id[:10]}..., reintento {attempt + 1}/{max_retries}")
+                    time.sleep(1)  # Solo 1 segundo de espera
                 else:
-                    logger.warning(f"Omitiendo archivo {file_id[:10]}... después de {max_retries} intentos: {e}")
+                    logger.warning(f"Omitiendo archivo {file_id[:10]}... después de {max_retries} intentos")
                     return None
 
         return None
@@ -720,37 +688,26 @@ class GoogleDriveService:
     def get_invoice_files(
         self,
         uuid: str,
-        fecha_emision: datetime
+        fecha_emision: datetime,
+        country: str = "MX"
     ) -> Tuple[Optional[bytes], Optional[bytes]]:
         """
-        Obtiene los archivos PDF y XML de una factura.
+        Obtiene los archivos PDF y XML de una factura usando cache de Supabase.
+
+        OPTIMIZADO: Usa search_file_global que consulta el cache de Supabase primero,
+        evitando búsquedas costosas en Google Drive.
 
         Args:
             uuid: UUID del documento.
             fecha_emision: Fecha de emisión del documento.
+            country: País para el cache ('MX' o 'CO').
 
         Returns:
             Tuple[Optional[bytes], Optional[bytes]]: (PDF content, XML content)
             Retorna None para archivos no encontrados.
         """
-        pdf_content = None
-        xml_content = None
-
-        # Buscar y descargar PDF
-        pdf_file = self.search_file_by_uuid(uuid, fecha_emision, "pdf")
-        if pdf_file:
-            pdf_content = self.download_file(pdf_file["id"])
-        else:
-            logger.warning(f"PDF no encontrado para UUID: {uuid}")
-
-        # Buscar y descargar XML
-        xml_file = self.search_file_by_uuid(uuid, fecha_emision, "xml")
-        if xml_file:
-            xml_content = self.download_file(xml_file["id"])
-        else:
-            logger.warning(f"XML no encontrado para UUID: {uuid}")
-
-        return pdf_content, xml_content
+        # Usar get_invoice_files_extended que usa cache y búsqueda en paralelo
+        return self.get_invoice_files_extended(uuid, fecha_emision, country=country)
 
     def batch_get_invoice_files(
         self,
@@ -1136,6 +1093,74 @@ class GoogleDriveService:
                     logger.debug(f"Error searching {filename}: {e}")
                     return None
 
+        return None
+
+    def download_file_with_retry(
+        self,
+        file_id: str,
+        file_name: str,
+        max_retries: int = 2,
+        max_total_time: int = 210
+    ) -> Optional[bytes]:
+        """
+        Descarga un archivo de Google Drive con backoff exponencial.
+
+        Implementa reintentos con tiempos de espera para manejar
+        timeouts transitorios sin saturar la conexión.
+
+        CONFIGURACIÓN:
+        - Timeout por intento: 90s (configurado en httplib2)
+        - Máximo 2 reintentos (total 3 intentos)
+        - Tiempo total máximo: 210s (3.5 minutos)
+        - Backoff: 3s, 6s entre intentos
+
+        Args:
+            file_id: ID del archivo en Google Drive.
+            file_name: Nombre del archivo (para logging).
+            max_retries: Número máximo de reintentos (default 2).
+            max_total_time: Tiempo máximo total en segundos (default 210s).
+
+        Returns:
+            bytes: Contenido del archivo o None si falla.
+        """
+        start_time = time.time()
+
+        for attempt in range(1, max_retries + 2):  # +2 porque max_retries=2 significa 3 intentos totales
+            # Verificar si excedimos el tiempo total
+            elapsed = time.time() - start_time
+            if elapsed >= max_total_time:
+                logger.warning(
+                    f"[MX] Tiempo límite excedido para {file_name}: "
+                    f"{elapsed:.1f}s >= {max_total_time}s (intento {attempt})"
+                )
+                break
+
+            try:
+                content = self.download_file(file_id)
+                if content:
+                    if attempt > 1:
+                        logger.info(f"[MX] Descarga exitosa de {file_name} en intento {attempt} ({elapsed:.1f}s)")
+                    return content
+                else:
+                    logger.warning(f"[MX] Intento {attempt}: descarga vacía para {file_name}")
+
+            except Exception as e:
+                logger.warning(f"[MX] Intento {attempt} error para {file_name}: {e}")
+
+            # Backoff exponencial: 3s, 6s
+            if attempt <= max_retries:
+                # Verificar que tenemos tiempo para otro intento (necesitamos ~60s)
+                remaining_time = max_total_time - (time.time() - start_time)
+                if remaining_time < 30:
+                    logger.warning(f"[MX] Sin tiempo suficiente para reintentar {file_name} ({remaining_time:.0f}s restantes)")
+                    break
+
+                wait_time = 3 * attempt  # 3s, 6s
+                logger.info(f"[MX] Esperando {wait_time}s antes de reintentar {file_name}...")
+                time.sleep(wait_time)
+
+        total_elapsed = time.time() - start_time
+        logger.error(f"[MX] Descarga fallida para {file_name} después de {total_elapsed:.1f}s (ID: {file_id})")
         return None
 
 

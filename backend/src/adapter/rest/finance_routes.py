@@ -17,7 +17,13 @@ from src.interface.finance_dtos import (
     ExcelValidationResponse,
     InvoiceSearchRequest,
     InvoiceSearchResponse,
-    ZipGenerationRequest
+    ZipGenerationRequest,
+    CombinedUploadResponse,
+    CombinedSearchRequest,
+    CombinedSearchResponse,
+    CombinedSearchResult,
+    DocumentType,
+    ArchivoEstado
 )
 from src.interface.finance_dtos_co import (
     COProcessingResponse,
@@ -51,6 +57,9 @@ from src.core.servicios.excel_merge_service_co import (
 from src.core.servicios.filter_service_co import get_filter_service_co
 from src.core.servicios.zip_generator_service_co import get_zip_service_co
 from src.core.servicios.filter_service_mx import get_filter_service_mx
+from src.core.servicios.combined_excel_service import get_combined_excel_service
+from src.core.servicios.combined_search_service import get_combined_search_service
+from src.core.servicios.excel_merge_service_mx import get_excel_merge_service_mx
 from src.interface.finance_dtos_mx import (
     MXFilterRequest,
     MXFilterResponse,
@@ -204,9 +213,6 @@ async def upload_excel(
                 invoice_records = merge_service.convert_dicts_to_invoice_records(merged_dicts)
                 result.data = invoice_records
                 logger.info(f"Converted {len(invoice_records)} records for session storage")
-
-                # NOTE: Pre-cache de Drive IDs se hace por separado con POST /populate-drive-cache
-                # para evitar timeouts con archivos grandes (6000+ filas)
             else:
                 logger.warning("Failed to upload to Drive - using uploaded data only")
 
@@ -335,167 +341,6 @@ async def get_session_stats(
         "unique_rfcs": len(unique_rfcs),
         "unique_operaciones": len(unique_operaciones)
     }
-
-
-@router.post(
-    "/populate-drive-cache",
-    summary="Populate Drive file cache from master Excel",
-    description="""
-    Populate the drive_file_cache table with file IDs from the master Excel in Drive.
-
-    This reads the master Excel file from Google Drive, extracts all UUIDs,
-    searches for their PDF/XML files in Drive, and caches the file IDs in the database.
-
-    **IMPORTANT**: This operation can take several minutes for large files (6000+ rows).
-    Run this ONCE after uploading a new master Excel, or when you add new invoice files to Drive.
-
-    After running this, ZIP generation will be much faster because it uses cached file IDs
-    instead of searching Drive for each file.
-    """
-)
-async def populate_drive_cache(
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Populate drive file cache from master Excel in Drive.
-
-    Reads the master Excel, extracts UUIDs, and caches Drive file IDs.
-    This is a long-running operation for large files.
-
-    Returns:
-        Cache population statistics
-    """
-    import pandas as pd
-
-    user_email = getattr(current_user, 'email', 'unknown')
-    logger.info(f"User {user_email} starting drive cache population from master Excel")
-
-    drive_service = get_drive_service()
-
-    # 1. Download master Excel from Drive
-    logger.info("Downloading master Excel from Drive...")
-    master_bytes = drive_service.download_master_excel()
-
-    if not master_bytes:
-        raise HTTPException(
-            status_code=404,
-            detail="Master Excel not found in Drive. Upload an Excel file first."
-        )
-
-    # 2. Read Excel and extract UUIDs
-    logger.info("Reading Excel and extracting UUIDs...")
-    try:
-        df = pd.read_excel(io.BytesIO(master_bytes))
-
-        # Find UUID column (case-insensitive)
-        uuid_col = None
-        for col in df.columns:
-            if col.lower() == 'uuid':
-                uuid_col = col
-                break
-
-        if not uuid_col:
-            raise HTTPException(
-                status_code=400,
-                detail="Column 'UUID' not found in master Excel"
-            )
-
-        # Extract non-null UUIDs
-        uuids = df[uuid_col].dropna().astype(str).tolist()
-        uuids = [u.strip() for u in uuids if u.strip() and u.strip().lower() != 'nan']
-
-        logger.info(f"Found {len(uuids)} UUIDs in master Excel")
-
-        if not uuids:
-            return {
-                "message": "No UUIDs found in master Excel",
-                "stats": {"total": 0, "cached": 0, "not_found": 0, "already_cached": 0}
-            }
-
-    except Exception as e:
-        logger.error(f"Error reading Excel: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error reading master Excel: {str(e)}"
-        )
-
-    # 3. Pre-cache Drive file IDs
-    logger.info(f"Starting precache for {len(uuids)} UUIDs...")
-    try:
-        stats = drive_service.precache_drive_file_ids(uuids, country="MX", max_workers=4)
-        logger.info(f"Precache completed: {stats}")
-
-        return {
-            "message": f"Cache populated for {len(uuids)} invoices from master Excel",
-            "stats": stats
-        }
-    except Exception as e:
-        logger.error(f"Precache failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error during cache population: {str(e)}"
-        )
-
-
-@router.post(
-    "/precache-drive-ids",
-    summary="Pre-cache Drive file IDs for a session",
-    description="""
-    Pre-cache Google Drive file IDs for invoices in a specific session.
-
-    Use POST /populate-drive-cache instead to cache from master Excel directly.
-    """
-)
-async def precache_drive_ids(
-    session_id: str,
-    search_service: InvoiceSearchService = Depends(get_invoice_search_service),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Pre-cache Drive file IDs for invoices in session.
-
-    Args:
-        session_id: Session ID with invoice data
-        search_service: Invoice search service
-        current_user: Authenticated user
-
-    Returns:
-        Cache statistics
-    """
-    user_email = getattr(current_user, 'email', 'unknown')
-    logger.info(f"User {user_email} starting precache for session {session_id}")
-
-    # Get session data
-    data = search_service.get_session(session_id)
-    if not data:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Sesión no encontrada: {session_id}"
-        )
-
-    # Extract UUIDs
-    uuids = [record.uuid for record in data if record.uuid]
-    if not uuids:
-        return {
-            "message": "No UUIDs found in session",
-            "stats": {"total": 0, "cached": 0, "not_found": 0, "already_cached": 0}
-        }
-
-    # Run precache
-    drive_service = get_drive_service()
-    try:
-        stats = drive_service.precache_drive_file_ids(uuids, country="MX", max_workers=4)
-        logger.info(f"Precache completed for session {session_id}: {stats}")
-        return {
-            "message": f"Pre-cache completed for {len(uuids)} invoices",
-            "stats": stats
-        }
-    except Exception as e:
-        logger.error(f"Precache failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error durante pre-cache: {str(e)}"
-        )
 
 
 @router.delete(
@@ -661,12 +506,11 @@ async def generate_zip(
                 detail="No se encontraron facturas para incluir en el ZIP"
             )
 
-        # Generate ZIP (country=MX for cache)
+        # Generate ZIP
         zip_service = get_zip_service()
         zip_buffer = zip_service.generate_invoice_package(
             invoices_to_include,
-            metadata=request.metadata,
-            country="MX"
+            metadata=request.metadata
         )
 
         # Generate filename
@@ -1596,170 +1440,171 @@ async def download_filtered_co_zip(
         )
 
 
-# ============================================================================
-# Colombia (CO) Cache Endpoints
-# ============================================================================
-
 @router.post(
-    "/co/populate-drive-cache",
-    summary="Populate Drive cache for Colombia",
+    "/co/precache-drive-files",
+    summary="Pre-populate Drive file cache for Colombia",
     description="""
-    Pre-cache Google Drive file IDs for Colombia invoices.
+    Pre-populates the Supabase cache with Google Drive file IDs for all CO invoices.
 
-    This endpoint reads the master Excel from Drive and caches the Drive file IDs
-    for all invoice PDFs found. This significantly speeds up ZIP generation.
+    This dramatically speeds up ZIP downloads because:
+    1. Lists ALL PDF files from Drive in ONE API call
+    2. Matches invoice numbers in memory (instant)
+    3. Stores file IDs in Supabase cache
 
-    **Process:**
-    1. Downloads master Excel from Drive (Reporte_Facturacion_CO_2025.xlsx)
-    2. Extracts all invoice numbers (# Factura column)
-    3. Lists ALL PDFs in Drive CO folder
-    4. Creates index mapping invoice numbers to Drive file IDs
-    5. Saves to Supabase cache table
+    After running this, ZIP downloads use cached file IDs instead of
+    searching Drive for each file individually.
 
-    **Note:** This process can take several minutes for large datasets.
-    Run this once after updating the master Excel file.
+    Recommended to run periodically (e.g., daily) or after uploading new files.
     """,
     tags=["Finance - Facturación CO - Cache"]
 )
-async def populate_co_drive_cache(
+async def precache_drive_files_co(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Populate Drive file cache for Colombia invoices.
+    Pre-cache Drive file IDs for CO invoices.
 
-    Args:
-        current_user: Authenticated user
+    Workflow:
+    1. Gets all invoice numbers from the CO master Excel in Drive
+    2. Lists ALL PDF files from Drive (one API call)
+    3. Matches invoice numbers to files in memory
+    4. Stores file IDs in Supabase cache
 
     Returns:
-        Cache population statistics
-
-    Raises:
-        HTTPException: If cache population fails
+        Dict with statistics: total, cached, not_found, already_cached
     """
     user_email = getattr(current_user, 'email', 'unknown')
-    logger.info(f"User {user_email} starting CO Drive cache population")
+    logger.info(f"User {user_email} starting CO Drive file precache")
 
     try:
-        from src.core.servicios.google_drive_service_co import get_drive_service_co
-
-        # Get filter service to read master Excel
+        # 1. Get all invoice numbers from CO filter service (reads master Excel from Drive)
         filter_service = get_filter_service_co()
+        all_invoice_numbers = filter_service.get_all_invoice_numbers()
+
+        if not all_invoice_numbers:
+            return {
+                "success": False,
+                "message": "No se encontraron números de factura en el Excel maestro CO",
+                "stats": {"total": 0, "cached": 0, "not_found": 0, "already_cached": 0}
+            }
+
+        logger.info(f"[CO] Found {len(all_invoice_numbers)} invoice numbers to precache")
+
+        # 2. Run precache
         drive_service = get_drive_service_co()
+        stats = drive_service.precache_drive_file_ids(all_invoice_numbers)
 
-        # 1. Load master Excel from Drive (CO uses _cached_data with DataFrames)
-        logger.info("Loading master Excel from Drive CO...")
-        data_dict = filter_service._load_excel_from_drive()
-
-        if not data_dict:
-            raise HTTPException(
-                status_code=400,
-                detail="No se pudo cargar el archivo maestro de Drive"
-            )
-
-        # 2. Extract unique invoice numbers from both sheets
-        # CO has two sheets: "Relacion facturas Costos Fijos" and "Relación facturas mandato"
-        invoice_numbers = set()
-
-        for sheet_name, df in data_dict.items():
-            # The column name is "# Factura" in both sheets
-            if "# Factura" in df.columns:
-                # Get non-null values
-                factura_values = df["# Factura"].dropna().astype(str)
-                for val in factura_values:
-                    val_clean = val.strip()
-                    if val_clean and val_clean.lower() != 'nan':
-                        invoice_numbers.add(val_clean)
-                logger.info(f"Found {len(factura_values)} invoices in sheet '{sheet_name}'")
-
-        invoice_numbers_list = list(invoice_numbers)
-        logger.info(f"Found {len(invoice_numbers_list)} unique invoice numbers to cache")
-
-        if not invoice_numbers_list:
-            raise HTTPException(
-                status_code=400,
-                detail="No se encontraron números de factura en el archivo maestro"
-            )
-
-        # 3. Pre-cache file IDs
-        stats = drive_service.precache_drive_file_ids(
-            invoice_numbers=invoice_numbers_list,
-            country="CO"
-        )
+        logger.info(f"[CO] Precache completed: {stats}")
 
         return {
             "success": True,
-            "message": f"Cache CO poblado exitosamente",
+            "message": f"Cache pre-populated for {stats['cached']} files",
             "stats": stats
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error populating CO Drive cache: {e}", exc_info=True)
+        logger.error(f"Error during CO precache: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error al poblar cache de Drive CO: {str(e)}"
+            detail=f"Error al pre-cachear archivos CO: {str(e)}"
         )
 
 
-@router.get(
-    "/co/cache-stats",
-    summary="Get Drive cache statistics for CO",
+@router.post(
+    "/co/initialize-from-historical",
+    summary="Initialize cache from historical file",
     description="""
-    Get statistics about the Drive file cache for Colombia.
+    ONE-TIME initialization endpoint that reads the historical invoice control file
+    ("Archivo control facturacion mensual Finkargo Def.xlsx") to:
 
-    Returns the number of cached file IDs (PDFs) in the database.
-    Use this to check if the cache needs to be populated before generating ZIPs.
+    1. Extract ALL invoice numbers from the historical record (3 sheets)
+    2. Pre-populate the Supabase cache with Drive file IDs
 
-    **Important**: If total_cached is 0, you should run POST /co/populate-drive-cache
-    before attempting to generate ZIPs, otherwise the process will be very slow.
+    This allows the team to use the system immediately without having to
+    upload Noova/Netsuite files first.
+
+    NOTE: This does NOT modify the historical file - it's read-only.
+    The master report (Reporte_Facturacion_CO_2025.xlsx) continues to be
+    updated separately through the normal upload flow.
+
+    Recommended to run ONCE when setting up the system.
     """,
     tags=["Finance - Facturación CO - Cache"]
 )
-async def get_co_cache_stats(
+async def initialize_co_from_historical(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Get Drive cache statistics for Colombia.
+    Initialize CO cache from historical invoice control file.
 
-    Args:
-        current_user: Authenticated user
+    Workflow:
+    1. Downloads "Archivo control facturacion mensual Finkargo Def.xlsx" from Drive
+    2. Extracts invoice numbers from all sheets (Costos Fijos, Mandato, Cesion)
+    3. Lists ALL PDF files from Drive
+    4. Matches invoice numbers to files in memory
+    5. Stores file IDs in Supabase cache
 
     Returns:
-        Cache statistics including total cached, PDF count
-
-    Raises:
-        HTTPException: If query fails
+        Dict with statistics and status
     """
+    from src.core.servicios.historical_data_service_co import get_historical_data_service_co
+
     user_email = getattr(current_user, 'email', 'unknown')
-    logger.info(f"User {user_email} getting CO cache stats")
+    logger.info(f"User {user_email} starting CO initialization from historical file")
 
     try:
-        from src.repositorio.drive_file_cache_repository import DriveFileCacheRepository
+        # 1. Get all invoice numbers from historical file
+        historical_service = get_historical_data_service_co()
+        logger.info("[CO Init] Reading historical file from Drive...")
 
-        supabase = get_supabase_client()
-        cache_repo = DriveFileCacheRepository(supabase.admin_client)
-        stats = cache_repo.get_cache_stats(country="CO")
+        all_invoice_numbers = historical_service.get_all_invoice_numbers()
+
+        if not all_invoice_numbers:
+            return {
+                "success": False,
+                "message": "No se encontraron números de factura en el archivo histórico",
+                "stats": {
+                    "historical_invoices": 0,
+                    "cached": 0,
+                    "not_found": 0,
+                    "already_cached": 0
+                }
+            }
+
+        logger.info(f"[CO Init] Found {len(all_invoice_numbers)} invoice numbers in historical file")
+
+        # 2. Run precache with the historical invoice numbers
+        drive_service = get_drive_service_co()
+        cache_stats = drive_service.precache_drive_file_ids(all_invoice_numbers)
+
+        logger.info(f"[CO Init] Precache completed: {cache_stats}")
 
         return {
             "success": True,
-            "country": "CO",
-            "total_cached": stats.get("total_cached", 0),
-            "pdf_count": stats.get("pdf_count", 0),
-            "xml_count": 0,  # CO doesn't have XMLs
-            "cache_ready": stats.get("total_cached", 0) > 0,
             "message": (
-                "Cache listo para generar ZIPs"
-                if stats.get("total_cached", 0) > 0
-                else "Cache vacío - ejecute 'Poblar Cache' antes de generar ZIPs"
-            )
+                f"Inicialización completada. "
+                f"{len(all_invoice_numbers)} facturas del histórico, "
+                f"{cache_stats['cached']} archivos cacheados, "
+                f"{cache_stats['already_cached']} ya en cache, "
+                f"{cache_stats['not_found']} no encontrados en Drive."
+            ),
+            "stats": {
+                "historical_invoices": len(all_invoice_numbers),
+                **cache_stats
+            }
         }
 
+    except ValueError as e:
+        logger.error(f"Validation error during CO initialization: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
     except Exception as e:
-        logger.error(f"Error getting CO cache stats: {e}", exc_info=True)
+        logger.error(f"Error during CO initialization from historical: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error al obtener estadísticas del cache: {str(e)}"
+            detail=f"Error al inicializar desde archivo histórico: {str(e)}"
         )
 
 
@@ -2271,7 +2116,8 @@ async def filter_mx_records(
         HTTPException: If Excel not found or query fails
     """
     user_email = getattr(current_user, 'email', 'unknown')
-    logger.info(f"User {user_email} filtering MX data: {request}")
+    logger.info(f"User {user_email} filtering MX data")
+    logger.info(f"[MX_FILTER_ENDPOINT] Request recibido: operaciones={request.operaciones}, rfc={request.rfc}, fecha_inicio={request.fecha_inicio}, fecha_fin={request.fecha_fin}")
 
     try:
         filter_service = get_filter_service_mx()
@@ -2638,7 +2484,7 @@ async def download_filtered_mx_zip(
         zip_buffer = zip_service.generate_invoice_package(
             invoices=invoices_for_zip,
             metadata=metadata,
-            country="MX"
+            country="MX"  # Usar cache de MX
         )
 
         # 4. Generate filename and return
@@ -2715,62 +2561,553 @@ async def clear_mx_filter_cache(
     return {"message": "Cache de filtros MX limpiado exitosamente"}
 
 
-@router.get(
-    "/mx/cache-stats",
-    summary="Get Drive cache statistics for MX",
+# ============================================================================
+# Mexico (MX) Combined Upload Endpoints (Facturas + Complementos de Pago)
+# ============================================================================
+
+@router.post(
+    "/mx/upload-combined",
+    response_model=CombinedUploadResponse,
+    summary="Upload facturas and complementos de pago Excel files",
     description="""
-    Get statistics about the Drive file cache for Mexico.
+    Upload two Excel files: one for facturas (invoices) and one for complementos de pago (payment supplements).
 
-    Returns the number of cached file IDs (PDFs and XMLs) in the database.
-    Use this to check if the cache needs to be populated before generating ZIPs.
+    Both files must have the same column structure:
+    - UUID, CODIGO DE OPERACIÓN, Conceptos, Fecha emision
+    - RFC receptor, Razon receptor, SubTotal, IVA Trasladado
+    - IVA Exento, Total, UUIDs relacionados (optional), Tipo (optional)
 
-    **Important**: If total_cached is 0, you should run POST /populate-drive-cache
-    before attempting to generate ZIPs, otherwise the process will be very slow.
+    Payment supplements are automatically identified by:
+    - Tipo column containing "CPO1 - Pagos"
+    - Conceptos containing "COMPLEMENTO DE PAGO"
+
+    Returns a session_id for subsequent search and ZIP generation operations.
     """,
-    tags=["Finance - Facturación MX - Filtros"]
+    tags=["Finance - Facturación MX - Complementos de Pago"]
 )
-async def get_mx_cache_stats(
+async def upload_combined_excel(
+    facturas_file: Optional[UploadFile] = File(None, description="Excel file with invoices (facturas)"),
+    complementos_file: Optional[UploadFile] = File(None, description="Excel file with payment supplements (complementos de pago)"),
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Get Drive cache statistics for Mexico.
+    Upload and validate both facturas and complementos de pago Excel files.
 
     Args:
+        facturas_file: Excel file with invoice data
+        complementos_file: Excel file with payment supplement data
         current_user: Authenticated user
 
     Returns:
-        Cache statistics including total cached, PDF count, XML count
+        CombinedUploadResponse with parsed data from both files
 
     Raises:
-        HTTPException: If query fails
+        HTTPException: If no files provided or processing fails
     """
     user_email = getattr(current_user, 'email', 'unknown')
-    logger.info(f"User {user_email} getting MX cache stats")
+    logger.info(f"User {user_email} uploading combined Excel files")
+
+    # Validate that at least one file is provided
+    if not facturas_file and not complementos_file:
+        raise HTTPException(
+            status_code=400,
+            detail="Debe proporcionar al menos un archivo (facturas o complementos de pago)"
+        )
+
+    # Validate file formats
+    for label, file in [("Facturas", facturas_file), ("Complementos", complementos_file)]:
+        if file:
+            if not file.filename:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Nombre de archivo es requerido para {label}"
+                )
+            if not file.filename.endswith(('.xlsx', '.xls')):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Formato inválido para {label}. Use .xlsx o .xls"
+                )
 
     try:
-        from src.repositorio.drive_file_cache_repository import DriveFileCacheRepository
+        # First, read raw Excel data (preserving ALL columns) for Drive sync
+        merge_service = get_excel_merge_service_mx()
+        raw_facturas_dicts = []
+        raw_complementos_dicts = []
 
-        supabase = get_supabase_client()
-        cache_repo = DriveFileCacheRepository(supabase.admin_client)
-        stats = cache_repo.get_cache_stats(country="MX")
+        if facturas_file:
+            raw_facturas_dicts = await merge_service.read_uploaded_excel_as_dicts(
+                facturas_file,
+                DocumentType.FACTURA
+            )
+            logger.info(f"Read {len(raw_facturas_dicts)} raw facturas records with all columns")
+
+        if complementos_file:
+            raw_complementos_dicts = await merge_service.read_uploaded_excel_as_dicts(
+                complementos_file,
+                DocumentType.COMPLEMENTO_PAGO
+            )
+            logger.info(f"Read {len(raw_complementos_dicts)} raw complementos records with all columns")
+
+        # Process files for session/search (simplified CombinedRecord format)
+        combined_service = get_combined_excel_service()
+        result = await combined_service.validate_combined_excel(
+            facturas_file=facturas_file,
+            complementos_file=complementos_file
+        )
+
+        # Store in session
+        if result.success and (result.facturas_data or result.complementos_data):
+            search_service = get_combined_search_service()
+            search_service.store_session(
+                result.session_id,
+                result.facturas_data,
+                result.complementos_data
+            )
+            logger.info(
+                f"Combined session {result.session_id} created: "
+                f"{len(result.facturas_data)} facturas, "
+                f"{len(result.complementos_data)} complementos"
+            )
+
+            # Sync with Drive (merge and upload multi-sheet Excel preserving ALL columns)
+            try:
+                drive_service = get_drive_service()
+
+                # Download existing master Excel (if exists)
+                master_excel_bytes = drive_service.download_master_excel()
+                if master_excel_bytes:
+                    logger.info(f"Downloaded master Excel: {len(master_excel_bytes)} bytes")
+                else:
+                    logger.info("No existing master Excel, creating new multi-sheet file")
+
+                # Merge uploaded RAW data with master (preserves ALL columns)
+                merged_excel_bytes, merge_stats = await merge_service.merge_raw_excel_with_drive(
+                    facturas_dicts=raw_facturas_dicts,
+                    complementos_dicts=raw_complementos_dicts,
+                    master_excel_bytes=master_excel_bytes
+                )
+
+                # Upload merged Excel back to Drive
+                upload_success = drive_service.upload_master_excel(merged_excel_bytes)
+
+                if upload_success:
+                    logger.info(f"Drive sync successful - Facturas: {merge_stats['facturas']}, Complementos: {merge_stats['complementos']}")
+                    # Add sync stats to response
+                    result.drive_sync_stats = {
+                        'new': merge_stats['facturas']['new'] + merge_stats['complementos']['new'],
+                        'updated': merge_stats['facturas']['updated'] + merge_stats['complementos']['updated'],
+                        'unchanged': merge_stats['facturas']['unchanged'] + merge_stats['complementos']['unchanged']
+                    }
+
+                    # Clear filter cache so new data is visible
+                    filter_service = get_filter_service_mx()
+                    filter_service.clear_cache()
+                else:
+                    logger.warning("Drive sync failed - upload unsuccessful")
+
+            except Exception as e:
+                logger.error(f"Drive sync error (non-blocking): {e}", exc_info=True)
+                # Don't fail the whole upload if Drive sync fails
+
+        return result
+
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error processing combined Excel files: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al procesar los archivos: {str(e)}"
+        )
+
+
+@router.post(
+    "/mx/search-combined",
+    response_model=CombinedSearchResponse,
+    summary="Search in combined facturas and complementos data",
+    description="""
+    Search for records in a combined session (facturas + complementos de pago).
+
+    Search types:
+    - codigo_operacion: Search by operation code (supports comma-separated values)
+    - rfc: Search by RFC receptor (exact match)
+    - fecha: Search by date range only
+
+    Additional options:
+    - include_facturas: Include invoices in results (default: true)
+    - include_complementos: Include payment supplements in results (default: true)
+    - fecha_inicio/fecha_fin: Filter by date range (works with all search types)
+    """,
+    tags=["Finance - Facturación MX - Complementos de Pago"]
+)
+async def search_combined(
+    request: CombinedSearchRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Search for records in combined data.
+
+    Args:
+        request: Search criteria
+        current_user: Authenticated user
+
+    Returns:
+        CombinedSearchResponse with matching results
+
+    Raises:
+        HTTPException: If session not found or search fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(
+        f"User {user_email} searching combined session {request.session_id} "
+        f"by {request.search_type.value}"
+    )
+
+    try:
+        search_service = get_combined_search_service()
+        results = search_service.search(request)
+        return results
+
+    except ValueError as e:
+        logger.error(f"Search error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error during combined search: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al buscar: {str(e)}"
+        )
+
+
+@router.get(
+    "/mx/combined-session/{session_id}/stats",
+    summary="Get combined session statistics",
+    description="Get statistics about a combined session including record counts and totals.",
+    tags=["Finance - Facturación MX - Complementos de Pago"]
+)
+async def get_combined_session_stats(
+    session_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get statistics for a combined session.
+
+    Args:
+        session_id: Session ID from combined upload
+        current_user: Authenticated user
+
+    Returns:
+        Dictionary with session statistics
+
+    Raises:
+        HTTPException: If session not found
+    """
+    search_service = get_combined_search_service()
+    stats = search_service.get_session_stats(session_id)
+
+    if stats is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Sesión no encontrada o expirada: {session_id}"
+        )
+
+    return stats
+
+
+@router.delete(
+    "/mx/combined-session/{session_id}",
+    summary="Clear combined session data",
+    description="Remove combined session data from cache to free memory.",
+    tags=["Finance - Facturación MX - Complementos de Pago"]
+)
+async def clear_combined_session(
+    session_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Clear combined session data from cache.
+
+    Args:
+        session_id: Session ID to clear
+        current_user: Authenticated user
+
+    Returns:
+        Success message
+    """
+    search_service = get_combined_search_service()
+    success = search_service.clear_session(session_id)
+
+    if success:
+        return {"message": f"Sesión combinada {session_id} eliminada exitosamente"}
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Sesión no encontrada: {session_id}"
+        )
+
+
+@router.post(
+    "/mx/generate-combined-zip",
+    summary="Generate ZIP with facturas and complementos de pago",
+    description="""
+    Generate a ZIP file containing PDFs, XMLs, and detailed Excel report for both
+    facturas and complementos de pago.
+
+    You can specify:
+    - session_id: Required session from combined upload
+    - search_criteria: Optional filters to include specific records
+    - uuids: Optional list of specific UUIDs to include
+    - metadata: Optional metadata for naming the ZIP file
+
+    The ZIP will contain:
+    - Detailed Excel report with facturas and complementos tabs
+    - PDFs/ folder with PDF files
+    - XMLs/ folder with XML files
+
+    Files not found in Google Drive will be marked as missing in the Excel report.
+    """,
+    tags=["Finance - Facturación MX - Complementos de Pago"]
+)
+async def generate_combined_zip(
+    session_id: str,
+    search_criteria: Optional[CombinedSearchRequest] = None,
+    uuids: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Generate a ZIP package with facturas and complementos PDFs, XMLs, and Excel report.
+
+    Args:
+        session_id: Session ID from combined upload
+        search_criteria: Optional search criteria to filter records
+        uuids: Optional comma-separated UUIDs to include
+        current_user: Authenticated user
+
+    Returns:
+        StreamingResponse: ZIP file download
+
+    Raises:
+        HTTPException: If session not found, no records to include, or generation fails
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    user_id = getattr(current_user, 'id', None)
+    logger.info(f"User {user_email} requesting combined ZIP generation for session {session_id}")
+
+    try:
+        # Get session data
+        search_service = get_combined_search_service()
+        session_data = search_service.get_session_data(session_id)
+
+        if session_data is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sesión no encontrada o expirada: {session_id}"
+            )
+
+        # Determine which records to include
+        all_records = session_data['facturas'] + session_data['complementos']
+        records_to_include = []
+
+        if uuids:
+            # Filter by specific UUIDs
+            uuid_set = set(u.strip().upper() for u in uuids.split(','))
+            records_to_include = [
+                r for r in all_records
+                if r.uuid.upper() in uuid_set
+            ]
+            logger.info(f"Filtering by {len(uuid_set)} UUIDs, found {len(records_to_include)} records")
+
+        elif search_criteria:
+            # Filter by search criteria
+            search_criteria.session_id = session_id
+            search_results = search_service.search(search_criteria)
+            records_to_include = [
+                # Convert CombinedSearchResult back to dict for ZIP generation
+                r for r in all_records
+                if any(sr.uuid == r.uuid for sr in search_results.results)
+            ]
+            logger.info(f"Search criteria returned {len(records_to_include)} records")
+
+        else:
+            # Include all session data
+            records_to_include = all_records
+            logger.info(f"Including all {len(records_to_include)} records from session")
+
+        if not records_to_include:
+            raise HTTPException(
+                status_code=400,
+                detail="No se encontraron registros para incluir en el ZIP"
+            )
+
+        # Convert to dict format for ZIP service
+        invoices_for_zip = [
+            {
+                "uuid": r.uuid,
+                "codigo_operacion": r.codigo_operacion,
+                "conceptos": r.conceptos,
+                "fecha_emision": r.fecha_emision,
+                "rfc_receptor": r.rfc_receptor,
+                "razon_receptor": r.razon_receptor,
+                "subtotal": r.subtotal,
+                "iva_trasladado": r.iva_trasladado,
+                "iva_exento": r.iva_exento,
+                "total": r.total,
+                "uuid_relacionados": r.uuid_relacionados,
+                "tipo_comprobante": r.tipo_comprobante,
+                "document_type": r.document_type.value
+            }
+            for r in records_to_include
+        ]
+
+        # Build metadata
+        facturas_count = len([r for r in records_to_include if r.document_type == DocumentType.FACTURA])
+        complementos_count = len([r for r in records_to_include if r.document_type == DocumentType.COMPLEMENTO_PAGO])
+
+        # Get unique operation codes for filename
+        unique_ops = set(r.codigo_operacion for r in records_to_include)
+        metadata = {
+            "tipo": "combinado",
+            "facturas_count": facturas_count,
+            "complementos_count": complementos_count
+        }
+        if len(unique_ops) == 1:
+            metadata["codigo_operacion"] = list(unique_ops)[0]
+
+        # Generate ZIP using existing MX zip service
+        zip_service = get_zip_service()
+        zip_buffer = zip_service.generate_invoice_package(
+            invoices=invoices_for_zip,
+            metadata=metadata
+        )
+
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if metadata.get("codigo_operacion"):
+            codigo = metadata["codigo_operacion"].replace(":", "-").replace("/", "-")
+            filename = f"Facturacion_MX_Combinado_{codigo}_{timestamp}.zip"
+        else:
+            filename = f"Facturacion_MX_Combinado_{timestamp}.zip"
+
+        logger.info(
+            f"Combined ZIP generation successful: {filename}, "
+            f"Size: {len(zip_buffer.getvalue())} bytes, "
+            f"{facturas_count} facturas, {complementos_count} complementos"
+        )
+
+        # Record in history
+        await record_finance_report(
+            country="MX",
+            report_type="zip_download",
+            stats={
+                "total_records": len(records_to_include),
+                "facturas_count": facturas_count,
+                "complementos_count": complementos_count,
+                "total_amount": sum(r.total for r in records_to_include),
+            },
+            user_id=user_id,
+            user_email=user_email,
+            filters_applied={
+                "session_id": session_id,
+                "uuids_filter": uuids is not None,
+                "search_criteria_used": search_criteria is not None,
+            },
+            file_name=filename,
+            status="completed"
+        )
+
+        # Return as streaming response
+        return StreamingResponse(
+            io.BytesIO(zip_buffer.getvalue()),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "X-Total-Records": str(len(records_to_include)),
+                "X-Facturas-Count": str(facturas_count),
+                "X-Complementos-Count": str(complementos_count)
+            }
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Validation error during combined ZIP generation: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error generating combined ZIP: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al generar el paquete ZIP: {str(e)}"
+        )
+
+
+@router.post(
+    "/mx/precache-drive-files",
+    summary="Pre-populate Drive file cache",
+    description="""
+    Pre-populates the Supabase cache with Google Drive file IDs for all invoices.
+
+    This dramatically speeds up ZIP downloads because:
+    1. Lists ALL files from Drive in ONE API call
+    2. Matches UUIDs in memory (instant)
+    3. Stores file IDs in Supabase cache
+
+    After running this, ZIP downloads use cached file IDs instead of
+    searching Drive for each file individually.
+
+    Recommended to run periodically (e.g., daily) or after uploading new files.
+    """,
+    tags=["Finance - Facturación MX - Cache"]
+)
+async def precache_drive_files_mx(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Pre-cache Drive file IDs for MX invoices.
+
+    Workflow:
+    1. Gets all UUIDs from the MX master Excel in Drive
+    2. Lists ALL files from Drive (one API call)
+    3. Matches UUIDs to files in memory
+    4. Stores file IDs in Supabase cache
+
+    Returns:
+        Dict with statistics: total, cached, not_found, already_cached
+    """
+    user_email = getattr(current_user, 'email', 'unknown')
+    logger.info(f"User {user_email} starting MX Drive file precache")
+
+    try:
+        # 1. Get all UUIDs from MX filter service (reads master Excel from Drive)
+        filter_service = get_filter_service_mx()
+        all_records = filter_service.get_all_records()
+
+        if not all_records:
+            return {
+                "success": False,
+                "message": "No se encontraron registros en el Excel maestro",
+                "stats": {"total": 0, "cached": 0, "not_found": 0, "already_cached": 0}
+            }
+
+        # Extract UUIDs
+        uuids = [r.uuid for r in all_records if r.uuid]
+        logger.info(f"Found {len(uuids)} UUIDs to precache")
+
+        # 2. Run precache
+        drive_service = get_drive_service()
+        stats = drive_service.precache_drive_file_ids(uuids, country="MX")
+
+        logger.info(f"Precache completed: {stats}")
 
         return {
             "success": True,
-            "country": "MX",
-            "total_cached": stats.get("total_cached", 0),
-            "pdf_count": stats.get("pdf_count", 0),
-            "xml_count": stats.get("xml_count", 0),
-            "cache_ready": stats.get("total_cached", 0) > 0,
-            "message": (
-                "Cache listo para generar ZIPs"
-                if stats.get("total_cached", 0) > 0
-                else "Cache vacío - ejecute 'Poblar Cache' antes de generar ZIPs"
-            )
+            "message": f"Cache pre-populated for {stats['cached']} files",
+            "stats": stats
         }
 
     except Exception as e:
-        logger.error(f"Error getting MX cache stats: {e}", exc_info=True)
+        logger.error(f"Error during precache: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error al obtener estadísticas del cache: {str(e)}"
+            detail=f"Error al pre-cachear archivos: {str(e)}"
         )

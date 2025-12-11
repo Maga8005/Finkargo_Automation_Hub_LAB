@@ -307,7 +307,11 @@ class COFilterService:
                             return float(str_val)
                         except (ValueError, TypeError):
                             return None
-                    return str(val) if val else None
+                    # Convert to string and remove trailing .0 for numeric IDs (like NIT)
+                    str_val = str(val) if val else None
+                    if str_val and str_val.endswith('.0'):
+                        str_val = str_val[:-2]
+                    return str_val
 
                 # Log raw values for first row
                 if not logged_debug:
@@ -484,6 +488,8 @@ class COFilterService:
             for sheet_name, df in excel_data.items():
                 if column_name in df.columns:
                     values = df[column_name].dropna().astype(str).str.strip()
+                    # Remove trailing .0 from numeric values (e.g., "800065887.0" -> "800065887")
+                    values = values.str.replace(r'\.0$', '', regex=True)
                     values = values[values != ""]
                     all_values.update(values.unique())
 
@@ -539,8 +545,10 @@ class COFilterService:
                 operacion_col = col_map.get("codigo_operacion")
 
                 if nit_col and operacion_col and nit_col in df.columns and operacion_col in df.columns:
+                    # Clean NIT column (remove .0 suffix) for comparison
+                    nit_values = df[nit_col].astype(str).str.replace(r'\.0$', '', regex=True)
                     # Filter by NIT (partial match)
-                    nit_mask = df[nit_col].astype(str).str.contains(nit_search, case=False, na=False)
+                    nit_mask = nit_values.str.contains(nit_search, case=False, na=False)
                     filtered_df = df[nit_mask]
 
                     # Get unique operations
@@ -572,6 +580,66 @@ class COFilterService:
         self._cached_data = None
         self._cache_timestamp = None
         logger.info("Cache de filtros CO limpiado")
+
+    def get_all_records(self) -> List[COFilteredRecord]:
+        """
+        Get ALL records from the CO master Excel (no filtering).
+        Used for precaching Drive file IDs.
+
+        Returns:
+            List[COFilteredRecord]: All records from both sheets.
+        """
+        try:
+            # Load Excel data from Drive
+            excel_data = self._load_excel_from_drive()
+
+            all_records: List[COFilteredRecord] = []
+
+            # Process both sheets
+            for sheet_name in [self.SHEET_COSTOS_FIJOS, self.SHEET_MANDATO]:
+                if sheet_name not in excel_data:
+                    logger.warning(f"Sheet '{sheet_name}' not found in Excel")
+                    continue
+
+                df = excel_data[sheet_name]
+
+                # Convert to records (no filtering)
+                records = self._df_to_records(df, sheet_name)
+                all_records.extend(records)
+
+                logger.info(f"[get_all_records] Sheet '{sheet_name}': {len(records)} registros")
+
+            logger.info(f"[get_all_records] Total: {len(all_records)} registros de ambas hojas")
+            return all_records
+
+        except Exception as e:
+            logger.error(f"Error getting all records: {e}", exc_info=True)
+            return []
+
+    def get_all_invoice_numbers(self) -> List[str]:
+        """
+        Get all unique invoice numbers (numero_factura) from the master Excel.
+        Used for precaching Drive file IDs.
+
+        Returns:
+            List[str]: Unique invoice numbers.
+        """
+        try:
+            all_records = self.get_all_records()
+
+            # Extract unique invoice numbers
+            invoice_numbers = set()
+            for record in all_records:
+                if record.numero_factura:
+                    invoice_numbers.add(record.numero_factura)
+
+            invoice_list = list(invoice_numbers)
+            logger.info(f"[get_all_invoice_numbers] Found {len(invoice_list)} unique invoice numbers")
+            return invoice_list
+
+        except Exception as e:
+            logger.error(f"Error getting invoice numbers: {e}", exc_info=True)
+            return []
 
 
 # Singleton instance

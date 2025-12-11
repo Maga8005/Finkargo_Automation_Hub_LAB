@@ -17,22 +17,45 @@ import base64
 import logging
 import openpyxl
 import threading
+import time
+import httplib2
 from typing import Optional, Dict, List, Tuple, Set
 from datetime import datetime, date
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build, Resource
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from googleapiclient.errors import HttpError
+from google_auth_httplib2 import AuthorizedHttp
 
 from src.config.settings import get_settings
+from src.config.supabase_config import get_supabase_client
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Cache repository (lazy initialization)
+_file_cache_repo_co = None
+
+
+def _get_file_cache_repo():
+    """Get or initialize the file cache repository for CO."""
+    global _file_cache_repo_co
+    if _file_cache_repo_co is None:
+        try:
+            from src.repositorio.drive_file_cache_repository import DriveFileCacheRepository
+            supabase_wrapper = get_supabase_client()
+            # Use admin_client (service_role) for full cache access (read/write)
+            _file_cache_repo_co = DriveFileCacheRepository(supabase_wrapper.admin_client)
+            logger.info("Drive file cache repository initialized for CO with admin_client")
+        except Exception as e:
+            logger.warning(f"Could not initialize file cache repository for CO: {e}")
+            _file_cache_repo_co = None
+    return _file_cache_repo_co
 
 
 class ExcelValidationError(Exception):
     """Error cuando el Excel no pasa las validaciones antes de subir."""
     pass
-
-# Configurar logging
-logger = logging.getLogger(__name__)
 
 
 class GoogleDriveServiceCO:
@@ -58,6 +81,7 @@ class GoogleDriveServiceCO:
         self.credentials_path = settings.GOOGLE_DRIVE_CREDENTIALS_PATH
         self.folder_id = settings.GOOGLE_DRIVE_CO_FOLDER_ID
         self.master_excel_name = settings.GOOGLE_DRIVE_CO_MASTER_EXCEL_NAME
+        self.historical_excel_name = settings.GOOGLE_DRIVE_CO_HISTORICAL_EXCEL_NAME
 
         # Parse scopes from JSON string
         self.scopes = json.loads(settings.GOOGLE_DRIVE_SCOPES)
@@ -192,8 +216,14 @@ class GoogleDriveServiceCO:
                     scopes=self.scopes
                 )
 
-            self.service = build("drive", "v3", credentials=creds)
-            logger.info("Autenticación con Google Drive CO exitosa")
+            # Create HTTP client with timeout of 90 seconds
+            # 90s: Realistic for large PDF files on slow connections
+            # Google Drive can be slow, especially for files in cold storage
+            http = httplib2.Http(timeout=90)
+            authorized_http = AuthorizedHttp(creds, http=http)
+
+            self.service = build("drive", "v3", http=authorized_http)
+            logger.info("Autenticación con Google Drive CO exitosa (timeout=90s)")
             return self.service
 
         except Exception as e:
@@ -263,16 +293,85 @@ class GoogleDriveServiceCO:
             logger.error(f"Error al descargar master Excel CO: {str(e)}")
             return None
 
-    def download_file(self, file_id: str) -> Optional[bytes]:
+    def find_historical_excel_file(self) -> Optional[Dict]:
+        """
+        Busca el archivo histórico de Excel en la carpeta raíz de Drive CO.
+        Este es el "Archivo control facturacion mensual Finkargo Def.xlsx"
+        que contiene todo el historial de facturación.
+
+        Returns:
+            Dict: Información del archivo encontrado (id, name, mimeType), o None si no existe.
+        """
+        try:
+            service = self.authenticate()
+
+            query = (
+                f"'{self.folder_id}' in parents and "
+                f"name = '{self.historical_excel_name}' and "
+                f"trashed = false"
+            )
+
+            results = service.files().list(
+                q=query,
+                fields="files(id, name, mimeType, modifiedTime, size)",
+                pageSize=1
+            ).execute()
+
+            files = results.get("files", [])
+            if files:
+                file_info = files[0]
+                logger.info(f"Archivo histórico CO encontrado: {file_info['name']} (ID: {file_info['id'][:20]}...)")
+                return file_info
+
+            logger.warning(f"Archivo histórico CO no encontrado: {self.historical_excel_name}")
+            return None
+
+        except HttpError as e:
+            logger.error(f"Error HTTP buscando archivo histórico CO: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Error buscando archivo histórico CO: {str(e)}")
+            return None
+
+    def download_historical_excel(self) -> Optional[bytes]:
+        """
+        Descarga el archivo histórico de Excel desde Drive CO.
+        Este es el "Archivo control facturacion mensual Finkargo Def.xlsx"
+        que contiene todo el historial de facturación (solo lectura).
+
+        Returns:
+            bytes: Contenido del archivo Excel, o None si no existe o falla la descarga.
+        """
+        try:
+            file_info = self.find_historical_excel_file()
+            if not file_info:
+                logger.warning("No se puede descargar: Archivo histórico CO no encontrado")
+                return None
+
+            file_id = file_info["id"]
+            content = self.download_file(file_id)
+
+            if content:
+                logger.info(f"Archivo histórico CO descargado: {len(content)} bytes")
+            return content
+
+        except Exception as e:
+            logger.error(f"Error al descargar archivo histórico CO: {str(e)}")
+            return None
+
+    def download_file(self, file_id: str, timeout: int = 90) -> Optional[bytes]:
         """
         Descarga un archivo de Google Drive.
 
         Args:
             file_id: ID del archivo en Google Drive.
+            timeout: Timeout en segundos para la descarga (default: 90s).
+                     90s es realista para archivos grandes en Google Drive.
 
         Returns:
             bytes: Contenido del archivo, o None si falla la descarga.
         """
+        file_buffer = None
         try:
             service = self.authenticate()
 
@@ -299,6 +398,13 @@ class GoogleDriveServiceCO:
         except Exception as e:
             logger.error(f"Error al descargar archivo {file_id}: {str(e)}")
             return None
+        finally:
+            # Asegurar que el buffer se cierre correctamente
+            if file_buffer is not None:
+                try:
+                    file_buffer.close()
+                except Exception:
+                    pass
 
     def validate_excel_content(
         self,
@@ -1179,6 +1285,521 @@ class GoogleDriveServiceCO:
         logger.info(f"Búsqueda batch completada: {found_count}/{total} PDFs encontrados")
 
         return results
+
+    # ============================================================================
+    # OPTIMIZACIÓN: Cache Persistente en Supabase + Pre-cache Global
+    # ============================================================================
+
+    def search_pdf_global_with_cache(
+        self,
+        numero_factura: str,
+        max_retries: int = 2
+    ) -> Optional[Dict]:
+        """
+        Busca un PDF usando CACHE PRIMERO, luego búsqueda en Drive.
+
+        Estrategia:
+        1. Primero busca en el cache de base de datos (instantáneo)
+        2. Si no está en cache, busca en Drive con múltiples variantes de nombre:
+           - {numero_factura}.pdf (ej: FE10555.pdf)
+           - dian_{numero_factura}.pdf (ej: dian_FE10555.pdf)
+        3. Si lo encuentra, guarda el ID en cache para futuras consultas
+
+        Args:
+            numero_factura: Número de factura (ej: FE10555).
+            max_retries: Número máximo de reintentos en caso de timeout.
+
+        Returns:
+            Dict con información del archivo encontrado, o None si no existe.
+        """
+        import time
+        filename = f"{numero_factura}.pdf"
+
+        # 1. PRIMERO: Buscar en cache de base de datos (INSTANTÁNEO)
+        cache_repo = _get_file_cache_repo()
+        if cache_repo:
+            try:
+                cached_id = cache_repo.get_file_id(numero_factura, "pdf", "CO")
+                if cached_id:
+                    logger.debug(f"Cache HIT CO: {filename} -> {cached_id[:15]}...")
+                    return {"id": cached_id, "name": filename}
+            except Exception as e:
+                logger.warning(f"Error checking cache for {filename}: {e}")
+
+        # 2. FALLBACK: Buscar en Google Drive API con múltiples variantes
+        logger.info(f"[CO] Cache MISS: {numero_factura}, buscando en Drive API...")
+
+        # Variantes de nombre a buscar (algunos PDFs tienen prefijo dian_)
+        filename_variants = [
+            f"{numero_factura}.pdf",           # FE10555.pdf
+            f"dian_{numero_factura}.pdf",      # dian_FE10555.pdf
+        ]
+
+        for attempt in range(max_retries + 1):
+            try:
+                service = self.authenticate()
+
+                # Buscar cada variante de nombre
+                for variant_filename in filename_variants:
+                    logger.info(f"[CO] Buscando variante: {variant_filename}")
+                    query = (
+                        f"name = '{variant_filename}' and "
+                        f"trashed = false"
+                    )
+
+                    results = service.files().list(
+                        q=query,
+                        fields="files(id, name)",
+                        pageSize=1
+                    ).execute()
+
+                    files = results.get("files", [])
+                    if files:
+                        file_info = files[0]
+                        file_id = file_info["id"]
+                        logger.info(f"[CO] ENCONTRADO: {variant_filename} -> {file_id[:20]}...")
+
+                        # 3. GUARDAR EN CACHE para futuras consultas
+                        if cache_repo:
+                            try:
+                                cache_repo.cache_file_id(
+                                    uuid=numero_factura,
+                                    file_type="pdf",
+                                    drive_file_id=file_id,
+                                    drive_file_name=file_info["name"],
+                                    country="CO"
+                                )
+                                logger.info(f"[CO] Cache STORED: {numero_factura} -> {variant_filename}")
+                            except Exception as e:
+                                logger.warning(f"[CO] Error caching {variant_filename}: {e}")
+
+                        return {"id": file_id, "name": file_info["name"]}
+                    else:
+                        logger.info(f"[CO] No encontrado: {variant_filename}")
+
+                # Ninguna variante encontrada
+                logger.warning(f"[CO] {numero_factura} NO EXISTE en Drive (probadas {len(filename_variants)} variantes)")
+                return None
+
+            except HttpError as e:
+                logger.error(f"Error HTTP en búsqueda global de {filename}: {str(e)}")
+                return None
+            except Exception as e:
+                # Timeout u otro error - reintentar
+                if attempt < max_retries:
+                    wait_time = (attempt + 1) * 1
+                    logger.warning(f"Timeout buscando {filename}, reintento {attempt + 1}/{max_retries}")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Error en búsqueda global de {filename}: {str(e)}")
+                    return None
+
+        return None
+
+    def get_invoice_pdf_optimized(
+        self,
+        numero_factura: str,
+        fecha: date
+    ) -> Optional[bytes]:
+        """
+        Obtiene el contenido de un PDF usando cache de Supabase.
+
+        OPTIMIZADO: Usa search_pdf_global_with_cache que consulta el cache
+        de Supabase primero, evitando búsquedas costosas en Google Drive.
+
+        Si el archivo se encuentra en cache pero la descarga falla (timeout),
+        reintenta hasta 3 veces antes de reportar como no encontrado.
+        NO usa fallback al método lento por carpetas - si está en cache,
+        el file_id es correcto y solo necesitamos reintentar la descarga.
+
+        Args:
+            numero_factura: Número de factura (ej: FE10555).
+            fecha: Fecha de la factura (no usado, mantenido por compatibilidad).
+
+        Returns:
+            bytes: Contenido del PDF, o None si no se encuentra.
+        """
+        # Usar búsqueda global con cache (soporta variantes como dian_)
+        pdf_file = self.search_pdf_global_with_cache(numero_factura)
+
+        if pdf_file:
+            file_id = pdf_file["id"]
+            file_name = pdf_file.get("name", numero_factura)
+
+            # Intentar descarga con reintentos (el timeout es el problema común)
+            max_retries = 3
+            for attempt in range(1, max_retries + 1):
+                try:
+                    content = self.download_file(file_id)
+                    if content:
+                        if attempt > 1:
+                            logger.info(f"[CO] Descarga exitosa de {file_name} en intento {attempt}")
+                        return content
+                    else:
+                        logger.warning(f"[CO] Intento {attempt}/{max_retries} falló para {file_name}")
+                except Exception as e:
+                    logger.warning(f"[CO] Intento {attempt}/{max_retries} error para {file_name}: {e}")
+
+                # Esperar antes de reintentar (backoff exponencial)
+                if attempt < max_retries:
+                    wait_time = attempt * 2  # 2s, 4s
+                    logger.info(f"[CO] Esperando {wait_time}s antes de reintentar...")
+                    time.sleep(wait_time)
+
+            # Si llegamos aquí, todos los intentos fallaron
+            logger.error(f"[CO] Todos los intentos de descarga fallaron para {file_name} (ID: {file_id})")
+            return None
+
+        # Solo buscar por carpetas si NO está en cache (archivo nuevo o nunca indexado)
+        # Esta búsqueda también soporta el prefijo dian_
+        logger.info(f"[CO] {numero_factura} no está en cache, buscando por carpetas...")
+        return self._search_pdf_by_folder_with_variants(numero_factura, fecha)
+
+    def _search_pdf_by_folder_with_variants(
+        self,
+        numero_factura: str,
+        fecha: date
+    ) -> Optional[bytes]:
+        """
+        Busca un PDF por carpeta de mes/año con soporte para variantes de nombre.
+
+        Soporta nombres como: FE10555.pdf, dian_FE10555.pdf
+
+        Args:
+            numero_factura: Número de factura.
+            fecha: Fecha para determinar carpeta.
+
+        Returns:
+            bytes: Contenido del PDF o None si no se encuentra.
+        """
+        # Variantes de nombre a buscar
+        filename_variants = [
+            f"{numero_factura}.pdf",
+            f"dian_{numero_factura}.pdf",
+        ]
+
+        for filename in filename_variants:
+            try:
+                # Usar el método existente de búsqueda por carpeta
+                pdf_content = self._search_pdf_in_folder(filename, fecha)
+                if pdf_content:
+                    logger.info(f"[CO] Encontrado {filename} por búsqueda en carpeta")
+                    return pdf_content
+            except Exception as e:
+                logger.debug(f"[CO] Error buscando {filename}: {e}")
+                continue
+
+        return None
+
+    def _search_pdf_in_folder(
+        self,
+        filename: str,
+        fecha: date
+    ) -> Optional[bytes]:
+        """
+        Busca un PDF específico en la carpeta del mes/año correspondiente.
+
+        Args:
+            filename: Nombre completo del archivo (ej: FE10555.pdf).
+            fecha: Fecha para determinar la carpeta.
+
+        Returns:
+            bytes: Contenido del PDF o None.
+        """
+        try:
+            service = self.authenticate()
+
+            # Obtener carpeta del mes/año usando método existente
+            month_folder_id = self.get_month_folder_id(fecha.month, fecha.year)
+            if not month_folder_id:
+                return None
+
+            # Buscar el archivo en la carpeta
+            query = f"name='{filename}' and '{month_folder_id}' in parents and trashed=false"
+            results = service.files().list(
+                q=query,
+                fields="files(id, name)",
+                pageSize=1
+            ).execute()
+
+            files = results.get('files', [])
+            if files:
+                return self.download_file(files[0]['id'])
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"[CO] Error en _search_pdf_in_folder: {e}")
+            return None
+
+    def _list_all_drive_files(self) -> List[Dict]:
+        """
+        Lista TODOS los archivos PDF del Google Drive CO (recursivamente).
+
+        Usa paginación para obtener todos los archivos sin límite.
+
+        Returns:
+            Lista de dicts con {id, name, mimeType} de cada archivo.
+        """
+        service = self.authenticate()
+        all_files = []
+        page_token = None
+        page_count = 0
+
+        # Buscar solo PDFs para optimizar
+        query = "mimeType='application/pdf' and trashed=false"
+
+        while True:
+            try:
+                page_count += 1
+                results = service.files().list(
+                    q=query,
+                    fields="nextPageToken, files(id, name, mimeType)",
+                    pageSize=1000,  # Máximo permitido por API
+                    pageToken=page_token
+                ).execute()
+
+                files = results.get('files', [])
+                all_files.extend(files)
+
+                if page_count % 5 == 0:
+                    logger.info(f"[CO] Listed {len(all_files)} files so far (page {page_count})...")
+
+                page_token = results.get('nextPageToken')
+                if not page_token:
+                    break
+
+            except HttpError as e:
+                logger.error(f"[CO] Error listing files (page {page_count}): {e}")
+                break
+            except Exception as e:
+                logger.error(f"[CO] Unexpected error listing files: {e}")
+                break
+
+        logger.info(f"[CO] Finished listing: {len(all_files)} total files in {page_count} pages")
+        return all_files
+
+    def precache_drive_file_ids(
+        self,
+        invoice_numbers: List[str],
+        max_workers: int = 4
+    ) -> Dict[str, int]:
+        """
+        Pre-cachea los file IDs de Drive para una lista de números de factura.
+
+        OPTIMIZADO: Lista todos los archivos del Drive una sola vez
+        y hace el match en memoria (segundos en lugar de horas).
+
+        Args:
+            invoice_numbers: Lista de números de factura a pre-cachear.
+            max_workers: No usado en versión optimizada.
+
+        Returns:
+            Dict con estadísticas: {'total': int, 'cached': int, 'not_found': int, 'already_cached': int}
+        """
+        cache_repo = _get_file_cache_repo()
+        if not cache_repo:
+            logger.warning("Cache repository not available for CO, skipping precache")
+            return {'total': len(invoice_numbers), 'cached': 0, 'not_found': 0, 'already_cached': 0}
+
+        stats = {
+            'total': len(invoice_numbers),
+            'cached': 0,
+            'not_found': 0,
+            'already_cached': 0
+        }
+
+        logger.info(f"[CO] Starting OPTIMIZED precache for {len(invoice_numbers)} invoice numbers...")
+
+        # 1. Verificar cuáles ya están en cache
+        existing_cache = cache_repo.get_bulk_file_ids(invoice_numbers, "CO")
+        invoices_to_search = set()
+
+        for inv_num in invoice_numbers:
+            if inv_num in existing_cache:
+                cached_types = existing_cache[inv_num]
+                if 'pdf' in cached_types:
+                    stats['already_cached'] += 1
+                    continue
+            invoices_to_search.add(inv_num)
+
+        if not invoices_to_search:
+            logger.info(f"[CO] All {len(invoice_numbers)} invoice numbers already in cache")
+            return stats
+
+        logger.info(f"[CO] Need to search Drive for {len(invoices_to_search)} invoices not in cache...")
+
+        # 2. OPTIMIZACIÓN: Listar TODOS los archivos del Drive una sola vez
+        logger.info("[CO] Listing ALL PDF files from Google Drive (this may take a moment)...")
+        all_drive_files = self._list_all_drive_files()
+        logger.info(f"[CO] Found {len(all_drive_files)} PDF files in Drive")
+
+        # 3. Crear índice por nombre de archivo para búsqueda O(1)
+        file_index: Dict[str, Dict[str, str]] = {}
+        for file_info in all_drive_files:
+            filename = file_info.get('name', '')
+            if filename:
+                file_index[filename.lower()] = {
+                    'id': file_info['id'],
+                    'name': filename
+                }
+
+        logger.info(f"[CO] Indexed {len(file_index)} files for fast lookup")
+
+        # 4. Match números de factura con archivos en memoria (muy rápido)
+        # Busca múltiples variantes de nombre para cada factura
+        all_files_to_cache = []
+        invoices_found = set()
+
+        for inv_num in invoices_to_search:
+            # Variantes de nombre a buscar (algunos PDFs tienen prefijo dian_)
+            filename_variants = [
+                f"{inv_num}.pdf".lower(),           # FE10555.pdf
+                f"dian_{inv_num}.pdf".lower(),      # dian_FE10555.pdf
+            ]
+
+            found = False
+            for variant_filename in filename_variants:
+                if variant_filename in file_index:
+                    file_info = file_index[variant_filename]
+                    all_files_to_cache.append({
+                        'uuid': inv_num,
+                        'file_type': 'pdf',
+                        'drive_file_id': file_info['id'],
+                        'drive_file_name': file_info['name']
+                    })
+                    invoices_found.add(inv_num)
+                    found = True
+                    break  # Encontrado, no buscar más variantes
+
+            if not found:
+                stats['not_found'] += 1
+
+        logger.info(f"[CO] Matched {len(invoices_found)} invoices with {len(all_files_to_cache)} files")
+
+        # 5. Guardar en cache en batch
+        if all_files_to_cache:
+            cached_count = cache_repo.cache_bulk_file_ids(all_files_to_cache, "CO")
+            stats['cached'] = cached_count
+            logger.info(f"[CO] Cached {cached_count} file IDs for {len(invoices_found)} invoices")
+        else:
+            logger.warning("[CO] No files found to cache")
+
+        return stats
+
+    def get_bulk_file_ids_from_cache(
+        self,
+        numeros_factura: List[str]
+    ) -> Dict[str, str]:
+        """
+        Obtiene file_ids de Supabase en una sola consulta bulk.
+
+        OPTIMIZACIÓN CRÍTICA: En lugar de hacer N consultas individuales,
+        hace 1 consulta bulk que retorna todos los file_ids de una vez.
+        Esto reduce drásticamente la latencia total.
+
+        Args:
+            numeros_factura: Lista de números de factura a buscar.
+
+        Returns:
+            Dict mapping numero_factura -> drive_file_id.
+            Solo incluye facturas encontradas en cache.
+        """
+        if not numeros_factura:
+            return {}
+
+        cache_repo = _get_file_cache_repo()
+        if not cache_repo:
+            logger.warning("[CO] Cache repository not available for bulk lookup")
+            return {}
+
+        try:
+            # Usar el método bulk del repositorio
+            bulk_result = cache_repo.get_bulk_file_ids(numeros_factura, "CO")
+
+            # Transformar de {uuid: {file_type: file_id}} a {uuid: file_id}
+            result = {}
+            for numero_factura, file_types in bulk_result.items():
+                if "pdf" in file_types:
+                    result[numero_factura] = file_types["pdf"]
+
+            logger.info(
+                f"[CO] Bulk cache lookup: {len(numeros_factura)} solicitados, "
+                f"{len(result)} encontrados en cache ({len(result)*100//max(len(numeros_factura),1)}%)"
+            )
+            return result
+
+        except Exception as e:
+            logger.error(f"[CO] Error in bulk cache lookup: {e}")
+            return {}
+
+    def download_file_with_retry(
+        self,
+        file_id: str,
+        file_name: str,
+        max_retries: int = 2,
+        max_total_time: int = 210
+    ) -> Optional[bytes]:
+        """
+        Descarga un archivo de Google Drive con backoff exponencial.
+
+        Implementa reintentos con tiempos de espera para manejar
+        timeouts transitorios sin saturar la conexión.
+
+        CONFIGURACIÓN:
+        - Timeout por intento: 90s (configurado en httplib2)
+        - Máximo 2 reintentos (total 3 intentos)
+        - Tiempo total máximo: 210s (3.5 minutos)
+        - Backoff: 3s, 6s entre intentos
+
+        Args:
+            file_id: ID del archivo en Google Drive.
+            file_name: Nombre del archivo (para logging).
+            max_retries: Número máximo de reintentos (default 2).
+            max_total_time: Tiempo máximo total en segundos (default 210s).
+
+        Returns:
+            bytes: Contenido del archivo o None si falla.
+        """
+        start_time = time.time()
+
+        for attempt in range(1, max_retries + 2):  # +2 porque max_retries=2 significa 3 intentos totales
+            # Verificar si excedimos el tiempo total
+            elapsed = time.time() - start_time
+            if elapsed >= max_total_time:
+                logger.warning(
+                    f"[CO] Tiempo límite excedido para {file_name}: "
+                    f"{elapsed:.1f}s >= {max_total_time}s (intento {attempt})"
+                )
+                break
+
+            try:
+                content = self.download_file(file_id)
+                if content:
+                    if attempt > 1:
+                        logger.info(f"[CO] Descarga exitosa de {file_name} en intento {attempt} ({elapsed:.1f}s)")
+                    return content
+                else:
+                    logger.warning(f"[CO] Intento {attempt}: descarga vacía para {file_name}")
+
+            except Exception as e:
+                logger.warning(f"[CO] Intento {attempt} error para {file_name}: {e}")
+
+            # Backoff exponencial: 3s, 6s
+            if attempt <= max_retries:
+                # Verificar que tenemos tiempo para otro intento (necesitamos ~60s)
+                remaining_time = max_total_time - (time.time() - start_time)
+                if remaining_time < 30:
+                    logger.warning(f"[CO] Sin tiempo suficiente para reintentar {file_name} ({remaining_time:.0f}s restantes)")
+                    break
+
+                wait_time = 3 * attempt  # 3s, 6s
+                logger.info(f"[CO] Esperando {wait_time}s antes de reintentar {file_name}...")
+                time.sleep(wait_time)
+
+        total_elapsed = time.time() - start_time
+        logger.error(f"[CO] Descarga fallida para {file_name} después de {total_elapsed:.1f}s (ID: {file_id})")
+        return None
 
 
     def _list_all_pdf_files(self) -> List[Dict]:

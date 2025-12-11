@@ -4,16 +4,21 @@ Filter Service for Mexico (MX)
 Servicio para consultar y filtrar datos del Excel maestro de facturación MX
 almacenado en Google Drive.
 
+Soporta multi-sheet Excel con dos pestañas:
+- Facturas (invoices)
+- Complementos de Pago (payment supplements)
+
 Soporta filtros por:
 - Código de operación + rango de fecha
 - RFC + rango de fecha
 - RFC + código operación + rango de fecha (combinación)
+- Tipo de documento (factura / complemento / ambos)
 """
 
 import io
 import logging
 from datetime import date, datetime
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 import pandas as pd
 
 from src.core.servicios.google_drive_service import get_drive_service
@@ -26,10 +31,18 @@ from src.interface.finance_dtos_mx import (
 
 logger = logging.getLogger(__name__)
 
+# Sheet names for multi-sheet Excel
+SHEET_FACTURAS = "Facturas"
+SHEET_COMPLEMENTOS = "Complementos de Pago"
+
 
 class MXFilterService:
     """
     Servicio para filtrar datos del Excel maestro de México.
+
+    Soporta multi-sheet Excel con dos pestañas:
+    - Facturas (invoices)
+    - Complementos de Pago (payment supplements)
 
     Lee el archivo Facturación MX 2025.xlsx desde Google Drive
     y permite aplicar filtros por código de operación, RFC y rango de fechas.
@@ -54,23 +67,28 @@ class MXFilterService:
     def __init__(self):
         """Inicializa el servicio de filtrado."""
         self.drive_service = get_drive_service()
-        self._cached_data: Optional[pd.DataFrame] = None
+        # Multi-sheet cache
+        self._cached_facturas: Optional[pd.DataFrame] = None
+        self._cached_complementos: Optional[pd.DataFrame] = None
         self._cache_timestamp: Optional[datetime] = None
         self._cache_ttl_seconds = 300  # 5 minutes cache
 
     def _is_cache_valid(self) -> bool:
         """Check if cached data is still valid."""
-        if self._cached_data is None or self._cache_timestamp is None:
+        if self._cache_timestamp is None:
+            return False
+        # At least one sheet must be cached
+        if self._cached_facturas is None and self._cached_complementos is None:
             return False
         elapsed = (datetime.now() - self._cache_timestamp).total_seconds()
         return elapsed < self._cache_ttl_seconds
 
     def _load_excel_from_drive(self) -> pd.DataFrame:
         """
-        Descarga y lee el Excel maestro desde Google Drive.
+        Descarga y lee el Excel maestro desde Google Drive (combinando ambas hojas).
 
         Returns:
-            DataFrame with invoice data.
+            DataFrame with combined invoice and payment supplement data.
 
         Raises:
             ValueError: If file not found or cannot be read.
@@ -78,7 +96,7 @@ class MXFilterService:
         # Check cache first
         if self._is_cache_valid():
             logger.debug("Using cached Excel data MX")
-            return self._cached_data
+            return self._get_combined_dataframe()
 
         logger.info("Descargando Excel maestro de Google Drive MX...")
         excel_bytes = self.drive_service.download_master_excel()
@@ -91,22 +109,114 @@ class MXFilterService:
 
         logger.info(f"Excel MX descargado: {len(excel_bytes)} bytes")
 
-        # Read Excel into DataFrame
+        # Load multi-sheet data
+        self._load_multisheet_excel(excel_bytes)
+
+        return self._get_combined_dataframe()
+
+    def _load_multisheet_excel(self, excel_bytes: bytes) -> None:
+        """
+        Load multi-sheet Excel into separate cached DataFrames.
+
+        Args:
+            excel_bytes: Excel file content in bytes.
+        """
         excel_buffer = io.BytesIO(excel_bytes)
 
         try:
-            df = pd.read_excel(excel_buffer, sheet_name=0)
-            logger.info(f"Excel MX leído: {len(df)} filas, columnas: {list(df.columns)}")
+            # Get all sheet names
+            xl = pd.ExcelFile(excel_buffer)
+            sheet_names = xl.sheet_names
+            logger.info(f"Excel MX hojas encontradas: {sheet_names}")
 
-            # Cache the data
-            self._cached_data = df
+            # Read Facturas sheet
+            if SHEET_FACTURAS in sheet_names:
+                self._cached_facturas = pd.read_excel(excel_buffer, sheet_name=SHEET_FACTURAS)
+                logger.info(f"Excel MX Facturas: {len(self._cached_facturas)} filas")
+            else:
+                # Fallback: try first sheet as facturas
+                self._cached_facturas = pd.read_excel(excel_buffer, sheet_name=0)
+                logger.info(f"Excel MX (primera hoja como Facturas): {len(self._cached_facturas)} filas")
+
+            # Reset buffer for second read
+            excel_buffer.seek(0)
+
+            # Read Complementos sheet
+            if SHEET_COMPLEMENTOS in sheet_names:
+                self._cached_complementos = pd.read_excel(excel_buffer, sheet_name=SHEET_COMPLEMENTOS)
+                logger.info(f"Excel MX Complementos: {len(self._cached_complementos)} filas")
+            else:
+                # No complementos sheet, create empty DataFrame
+                self._cached_complementos = pd.DataFrame()
+                logger.info("Excel MX: No se encontró hoja de Complementos")
+
             self._cache_timestamp = datetime.now()
 
-            return self._cached_data
-
         except Exception as e:
-            logger.error(f"Error leyendo Excel MX: {e}", exc_info=True)
+            logger.error(f"Error leyendo Excel MX multi-sheet: {e}", exc_info=True)
             raise ValueError(f"Error al leer el archivo Excel: {str(e)}")
+
+    def _get_combined_dataframe(self) -> pd.DataFrame:
+        """
+        Get combined DataFrame from cached facturas and complementos.
+
+        Returns:
+            Combined DataFrame with document_type column.
+        """
+        dfs_to_combine = []
+
+        if self._cached_facturas is not None and not self._cached_facturas.empty:
+            df_facturas = self._cached_facturas.copy()
+            df_facturas['_document_type'] = 'factura'
+            dfs_to_combine.append(df_facturas)
+
+        if self._cached_complementos is not None and not self._cached_complementos.empty:
+            df_complementos = self._cached_complementos.copy()
+            df_complementos['_document_type'] = 'complemento_pago'
+            dfs_to_combine.append(df_complementos)
+
+        if not dfs_to_combine:
+            return pd.DataFrame()
+
+        combined = pd.concat(dfs_to_combine, ignore_index=True)
+        logger.debug(f"Combined DataFrame: {len(combined)} filas totales")
+        return combined
+
+    def _load_sheet_from_drive(
+        self,
+        include_facturas: bool = True,
+        include_complementos: bool = True
+    ) -> pd.DataFrame:
+        """
+        Load specific sheets from Drive (for filtered queries).
+
+        Args:
+            include_facturas: Include facturas sheet.
+            include_complementos: Include complementos sheet.
+
+        Returns:
+            DataFrame with requested data.
+        """
+        # Ensure cache is loaded
+        if not self._is_cache_valid():
+            self._load_excel_from_drive()
+
+        dfs_to_combine = []
+
+        if include_facturas and self._cached_facturas is not None and not self._cached_facturas.empty:
+            df_facturas = self._cached_facturas.copy()
+            df_facturas['_document_type'] = 'factura'
+            dfs_to_combine.append(df_facturas)
+
+        if include_complementos and self._cached_complementos is not None and not self._cached_complementos.empty:
+            df_complementos = self._cached_complementos.copy()
+            df_complementos['_document_type'] = 'complemento_pago'
+            dfs_to_combine.append(df_complementos)
+
+        if not dfs_to_combine:
+            return pd.DataFrame()
+
+        return pd.concat(dfs_to_combine, ignore_index=True)
 
     def _parse_date(self, date_val) -> Optional[date]:
         """
@@ -171,32 +281,38 @@ class MXFilterService:
         result_df = df.copy()
         col_map = self.COLUMN_MAPPING
 
+        logger.info(f"[FILTER] DataFrame inicial: {len(result_df)} filas")
+        logger.info(f"[FILTER] Filtros recibidos: operaciones={request.operaciones}, rfc={request.rfc}, fecha_inicio={request.fecha_inicio}, fecha_fin={request.fecha_fin}")
+
         # Filter by codigo_operacion(es)
         if request.operaciones and len(request.operaciones) > 0:
             operacion_col = col_map.get("codigo_operacion")
             if operacion_col and operacion_col in result_df.columns:
                 # Convert both to uppercase for case-insensitive matching
                 operaciones_upper = [op.upper().strip() for op in request.operaciones]
+                logger.info(f"[FILTER] Filtrando por operaciones: {operaciones_upper}")
                 result_df = result_df[
                     result_df[operacion_col].astype(str).str.upper().str.strip().isin(operaciones_upper)
                 ]
-                logger.debug(f"Después de filtro operaciones: {len(result_df)} filas")
+                logger.info(f"[FILTER] Después de filtro operaciones: {len(result_df)} filas")
 
         # Filter by RFC
         if request.rfc:
             rfc_col = col_map.get("rfc_receptor")
             if rfc_col and rfc_col in result_df.columns:
                 rfc_search = request.rfc.strip().upper()
+                logger.info(f"[FILTER] Filtrando por RFC: {rfc_search}")
                 # Partial match (contains)
                 result_df = result_df[
                     result_df[rfc_col].astype(str).str.upper().str.contains(rfc_search, case=False, na=False)
                 ]
-                logger.debug(f"Después de filtro RFC: {len(result_df)} filas")
+                logger.info(f"[FILTER] Después de filtro RFC: {len(result_df)} filas")
 
         # Filter by date range
         if request.fecha_inicio or request.fecha_fin:
             fecha_col = col_map.get("fecha_emision")
             if fecha_col and fecha_col in result_df.columns:
+                logger.info(f"[FILTER] Filtrando por fechas: {request.fecha_inicio} a {request.fecha_fin}")
                 # Parse dates in DataFrame
                 parsed_dates = result_df[fecha_col].apply(self._parse_date)
 
@@ -215,8 +331,9 @@ class MXFilterService:
                     mask = parsed_dates.notna() & (parsed_dates <= request.fecha_fin)
 
                 result_df = result_df[mask]
-                logger.debug(f"Después de filtro fecha: {len(result_df)} filas")
+                logger.info(f"[FILTER] Después de filtro fecha: {len(result_df)} filas")
 
+        logger.info(f"[FILTER] Resultado final: {len(result_df)} filas")
         return result_df
 
     def _df_to_records(self, df: pd.DataFrame) -> List[MXFilteredRecord]:
@@ -361,6 +478,24 @@ class MXFilterService:
                 message=f"Error al consultar datos: {str(e)}"
             )
 
+    def get_all_records(self) -> List[MXFilteredRecord]:
+        """
+        Get all records from the MX master Excel (no filtering).
+
+        Used for precaching Drive file IDs.
+
+        Returns:
+            List of all MXFilteredRecord objects
+        """
+        try:
+            df = self._load_excel_from_drive()
+            records = self._df_to_records(df)
+            logger.info(f"Loaded {len(records)} total records from MX Excel")
+            return records
+        except Exception as e:
+            logger.error(f"Error loading all MX records: {e}")
+            return []
+
     def get_distinct_values(
         self,
         field: str,
@@ -489,10 +624,11 @@ class MXFilterService:
             )
 
     def clear_cache(self) -> None:
-        """Clear the cached Excel data."""
-        self._cached_data = None
+        """Clear the cached Excel data (both sheets)."""
+        self._cached_facturas = None
+        self._cached_complementos = None
         self._cache_timestamp = None
-        logger.info("Cache de filtros MX limpiado")
+        logger.info("Cache de filtros MX limpiado (ambas hojas)")
 
 
 # Singleton instance

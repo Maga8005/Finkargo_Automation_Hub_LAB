@@ -262,68 +262,87 @@ export const downloadFilteredCOZip = async (
     filters,
     {
       responseType: 'blob',
-      // Allow longer timeout for PDF search and download (10 minutes)
-      timeout: 600000,
+      // Allow longer timeout for PDF search and download (30 minutes for large ZIPs)
+      timeout: 1800000,
     }
   );
   return response.data;
 };
 
 // ============================================================================
-// Drive Cache Functions for CO
+// Cache Optimization Functions
 // ============================================================================
 
-/**
- * Response from cache population endpoint
- */
-export interface PopulateCacheResponse {
+export interface PrecacheStats {
+  total: number;
+  cached: number;
+  not_found: number;
+  already_cached: number;
+}
+
+export interface PrecacheResponse {
   success: boolean;
   message: string;
-  stats: {
-    total: number;
-    cached: number;
-    not_found: number;
-    already_cached: number;
-  };
+  stats: PrecacheStats;
 }
 
 /**
- * Populate Drive file cache from master Excel.
- * This pre-caches file IDs to speed up ZIP generation.
+ * Pre-populate the Drive file cache for CO invoices.
  *
- * @returns Cache population statistics
+ * This dramatically speeds up ZIP downloads by:
+ * 1. Listing all PDF files from Drive in one API call
+ * 2. Matching invoice numbers in memory
+ * 3. Storing file IDs in Supabase cache
+ *
+ * Recommended to run once before downloading large ZIPs.
+ *
+ * @returns Precache response with statistics
  */
-export const populateDriveCacheCO = async (): Promise<PopulateCacheResponse> => {
-  const response = await apiClient.post<PopulateCacheResponse>(
-    '/finance/co/populate-drive-cache',
+export const precacheDriveFilesCO = async (): Promise<PrecacheResponse> => {
+  const response = await apiClient.post<PrecacheResponse>(
+    '/finance/co/precache-drive-files',
     {},
-    { timeout: 600000 } // 10 minutes for large files
+    {
+      // Allow longer timeout for precache operation (10 minutes)
+      timeout: 600000,
+    }
   );
   return response.data;
 };
 
-/**
- * Response from cache stats endpoint
- */
-export interface CacheStatsResponse {
+export interface InitializeFromHistoricalStats {
+  historical_invoices: number;
+  total: number;
+  cached: number;
+  not_found: number;
+  already_cached: number;
+}
+
+export interface InitializeFromHistoricalResponse {
   success: boolean;
-  country: string;
-  total_cached: number;
-  pdf_count: number;
-  xml_count: number;
-  cache_ready: boolean;
   message: string;
+  stats: InitializeFromHistoricalStats;
 }
 
 /**
- * Get Drive file cache statistics for CO.
- * Use this to check if the cache needs to be populated before generating ZIPs.
+ * ONE-TIME initialization from historical invoice control file.
  *
- * @returns Cache statistics
+ * Reads "Archivo control facturacion mensual Finkargo Def.xlsx" to:
+ * 1. Extract ALL invoice numbers from historical record (3 sheets)
+ * 2. Pre-populate Supabase cache with Drive file IDs
+ *
+ * This allows using the system immediately without uploading Noova/Netsuite files.
+ *
+ * @returns Initialization response with statistics
  */
-export const getDriveCacheStatsCO = async (): Promise<CacheStatsResponse> => {
-  const response = await apiClient.get<CacheStatsResponse>(
-    '/finance/co/cache-stats'
+export const initializeFromHistoricalCO = async (): Promise<InitializeFromHistoricalResponse> => {
+  const response = await apiClient.post<InitializeFromHistoricalResponse>(
+    '/finance/co/initialize-from-historical',
+    {},
+    {
+      // Allow longer timeout for initialization (15 minutes)
+      timeout: 900000,
+    }
   );
   return response.data;
 };

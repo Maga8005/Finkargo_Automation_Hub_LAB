@@ -144,7 +144,35 @@ export const downloadFilteredMXZip = async (
     request,
     {
       responseType: 'blob',
-      timeout: 600000, // 10 minutes - Drive downloads can be slow
+      timeout: 1800000, // 30 minutes for large ZIP files with many PDFs/XMLs
+    }
+  );
+  return response.data;
+};
+
+/**
+ * Pre-populate Drive file cache for faster ZIP downloads.
+ *
+ * Lists all files from Drive in one API call and caches their IDs.
+ * Run this once to speed up all subsequent ZIP downloads.
+ *
+ * @returns Cache statistics
+ */
+export const precacheDriveFilesMX = async (): Promise<{
+  success: boolean;
+  message: string;
+  stats: {
+    total: number;
+    cached: number;
+    not_found: number;
+    already_cached: number;
+  };
+}> => {
+  const response = await apiClient.post(
+    `${BASE_URL}/mx/precache-drive-files`,
+    {},
+    {
+      timeout: 600000, // 10 minutes - listing all Drive files takes time
     }
   );
   return response.data;
@@ -156,54 +184,6 @@ export const downloadFilteredMXZip = async (
 export const clearMXFilterCache = async (): Promise<{ message: string }> => {
   const response = await apiClient.delete<{ message: string }>(
     `${BASE_URL}/mx/filter/cache`
-  );
-  return response.data;
-};
-
-/**
- * Populate Drive file cache from master Excel.
- * This pre-caches file IDs to speed up ZIP generation.
- *
- * @returns Cache population statistics
- */
-export interface PopulateCacheResponse {
-  message: string;
-  stats: {
-    total: number;
-    cached: number;
-    not_found: number;
-    already_cached: number;
-  };
-}
-
-export const populateDriveCache = async (): Promise<PopulateCacheResponse> => {
-  const response = await apiClient.post<PopulateCacheResponse>(
-    `${BASE_URL}/populate-drive-cache`,
-    {},
-    { timeout: 600000 } // 10 minutes for large files
-  );
-  return response.data;
-};
-
-/**
- * Get Drive file cache statistics for MX.
- * Use this to check if the cache needs to be populated before generating ZIPs.
- *
- * @returns Cache statistics
- */
-export interface CacheStatsResponse {
-  success: boolean;
-  country: string;
-  total_cached: number;
-  pdf_count: number;
-  xml_count: number;
-  cache_ready: boolean;
-  message: string;
-}
-
-export const getDriveCacheStats = async (): Promise<CacheStatsResponse> => {
-  const response = await apiClient.get<CacheStatsResponse>(
-    `${BASE_URL}/mx/cache-stats`
   );
   return response.data;
 };

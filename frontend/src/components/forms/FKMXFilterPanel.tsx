@@ -28,10 +28,12 @@ import {
   Clear as ClearIcon,
   Refresh as RefreshIcon,
   FilterList as FilterIcon,
+  Speed as SpeedIcon,
 } from '@mui/icons-material';
 import {
   getMXDistinctValues,
   getMXOperationsByRfc,
+  precacheDriveFilesMX,
   type MXFilterRequest,
 } from '../../services/financeServiceMX';
 
@@ -63,6 +65,10 @@ const FKMXFilterPanel: React.FC<FKMXFilterPanelProps> = ({
 
   // Error state
   const [error, setError] = useState<string | null>(null);
+
+  // Precache state
+  const [isPrecaching, setIsPrecaching] = useState(false);
+  const [precacheMessage, setPrecacheMessage] = useState<string | null>(null);
 
   // Track if an RFC has been selected
   const [rfcSelected, setRfcSelected] = useState(false);
@@ -157,6 +163,9 @@ const FKMXFilterPanel: React.FC<FKMXFilterPanelProps> = ({
       return;
     }
 
+    // Debug: log filters being sent
+    console.log('[FKMXFilterPanel] Enviando filtros:', JSON.stringify(filters, null, 2));
+
     setError(null);
     onFilter(filters);
   };
@@ -178,6 +187,29 @@ const FKMXFilterPanel: React.FC<FKMXFilterPanelProps> = ({
   const hasActiveFilters =
     rfc.trim() || operaciones.length > 0 || fechaInicio || fechaFin;
 
+  // Handle precache
+  const handlePrecache = async () => {
+    setIsPrecaching(true);
+    setPrecacheMessage(null);
+    setError(null);
+
+    try {
+      const result = await precacheDriveFilesMX();
+      if (result.success) {
+        setPrecacheMessage(
+          `Cache optimizado: ${result.stats.cached} archivos nuevos, ${result.stats.already_cached} ya en cache, ${result.stats.not_found} no encontrados`
+        );
+      } else {
+        setError(result.message || 'Error al optimizar cache');
+      }
+    } catch (err) {
+      console.error('Error precaching:', err);
+      setError('Error al optimizar cache. Intente nuevamente.');
+    } finally {
+      setIsPrecaching(false);
+    }
+  };
+
   return (
     <Card elevation={2}>
       <CardContent>
@@ -189,19 +221,36 @@ const FKMXFilterPanel: React.FC<FKMXFilterPanelProps> = ({
               Consultar Archivo Maestro
             </Typography>
           </Box>
-          <Tooltip title="Recargar opciones de RFCs">
-            <IconButton
-              size="small"
-              onClick={loadRfcOptions}
-              disabled={loadingRfcs}
-            >
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
+          <Box display="flex" gap={1}>
+            <Tooltip title="⚡ Optimizar cache: Ejecutar 1 vez antes de descargar ZIPs. Tarda ~5 min pero acelera todas las descargas futuras.">
+              <IconButton
+                size="small"
+                onClick={handlePrecache}
+                disabled={isPrecaching}
+                color={isPrecaching ? 'primary' : 'default'}
+              >
+                {isPrecaching ? <CircularProgress size={20} /> : <SpeedIcon />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="🔄 Recargar RFCs: Actualiza la lista de RFCs disponibles desde el archivo maestro.">
+              <IconButton
+                size="small"
+                onClick={loadRfcOptions}
+                disabled={loadingRfcs}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
 
-        <Typography variant="body2" color="text.secondary" mb={3}>
+        <Typography variant="body2" color="text.secondary" mb={1}>
           Consulta el archivo Facturación MX 2025.xlsx desde Google Drive
+        </Typography>
+
+        {/* Ayuda contextual para los iconos */}
+        <Typography variant="caption" color="text.secondary" mb={2} component="div">
+          💡 <strong>Tip:</strong> Usa el ícono de velocidad (⚡) una vez antes de descargar ZIPs grandes para acelerar la descarga.
         </Typography>
 
         <Stack spacing={3}>
@@ -367,10 +416,20 @@ const FKMXFilterPanel: React.FC<FKMXFilterPanelProps> = ({
             </Box>
           </Box>
 
-          {/* Error Display */}
+          {/* Messages Display */}
           {error && (
             <Alert severity="error" onClose={() => setError(null)}>
               {error}
+            </Alert>
+          )}
+          {precacheMessage && (
+            <Alert severity="success" onClose={() => setPrecacheMessage(null)}>
+              {precacheMessage}
+            </Alert>
+          )}
+          {isPrecaching && (
+            <Alert severity="info" icon={<CircularProgress size={20} />}>
+              Optimizando cache... esto puede tardar 5-10 minutos. No cierre esta ventana.
             </Alert>
           )}
 
