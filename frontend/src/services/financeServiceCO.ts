@@ -346,3 +346,31 @@ export const initializeFromHistoricalCO = async (): Promise<InitializeFromHistor
   );
   return response.data;
 };
+
+// ============================================================================
+// Cache Stats Functions (for UI display)
+// ============================================================================
+
+export interface CacheStatsResponse {
+  total_cached: number;
+  pdf_count: number;
+  xml_count: number;
+  cache_ready: boolean;
+  country?: string;
+  error?: string;
+}
+
+/**
+ * Get Drive cache statistics for CO.
+ * Returns info about how many files are cached.
+ */
+export const getDriveCacheStatsCO = async (): Promise<CacheStatsResponse> => {
+  const response = await apiClient.get<CacheStatsResponse>(
+    '/finance/co/cache-stats'
+  );
+  return response.data;
+};
+
+// Alias for backwards compatibility with page component
+export type PopulateCacheResponse = PrecacheResponse;
+export const populateDriveCacheCO = precacheDriveFilesCO;

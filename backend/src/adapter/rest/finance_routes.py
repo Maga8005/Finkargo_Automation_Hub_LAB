@@ -1510,6 +1510,55 @@ async def precache_drive_files_co(
         )
 
 
+@router.get(
+    "/co/cache-stats",
+    summary="Get Drive file cache statistics for Colombia",
+    description="""
+    Returns statistics about the Drive file cache for CO invoices.
+
+    This includes:
+    - Total number of cached file IDs
+    - Number of PDF files cached
+    - Number of XML files cached
+    - Cache readiness status
+    """,
+    tags=["Finance - Facturación CO - Cache"]
+)
+async def get_co_cache_stats(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get cache statistics for CO invoices.
+
+    Returns:
+        Dict with cache statistics including total_cached, pdf_count, xml_count, cache_ready
+    """
+    try:
+        from src.repositorio.drive_file_cache_repository import DriveFileCacheRepository
+        from src.config.supabase_config import SupabaseWrapper
+
+        supabase_wrapper = SupabaseWrapper()
+        cache_repo = DriveFileCacheRepository(supabase_wrapper.admin_client)
+
+        stats = cache_repo.get_cache_stats(country="CO")
+
+        # Add cache_ready flag (considered ready if there are cached entries)
+        stats['cache_ready'] = stats.get('total_cached', 0) > 0
+
+        return stats
+
+    except Exception as e:
+        logger.error(f"Error getting CO cache stats: {e}", exc_info=True)
+        # Return empty stats on error instead of failing
+        return {
+            'total_cached': 0,
+            'pdf_count': 0,
+            'xml_count': 0,
+            'cache_ready': False,
+            'error': str(e)
+        }
+
+
 @router.post(
     "/co/initialize-from-historical",
     summary="Initialize cache from historical file",
