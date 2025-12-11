@@ -348,21 +348,24 @@ export const initializeFromHistoricalCO = async (): Promise<InitializeFromHistor
 };
 
 // ============================================================================
-// Cache Stats Functions (for UI display)
+// Cache Statistics Types and Functions
 // ============================================================================
 
 export interface CacheStatsResponse {
+  success: boolean;
   total_cached: number;
   pdf_count: number;
   xml_count: number;
   cache_ready: boolean;
-  country?: string;
-  error?: string;
+  country: string;
 }
 
 /**
  * Get Drive cache statistics for CO.
- * Returns info about how many files are cached.
+ *
+ * Returns information about cached file IDs including total count and ready status.
+ *
+ * @returns Cache statistics
  */
 export const getDriveCacheStatsCO = async (): Promise<CacheStatsResponse> => {
   const response = await apiClient.get<CacheStatsResponse>(
@@ -371,6 +374,10 @@ export const getDriveCacheStatsCO = async (): Promise<CacheStatsResponse> => {
   return response.data;
 };
 
-// Alias for backwards compatibility with page component
-export type PopulateCacheResponse = PrecacheResponse;
+/**
+ * Alias for precacheDriveFilesCO for consistency with UI naming.
+ */
 export const populateDriveCacheCO = precacheDriveFilesCO;
+
+export type { CacheStatsResponse as COCacheStatsResponse };
+export type { PrecacheResponse as PopulateCacheResponse };
