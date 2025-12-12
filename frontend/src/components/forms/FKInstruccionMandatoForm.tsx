@@ -42,7 +42,7 @@ import type {
 const MAX_CREDITORS = 3;
 
 // Account types available
-const ACCOUNT_TYPES = ['Ahorros', 'Corriente', 'PCE'];
+const ACCOUNT_TYPES = ['Ahorros', 'Corriente', 'PSE'];
 
 const FKInstruccionMandatoForm: React.FC = () => {
   // Client search state
