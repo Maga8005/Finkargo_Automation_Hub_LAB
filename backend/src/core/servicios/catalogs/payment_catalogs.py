@@ -130,6 +130,7 @@ COLOMBIA_REQUIRED_COLUMNS: Dict[str, str] = {
 COLOMBIA_OPTIONAL_COLUMNS: Dict[str, str] = {
     "exchangerate": "Tasa de cambio de FK/en línea",
     "nt_flag": "NT",  # Operaciones Cedidas flag (also used for spread routing)
+    "recompra": "Recomprado",  # Indicates if cedida operation was repurchased by Fincargo Colombia
     "spread": "Spread",  # Spread value from input (column AX)
     "medio_pago": "Médio de pago",  # Payment method: Manual, Pago en línea, etc. (Note: accented 'é' in source file)
     "total_pagado_usd": "Total pagado [USD]",  # Total paid in USD for spread calculations
@@ -239,7 +240,12 @@ OUTPUT_TEMPLATE_COLUMNS = [
 # HELPER FUNCTIONS
 # =============================================================================
 
-def get_ar_account(concept_type: str, country: str, is_nt: bool = False) -> Optional[int]:
+def get_ar_account(
+    concept_type: str,
+    country: str,
+    is_nt: bool = False,
+    is_recomprada: bool = False
+) -> Optional[int]:
     """
     Get the AR account ID for a concept type.
 
@@ -247,14 +253,25 @@ def get_ar_account(concept_type: str, country: str, is_nt: bool = False) -> Opti
         concept_type: Type of payment concept (e.g., 'CAPITAL', 'INTERESES')
         country: Country code ('colombia' or 'mexico')
         is_nt: Whether this is an Operaciones Cedidas (NT) operation (Colombia only)
+        is_recomprada: Whether this is a repurchased operation (Colombia only).
+            When True, cedida operations use Fincargo Colombia accounts instead
+            of Patrimonio Autónomo accounts.
 
     Returns:
         AR account ID or None if not found
+
+    Note:
+        For Colombia, the AR account selection logic is:
+        - NT empty → Fincargo Colombia accounts (302, 258, 1387)
+        - NT populated AND NOT recomprada → Patrimonio Autónomo accounts (304, 259, 310, 1474)
+        - NT populated AND recomprada → Fincargo Colombia accounts (302, 258, 1387)
     """
     country_lower = country.lower()
 
     if country_lower == "colombia":
-        if is_nt:
+        # Use NT accounts only when is_nt=True AND is_recomprada=False
+        # Recomprada operations revert to Fincargo Colombia accounts
+        if is_nt and not is_recomprada:
             return COLOMBIA_NT_AR_ACCOUNTS.get(concept_type)
         return COLOMBIA_AR_ACCOUNTS.get(concept_type)
 
