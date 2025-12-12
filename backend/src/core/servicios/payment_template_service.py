@@ -9,7 +9,7 @@ import pandas as pd
 import io
 import logging
 import re
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Set
 from datetime import datetime
 from fastapi import UploadFile
 
@@ -28,6 +28,7 @@ from src.core.servicios.catalogs.payment_catalogs import (
     get_optional_columns,
     OUTPUT_TEMPLATE_COLUMNS,
 )
+from src.core.servicios.trm_service import trm_service
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,34 @@ class PaymentTemplateService:
     def __init__(self):
         """Initialize the service."""
         self.preview_rows = 5  # Number of rows to include in preview
+
+    def _calculate_manual_cop_spread(
+        self,
+        tasa_fincargo: Optional[float],
+        tasa_trm: Optional[float],
+        total_pagado_usd: Optional[float]
+    ) -> Optional[float]:
+        """
+        Calculate spread for manual COP payments.
+
+        Formula: (Tasa Fincargo - Tasa TRM) × Total Pagado USD
+
+        Args:
+            tasa_fincargo: Fincargo exchange rate from source file
+            tasa_trm: Official TRM rate from Banco de la República
+            total_pagado_usd: Payment amount in USD
+
+        Returns:
+            Calculated spread amount, or None if inputs missing
+        """
+        if tasa_fincargo is None or tasa_trm is None or total_pagado_usd is None:
+            return None
+
+        if total_pagado_usd <= 0:
+            return None
+
+        spread = (tasa_fincargo - tasa_trm) * total_pagado_usd
+        return round(spread, 2)
 
     async def validate_historial(
         self,
@@ -214,6 +243,18 @@ class PaymentTemplateService:
             col.strip().lower(): col for col in df.columns
         }
 
+        # PRE-PROCESSING PHASE: Collect payment group-level information
+        # This allows group-level decisions (like whether to create separate SPREAD line)
+        payment_group_info = self._collect_payment_group_info(
+            df=df,
+            country=country,
+            required_columns=required_columns,
+            concept_columns=concept_columns,
+            optional_columns=optional_columns,
+            df_columns_normalized=df_columns_normalized
+        )
+        logger.info(f"Pre-processing complete: {len(payment_group_info)} payment groups identified")
+
         # Track payment groups to ensure only first row gets comision_banco and spread values
         payment_groups_seen: set = set()
 
@@ -260,6 +301,16 @@ class PaymentTemplateService:
                 if payment_ref:
                     payment_groups_seen.add(payment_ref)
 
+                # Log payment grouping info (INFO level for key grouping decisions)
+                logger.info(
+                    f"Payment group: customer={customer_external_id}, "
+                    f"ref='{payment_ref}', is_first_in_group={is_first_row_in_group}, "
+                    f"currency='{currency}', cuenta_remitente='{cuenta_remitente}'"
+                )
+
+                # Get the group info for this payment_ref
+                group_info = payment_group_info.get(payment_ref)
+
                 row_results = self._process_row(
                     row,
                     country,
@@ -267,7 +318,8 @@ class PaymentTemplateService:
                     concept_columns,
                     optional_columns,
                     df_columns_normalized,
-                    is_first_row_in_group
+                    is_first_row_in_group,
+                    group_info=group_info  # Pass group-level context
                 )
 
                 if not row_results:
@@ -305,6 +357,15 @@ class PaymentTemplateService:
             f"{stats.output_rows} output rows, {skipped_rows} skipped, {errors_count} errors"
         )
 
+        # Log comprehensive conversion summary with all statistics
+        logger.info(
+            f"Conversion summary: country={country}, "
+            f"source_rows={len(df)}, output_rows={len(output_rows)}, "
+            f"payment_groups={len(payment_groups_seen)}, "
+            f"skipped={skipped_rows}, errors={errors_count}, "
+            f"concepts_breakdown={concepts_breakdown}"
+        )
+
         return output_bytes, stats
 
     def _process_row(
@@ -315,7 +376,8 @@ class PaymentTemplateService:
         concept_columns: Dict[str, str],
         optional_columns: Dict[str, str],
         df_columns_normalized: Dict[str, str],
-        is_first_row_in_group: bool = False
+        is_first_row_in_group: bool = False,
+        group_info: Optional[Dict] = None
     ) -> List[Dict]:
         """
         Process a single row and generate output rows for each non-zero concept.
@@ -328,6 +390,12 @@ class PaymentTemplateService:
             optional_columns: Optional column mappings
             df_columns_normalized: Normalized column name mapping
             is_first_row_in_group: Whether this is the first row in a payment group
+            group_info: Optional group-level context containing:
+                - concepts: Set of all concepts in the payment group
+                - medio_pago: Payment method for the group
+                - total_pagado_usd: Total USD paid across the group
+                - spread_assigned: Whether spread has been assigned to a row
+                - first_cop_non_capital_row_idx: Index of first COP non-CAPITAL row
 
         Returns:
             List of output row dictionaries
@@ -363,6 +431,23 @@ class PaymentTemplateService:
                     nt_value = row.get(source_col)
                     is_nt = pd.notna(nt_value) and str(nt_value).strip() != ""
                     break
+
+        # Check for Recompra flag (Colombia only)
+        # Recomprada operations revert to Fincargo Colombia AR accounts even if NT is populated
+        is_recomprada = False
+        if country.lower() == "colombia":
+            recompra_raw = get_value("recompra", optional_columns)
+            if recompra_raw is not None:
+                recompra_str = str(recompra_raw).strip().lower()
+                is_recomprada = recompra_str in ['si', 'sí', 'yes', 'true', '1', 'recomprada']
+
+        # Log recompra detection if it affects AR account selection
+        if is_recomprada and is_nt:
+            logger.info(
+                f"Recompra detected: customer={customer_external_id}, "
+                f"is_nt={is_nt}, is_recomprada={is_recomprada}, "
+                f"ar_account will use Fincargo Colombia accounts"
+            )
 
         # Get exchange rate (optional)
         exchangerate = None
@@ -400,6 +485,18 @@ class PaymentTemplateService:
         # Extract payment method for exchange rate adjustment
         medio_pago = get_value("medio_pago", optional_columns)
 
+        # Determine payment type classification for logging
+        is_pago_en_linea = medio_pago and "pago en l" in medio_pago.lower()
+        is_manual = medio_pago and medio_pago.lower() == "manual"
+        logger.info(
+            f"Payment type: customer={customer_external_id}, "
+            f"medio_pago='{medio_pago}', is_pago_en_linea={is_pago_en_linea}, "
+            f"is_manual={is_manual}"
+        )
+
+        # Store original exchange rate for logging
+        original_exchangerate = exchangerate
+
         # Adjust exchange rate for "Pago en línea" with COP currency
         # Business rule: When Medio de pago is "Pago en línea" and currency is COP,
         # subtract the spread from the exchange rate
@@ -413,6 +510,28 @@ class PaymentTemplateService:
             logger.debug(
                 f"Adjusted exchangerate for Pago en línea COP: "
                 f"original={original_rate}, spread={spread_value}, adjusted={exchangerate}"
+            )
+
+        # Clear exchange rate for Manual payments - NetSuite will use TRM from Banco de la Republica
+        if medio_pago and medio_pago.lower() == "manual":
+            exchangerate = None
+            logger.debug(
+                "Cleared exchangerate for Manual payment - NetSuite will apply TRM"
+            )
+
+        # Log exchange rate decision summary
+        rate_was_adjusted = original_exchangerate != exchangerate
+        if original_exchangerate is not None or exchangerate is not None:
+            adjustment_reason = "none"
+            if is_manual:
+                adjustment_reason = "manual_cleared"
+            elif rate_was_adjusted and is_pago_en_linea:
+                adjustment_reason = "spread_subtraction"
+            logger.info(
+                f"Exchange rate decision: customer={customer_external_id}, "
+                f"medio_pago='{medio_pago}', currency='{currency}', "
+                f"original_rate={original_exchangerate}, applied_rate={exchangerate}, "
+                f"adjustment_reason={adjustment_reason}"
             )
 
         # Extract Total Pagado (USD) for spread calculation
@@ -451,9 +570,85 @@ class PaymentTemplateService:
                 spread_fk = spread_value
                 logger.debug(f"Spread value {spread_value} -> Spread FK (NT column does not contain NT)")
 
-        # Log spread calculation details
-        if spread_value is not None and total_pagado_usd is not None:
-            logger.debug(f"Spread calculation: {spread_value} × {total_pagado_usd} USD")
+        # Log spread calculation details (INFO level for key decision)
+        if spread_value is not None:
+            is_nt_spread_flag = nt_value_for_spread and "NT" in str(nt_value_for_spread).upper()
+            logger.info(
+                f"Spread calculation: customer={customer_external_id}, "
+                f"payment_ref='{payment_ref}', total_pagado_usd={total_pagado_usd}, "
+                f"spread_value={spread_value}, is_nt_spread={is_nt_spread_flag}, "
+                f"spread_pa={spread_pa}, spread_fk={spread_fk}"
+            )
+
+        # Manual COP payment spread handling (Colombia only)
+        # For Manual COP payments, calculate spread using: (Tasa Fincargo - TRM) × Total Pagado USD
+        # Spread routing still depends on NT flag: NT="NT" -> Spread PA, else -> Spread FK
+        manual_cop_spread_calculated = False
+        if country.lower() == "colombia" and is_manual and currency.upper() == "COP":
+            # Parse payment date for TRM lookup
+            payment_date_parsed = None
+            if payment_date_raw:
+                try:
+                    if isinstance(payment_date_raw, datetime):
+                        payment_date_parsed = payment_date_raw
+                    elif hasattr(payment_date_raw, 'to_pydatetime'):
+                        payment_date_parsed = payment_date_raw.to_pydatetime()
+                    else:
+                        # Try common date formats
+                        date_str = str(payment_date_raw).split()[0]
+                        for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"]:
+                            try:
+                                payment_date_parsed = datetime.strptime(date_str, fmt)
+                                break
+                            except ValueError:
+                                continue
+                except Exception as e:
+                    logger.warning(f"Could not parse payment date for TRM lookup: {e}")
+
+            tasa_trm = None
+            if payment_date_parsed:
+                tasa_trm = trm_service.get_trm_for_date(payment_date_parsed)
+
+            manual_spread = self._calculate_manual_cop_spread(
+                tasa_fincargo=original_exchangerate,
+                tasa_trm=tasa_trm,
+                total_pagado_usd=total_pagado_usd
+            )
+
+            if manual_spread is not None:
+                # Override spread_value with calculated manual spread
+                # NT flag determines PA vs FK routing (same as non-manual payments)
+                is_nt_spread = nt_value_for_spread and "NT" in str(nt_value_for_spread).upper()
+                if is_nt_spread:
+                    spread_pa = manual_spread
+                    spread_fk = None
+                else:
+                    spread_fk = manual_spread
+                    spread_pa = None
+                spread_supra = None
+                manual_cop_spread_calculated = True
+                logger.info(
+                    f"Manual COP spread calculated: customer={customer_external_id}, "
+                    f"tasa_fincargo={original_exchangerate}, tasa_trm={tasa_trm}, "
+                    f"total_pagado_usd={total_pagado_usd}, is_nt={is_nt_spread}, "
+                    f"spread_pa={spread_pa}, spread_fk={spread_fk}"
+                )
+            else:
+                # If manual spread couldn't be calculated, clear all spread values
+                spread_pa = None
+                spread_fk = None
+                spread_supra = None
+                logger.debug(
+                    f"Manual COP spread skipped (missing data): customer={customer_external_id}, "
+                    f"tasa_fincargo={original_exchangerate}, tasa_trm={tasa_trm}, "
+                    f"total_pagado_usd={total_pagado_usd}"
+                )
+        elif country.lower() == "colombia" and is_manual and currency.upper() != "COP":
+            # Manual USD: No spread calculation for USD payments
+            spread_pa = None
+            spread_fk = None
+            spread_supra = None
+            logger.debug(f"Manual USD payment - no spread: customer={customer_external_id}")
 
         # Process each concept column
         processed_concepts = self._process_concepts(
@@ -465,43 +660,114 @@ class PaymentTemplateService:
 
         # Check if this is a capital-only Pago en Linea (Colombia only)
         # In this case, spread should be output as a separate SPREAD row instead of columns
-        should_create_separate_spread_line = self._is_capital_only_pago_en_linea(
-            medio_pago, processed_concepts, country
+        # CRITICAL: This decision is now made at the PAYMENT GROUP LEVEL, not individual row level
+        if group_info:
+            # Use group-level decision based on ALL concepts across the payment group
+            should_create_separate_spread_line = self._is_capital_only_pago_en_linea_for_group(
+                group_info["medio_pago"], group_info["concepts"], country
+            )
+        else:
+            # Fallback for backward compatibility (single-row groups or when group_info not provided)
+            row_concepts_set = set(k for k, v in processed_concepts.items() if abs(v) > 0.001)
+            should_create_separate_spread_line = self._is_capital_only_pago_en_linea_for_group(
+                medio_pago, row_concepts_set, country
+            )
+
+        # Log separate SPREAD line decision (INFO level for key decision)
+        group_concepts_str = str(group_info["concepts"]) if group_info else str(list(processed_concepts.keys()))
+        logger.info(
+            f"Separate SPREAD line (GROUP-LEVEL): customer={customer_external_id}, "
+            f"should_create={should_create_separate_spread_line}, "
+            f"medio_pago='{medio_pago}', group_concepts={group_concepts_str}"
         )
 
         # Calculate spread amount for separate line if needed
+        # Use aggregated total_pagado_usd from group_info if available (sum across all rows in payment group)
         separate_spread_amount = None
-        if should_create_separate_spread_line and spread_value is not None and total_pagado_usd is not None:
-            separate_spread_amount = spread_value * total_pagado_usd
+        group_total_usd = group_info["total_pagado_usd"] if group_info else total_pagado_usd
+        if should_create_separate_spread_line and spread_value is not None and group_total_usd:
+            separate_spread_amount = spread_value * group_total_usd
             logger.debug(
                 f"Creating separate SPREAD line for capital-only Pago en linea: "
-                f"customer={customer_external_id}, spread_amount={separate_spread_amount}"
+                f"customer={customer_external_id}, spread_amount={separate_spread_amount}, "
+                f"row_total_usd={total_pagado_usd}, group_total_usd={group_total_usd}"
             )
 
         # Determine which row should get spread values (first non-CAPITAL for Colombia)
         spread_target_index = self._get_spread_target_index(processed_concepts, country)
 
+        # For group context: check if this row should receive spread
+        # When group has mixed concepts, spread should go to first non-CAPITAL row in group
+        # If this row only has CAPITAL but group has other concepts, spread goes elsewhere
+        row_should_receive_spread = True
+        if group_info and not should_create_separate_spread_line:
+            # Group has mixed concepts - spread goes to column
+            # Check if this row has any non-CAPITAL concepts
+            row_has_non_capital = any(
+                c != "CAPITAL" for c, amt in processed_concepts.items() if abs(amt) > 0.001
+            )
+            # If this row only has CAPITAL and group has other concepts (INTERESES, etc.),
+            # then spread should NOT go to this row - it will go to another row with non-CAPITAL
+            if not row_has_non_capital and group_info["concepts"] != {"CAPITAL"}:
+                row_should_receive_spread = False
+                logger.info(
+                    f"Spread placement: customer={customer_external_id}, "
+                    f"row_has_only_capital=True, group_has_mixed_concepts=True, "
+                    f"row_should_receive_spread=False (spread goes to non-CAPITAL row)"
+                )
+
         # Generate output rows for non-zero concepts
         for idx, (concept_type, amount) in enumerate(processed_concepts.items()):
             if abs(amount) > 0.001:  # Skip zero or near-zero amounts
-                ar_account = get_ar_account(concept_type, country, is_nt)
+                ar_account = get_ar_account(concept_type, country, is_nt, is_recomprada)
                 if ar_account is None:
-                    ar_account = get_ar_account("COSTOS_FIJOS", country, is_nt) or 0
+                    ar_account = get_ar_account("COSTOS_FIJOS", country, is_nt, is_recomprada) or 0
+
+                # Log AR account selection (DEBUG level for detailed tracing)
+                logger.debug(
+                    f"AR account: customer={customer_external_id}, "
+                    f"concept='{concept_type}', is_nt={is_nt}, is_recomprada={is_recomprada}, "
+                    f"ar_account={ar_account}"
+                )
 
                 # comision_banco always goes to first row (idx == 0)
                 row_comision_banco = comision_banco if idx == 0 else None
 
                 # Spread goes to spread_target_index (first non-CAPITAL for Colombia)
-                is_spread_target = (idx == spread_target_index)
+                is_spread_target = (idx == spread_target_index) and row_should_receive_spread
 
                 # For capital-only Pago en Linea, spread goes to separate line, not columns
                 if should_create_separate_spread_line:
                     row_spread_pa = None
                     row_spread_fk = None
                 else:
+                    # Check if spread was already assigned to another row in this payment group
+                    spread_already_assigned = group_info.get("spread_assigned", False) if group_info else False
+
                     # Spread goes to spread_target_index row
-                    row_spread_pa = round(spread_pa * total_pagado_usd, 2) if is_spread_target and spread_pa is not None and total_pagado_usd is not None else None
-                    row_spread_fk = round(spread_fk * total_pagado_usd, 2) if is_spread_target and spread_fk is not None and total_pagado_usd is not None else None
+                    if is_spread_target and not spread_already_assigned:
+                        # For Manual COP payments, spread values are already the final calculated amount
+                        # (not a rate to be multiplied by total_pagado_usd)
+                        if manual_cop_spread_calculated:
+                            # Manual COP: spread values are already final amounts
+                            row_spread_pa = spread_pa
+                            row_spread_fk = spread_fk
+                        else:
+                            # Standard behavior: multiply rate by group total USD
+                            row_spread_pa = round(spread_pa * group_total_usd, 2) if spread_pa is not None and group_total_usd else None
+                            row_spread_fk = round(spread_fk * group_total_usd, 2) if spread_fk is not None and group_total_usd else None
+
+                        # Mark spread as assigned for this payment group
+                        if (row_spread_pa is not None or row_spread_fk is not None) and group_info:
+                            group_info["spread_assigned"] = True
+                            logger.info(
+                                f"Spread assigned: customer={customer_external_id}, "
+                                f"concept={concept_type}, manual_cop={manual_cop_spread_calculated}, "
+                                f"spread_pa={row_spread_pa}, spread_fk={row_spread_fk}"
+                            )
+                    else:
+                        row_spread_pa = None
+                        row_spread_fk = None
                 row_spread_supra = spread_supra if is_spread_target else None
 
                 output_rows.append({
@@ -685,18 +951,20 @@ class PaymentTemplateService:
         The grouping logic is based on the combination of:
         1. Identificación del cliente (customer_external_id)
         2. Fecha de pago (payment_date) - formatted as YYYYMMDD
-        3. Moneda (currency)
-        4. Cuenta Remitente (cuenta_remitente) - optional for online payments
-        5. Tasa de cambio (exchangerate) - exchange rate
+        3. Cuenta Remitente (cuenta_remitente) - optional for online payments
+        4. Tasa de cambio (exchangerate) - exchange rate
 
-        For online payments where no bank account is registered, the currency
-        differentiates between payments going to different accounts
-        (compensation account vs peso account).
+        IMPORTANT: Currency is NOT included in the grouping key. Payments with
+        the same customer, date, cuenta_remitente, and exchange rate belong to
+        the same payment group regardless of whether individual line items are
+        in USD or COP. This allows multi-currency payment groups (e.g., CAPITAL
+        in USD + MORATORIOS in COP) to be correctly aggregated.
 
         Args:
             customer_external_id: Customer identification (NIT/RFC)
             payment_date_raw: Raw payment date value
-            currency: Currency code (COP, USD, MXN, etc.)
+            currency: Currency code (COP, USD, MXN, etc.) - kept for signature
+                compatibility but NOT used in grouping
             cuenta_remitente: Sender's bank account (may be None for online payments)
             exchangerate: Exchange rate value (may be None)
 
@@ -707,15 +975,15 @@ class PaymentTemplateService:
         date_key = self._format_date_for_grouping(payment_date_raw)
 
         # Build components list
+        # NOTE: Currency is NOT included in the grouping key to allow multi-currency
+        # payment groups (e.g., CAPITAL in USD + MORATORIOS in COP) to be grouped together
         components = [
             customer_external_id or "",
             date_key,
-            currency.upper() if currency else "COP"
         ]
 
         # Only include cuenta_remitente if it's not empty
         # For online payments, cuenta_remitente will be None/empty
-        # and currency will differentiate between accounts
         if cuenta_remitente and str(cuenta_remitente).strip():
             components.append(str(cuenta_remitente).strip())
 
@@ -733,7 +1001,7 @@ class PaymentTemplateService:
         logger.debug(
             f"Generated payment_ref: {payment_ref} from "
             f"customer={customer_external_id}, date={date_key}, "
-            f"currency={currency}, cuenta={cuenta_remitente}, "
+            f"currency={currency} (not in ref), cuenta={cuenta_remitente}, "
             f"exchangerate={exchangerate}"
         )
 
@@ -891,6 +1159,8 @@ class PaymentTemplateService:
         """
         Check if this is a capital-only Pago en Linea payment (Colombia only).
 
+        DEPRECATED: Use _is_capital_only_pago_en_linea_for_group for group-level decisions.
+
         Returns True if:
         1. Country is Colombia
         2. Payment method is "Pago en linea" (case-insensitive)
@@ -915,6 +1185,46 @@ class PaymentTemplateService:
         # Check if only CAPITAL has a non-zero value
         non_zero_concepts = [k for k, v in processed_concepts.items() if abs(v) > 0.001]
         return non_zero_concepts == ["CAPITAL"]
+
+    def _is_capital_only_pago_en_linea_for_group(
+        self,
+        medio_pago: Optional[str],
+        group_concepts: Set[str],
+        country: str
+    ) -> bool:
+        """
+        Check if the ENTIRE payment group is capital-only Pago en Linea (Colombia only).
+
+        This method evaluates at the PAYMENT GROUP LEVEL, considering ALL concepts
+        across ALL rows in the payment group, not just the current row.
+
+        Returns True if:
+        1. Country is Colombia
+        2. Payment method is "Pago en linea" (case-insensitive)
+        3. CAPITAL is the ONLY concept across the ENTIRE payment group
+
+        Args:
+            medio_pago: Payment method for the group
+            group_concepts: Set of ALL concept types with non-zero values across ALL rows in group
+            country: Country code
+
+        Returns:
+            True only if ALL rows in the group only have CAPITAL concept
+        """
+        # Only applies to Colombia
+        if country.lower() != "colombia":
+            return False
+
+        # Check payment method contains "pago en l" (handles "Pago en linea", "Pago en Linea", etc.)
+        if not medio_pago or "pago en l" not in medio_pago.lower():
+            return False
+
+        # Check if CAPITAL is the ONLY concept across the entire group
+        # Must have at least CAPITAL to be valid
+        if not group_concepts:
+            return False
+
+        return group_concepts == {"CAPITAL"}
 
     def _get_spread_target_index(
         self,
@@ -993,6 +1303,140 @@ class PaymentTemplateService:
             "Spread FK": None,
             "Spread Supra": None,
         }
+
+    def _collect_payment_group_info(
+        self,
+        df: pd.DataFrame,
+        country: str,
+        required_columns: Dict[str, str],
+        concept_columns: Dict[str, str],
+        optional_columns: Dict[str, str],
+        df_columns_normalized: Dict[str, str]
+    ) -> Dict[str, Dict]:
+        """
+        Pre-process all rows to collect payment group-level information.
+
+        This method scans all rows to aggregate information at the payment group level,
+        allowing group-level decisions (like whether to create a separate SPREAD line).
+
+        Args:
+            df: Source DataFrame
+            country: Country code
+            required_columns: Required column mappings
+            concept_columns: Concept column mappings
+            optional_columns: Optional column mappings
+            df_columns_normalized: Normalized column name mapping
+
+        Returns:
+            Dictionary keyed by payment_ref containing group-level info:
+            - concepts: Set of all concept types with non-zero values across the group
+            - medio_pago: Payment method for the group
+            - total_pagado_usd: Sum of Total pagado [USD] across the group
+            - spread_assigned: Track if spread has been assigned to a row (for output generation)
+            - first_cop_non_capital_row_idx: Index of first COP row with non-CAPITAL concepts
+        """
+        payment_group_info: Dict[str, Dict] = {}
+
+        def get_value(row: pd.Series, internal_name: str, columns: Dict[str, str]) -> Optional[str]:
+            expected_name = columns.get(internal_name, "")
+            if not expected_name:
+                return None
+            normalized = expected_name.strip().lower()
+            source_col = df_columns_normalized.get(normalized)
+            if source_col and source_col in row.index:
+                val = row[source_col]
+                if pd.notna(val):
+                    return str(val)
+            return None
+
+        def get_numeric_value(row: pd.Series, col_name: str) -> float:
+            if not col_name:
+                return 0.0
+            normalized = col_name.strip().lower()
+            source_col = df_columns_normalized.get(normalized)
+            if source_col and source_col in row.index:
+                val = row[source_col]
+                if pd.notna(val):
+                    try:
+                        return float(val)
+                    except (ValueError, TypeError):
+                        pass
+            return 0.0
+
+        for idx, row in df.iterrows():
+            # Extract values needed for payment_ref generation
+            customer_external_id = get_value(row, "customer_external_id", required_columns) or ""
+            payment_date_raw = get_value(row, "payment_date", required_columns)
+            currency = get_value(row, "currency", required_columns) or "COP"
+            cuenta_remitente = get_value(row, "cuenta_remitente", optional_columns)
+            exchangerate_raw = get_value(row, "exchangerate", optional_columns)
+
+            # Generate payment_ref for grouping
+            payment_ref = self._generate_payment_ref(
+                customer_external_id,
+                payment_date_raw,
+                currency,
+                cuenta_remitente,
+                exchangerate_raw
+            )
+
+            # Initialize group info if first row with this payment_ref
+            if payment_ref not in payment_group_info:
+                medio_pago = get_value(row, "medio_pago", optional_columns)
+                payment_group_info[payment_ref] = {
+                    "concepts": set(),
+                    "medio_pago": medio_pago,
+                    "total_pagado_usd": 0.0,
+                    "spread_assigned": False,
+                    "first_cop_non_capital_row_idx": None,
+                }
+
+            # Get total_pagado_usd for this row
+            total_pagado_usd_raw = get_value(row, "total_pagado_usd", optional_columns)
+            if total_pagado_usd_raw:
+                try:
+                    payment_group_info[payment_ref]["total_pagado_usd"] += float(total_pagado_usd_raw)
+                except (ValueError, TypeError):
+                    pass
+
+            # Process concepts for this row and add to group
+            # Check for NT flag (Colombia only)
+            is_nt = False
+            if country.lower() == "colombia":
+                nt_col_normalized = "nt"
+                for col_name, source_col in df_columns_normalized.items():
+                    if col_name == nt_col_normalized:
+                        nt_value = row.get(source_col)
+                        is_nt = pd.notna(nt_value) and str(nt_value).strip() != ""
+                        break
+
+            row_concepts = self._process_concepts(
+                row, country, concept_columns, df_columns_normalized, is_nt
+            )
+
+            # Add non-zero concepts to the group's concept set
+            for concept_type, amount in row_concepts.items():
+                if abs(amount) > 0.001:
+                    payment_group_info[payment_ref]["concepts"].add(concept_type)
+
+            # Track first COP row with non-CAPITAL concepts (for spread placement)
+            row_has_non_capital = any(
+                c != "CAPITAL" for c, amt in row_concepts.items() if abs(amt) > 0.001
+            )
+            if (currency.upper() == "COP"
+                    and row_has_non_capital
+                    and payment_group_info[payment_ref]["first_cop_non_capital_row_idx"] is None):
+                payment_group_info[payment_ref]["first_cop_non_capital_row_idx"] = idx
+
+        # Log group info summary at INFO level
+        for payment_ref, info in payment_group_info.items():
+            logger.info(
+                f"Payment group pre-processed: ref='{payment_ref}', "
+                f"concepts={info['concepts']}, medio_pago='{info['medio_pago']}', "
+                f"total_pagado_usd={info['total_pagado_usd']}"
+            )
+
+        return payment_group_info
 
     def _parse_comision_banco(self, referencia_bancaria) -> Optional[float]:
         """
