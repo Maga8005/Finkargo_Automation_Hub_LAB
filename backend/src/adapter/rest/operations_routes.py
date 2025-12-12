@@ -513,6 +513,79 @@ async def download_approved_contract_pdf(
         raise HTTPException(status_code=500, detail=f"Error downloading PDF: {str(e)}")
 
 
+@router.get("/contracts/{contract_id}/download/docx")
+async def download_approved_contract_docx(
+    contract_id: UUID = Path(..., description="Contract UUID"),
+    contract_repo: ContractRepository = Depends(get_contract_repo),
+    service: ContractService = Depends(get_contract_service),
+    current_user: dict = Depends(require_operations_role)
+):
+    """
+    Download approved contract as DOCX file (Operations role or Admin required)
+
+    Generates the Word document on-the-fly using the contract data snapshot.
+    File is named using pattern: {contract_code}-{sanitized_client_name}.docx
+
+    Args:
+        contract_id: Contract UUID
+
+    Returns:
+        StreamingResponse with DOCX file
+    """
+    import logging
+    import re
+    logger = logging.getLogger(__name__)
+
+    try:
+        logger.info(f"Starting DOCX download for contract {contract_id}")
+
+        # Get contract
+        contract = await contract_repo.get_by_id(str(contract_id))
+        if not contract:
+            raise HTTPException(status_code=404, detail="Contract not found")
+
+        # Check if approved
+        if contract['status'] != 'approved':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Contract is not approved. Current status: {contract['status']}"
+            )
+
+        # Generate DOCX using ContractService
+        docx_bytes = await service.generate_contract_document(str(contract_id))
+        logger.info(f"DOCX generated successfully for contract {contract_id}")
+
+        # Build filename: {contract_code}-{sanitized_client_name}.docx
+        contract_code = contract.get('contract_id', str(contract_id))
+        data_snapshot = contract.get('data_snapshot', {})
+        client_name = data_snapshot.get('nombre_importador', 'cliente')
+
+        # Sanitize client name for filename
+        # Replace spaces with underscores, remove special characters, truncate to 50 chars
+        sanitized_name = re.sub(r'[^\w\s-]', '', client_name)  # Remove special chars
+        sanitized_name = re.sub(r'\s+', '_', sanitized_name)  # Replace spaces with underscores
+        sanitized_name = sanitized_name[:50]  # Truncate to 50 characters
+
+        filename = f"{contract_code}-{sanitized_name}.docx"
+
+        return StreamingResponse(
+            io.BytesIO(docx_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"ValueError in DOCX download: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error in DOCX download: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error generating DOCX: {str(e)}")
+
+
 # ==================== Instrucción de Mandato Endpoints ====================
 
 @router.post("/contracts/instruccion-mandato/parse-cotizacion", response_model=CotizacionData)

@@ -186,6 +186,19 @@ export const operationsService = {
   },
 
   /**
+   * Download approved contract as DOCX (Word) document
+   */
+  async downloadApprovedContractDocx(contractId: string): Promise<Blob> {
+    const response = await apiClient.get(
+      `${BASE_URL}/contracts/${contractId}/download/docx`,
+      {
+        responseType: 'blob',
+      }
+    );
+    return response.data;
+  },
+
+  /**
    * Get all approved Paga Local Colombia contracts
    * Filters by all Paga Local CO contract types
    */
