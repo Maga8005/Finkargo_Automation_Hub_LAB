@@ -30,7 +30,7 @@ import {
   Badge,
 } from '@mui/material';
 import {
-  PictureAsPdf as PdfIcon,
+  Description as DocxIcon,
   Info as InfoIcon,
   CheckCircle as CheckCircleIcon,
   FilterList as FilterListIcon,
@@ -140,28 +140,31 @@ const FKApprovedContracts: React.FC = () => {
     exportContractsToExcel(contracts, 'contratos_aprobados', true);
   };
 
-  const handleDownloadPDF = async (contract: ContractGeneration) => {
-    if (!contract.approved_document_url) {
-      alert('No hay PDF disponible para este contrato');
-      return;
-    }
-
+  const handleDownloadDOCX = async (contract: ContractGeneration) => {
     try {
       setDownloadingId(contract.id);
 
-      // Download via backend API endpoint
-      const blob = await operationsService.downloadApprovedContractPdf(contract.id);
+      const blob = await operationsService.downloadApprovedContractDocx(contract.id);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `contrato_${contract.contract_id}_aprobado.pdf`;
+
+      // Build filename: {contract_code}-{sanitized_client_name}.docx
+      const clientName = contract.data_snapshot?.nombre_importador || 'cliente';
+      // Sanitize client name: remove special chars, replace spaces with underscores, truncate
+      const sanitizedName = clientName
+        .replace(/[^\w\s-]/g, '')
+        .replace(/\s+/g, '_')
+        .slice(0, 50);
+      link.download = `${contract.contract_id}-${sanitizedName}.docx`;
+
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Error downloading PDF:', err);
-      alert('Error al descargar el PDF');
+      console.error('Error downloading DOCX:', err);
+      alert('Error al descargar el documento Word');
     } finally {
       setDownloadingId(null);
     }
@@ -562,27 +565,22 @@ const FKApprovedContracts: React.FC = () => {
                   />
                 </TableCell>
                 <TableCell align="center">
-                  <Tooltip title="Descargar PDF aprobado">
+                  <Tooltip title="Descargar Word aprobado">
                     <span>
                       <IconButton
                         color="primary"
-                        onClick={() => handleDownloadPDF(contract)}
-                        disabled={!contract.approved_document_url || downloadingId === contract.id}
+                        onClick={() => handleDownloadDOCX(contract)}
+                        disabled={downloadingId === contract.id}
                         size="small"
                       >
                         {downloadingId === contract.id ? (
                           <CircularProgress size={20} />
                         ) : (
-                          <PdfIcon />
+                          <DocxIcon />
                         )}
                       </IconButton>
                     </span>
                   </Tooltip>
-                  {!contract.approved_document_url && (
-                    <Tooltip title="PDF no disponible">
-                      <InfoIcon color="disabled" fontSize="small" sx={{ ml: 1 }} />
-                    </Tooltip>
-                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -593,7 +591,7 @@ const FKApprovedContracts: React.FC = () => {
       <Box sx={{ mt: 2 }}>
         <Alert severity="info" icon={<InfoIcon />}>
           <Typography variant="body2">
-            <strong>Instrucciones:</strong> Haga clic en el ícono <PdfIcon fontSize="small" sx={{ verticalAlign: 'middle' }} /> para descargar el PDF aprobado del contrato. Estos documentos están listos para ser enviados al cliente para su firma.
+            <strong>Instrucciones:</strong> Haga clic en el ícono <DocxIcon fontSize="small" sx={{ verticalAlign: 'middle' }} /> para descargar el documento Word aprobado. Estos documentos están listos para ser enviados al cliente.
           </Typography>
         </Alert>
       </Box>

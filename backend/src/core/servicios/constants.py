@@ -13,7 +13,7 @@ DIAN_CREDITOR_INFO = {
     "razon_social": "DIAN - Direccion de Impuestos y Aduanas Nacionales",
     "nit": "800.197.268-4",
     "banco": "PSE/Recaudo Electronico",
-    "tipo_cuenta": "PCE",
+    "tipo_cuenta": "PSE",
     "numero_cuenta": "N/A - Pago Electronico"
 }
 

@@ -407,7 +407,7 @@ class AcreedorGastosNacionales(BaseModel):
     razon_social: str = Field(..., min_length=1, max_length=255, description="Company name")
     nit: Optional[str] = Field(None, max_length=20, description="Colombian tax ID (optional for DIAN)")
     banco: str = Field(..., min_length=1, max_length=100, description="Bank name")
-    tipo_cuenta: str = Field(..., description="Account type (Ahorros, Corriente, PCE)")
+    tipo_cuenta: str = Field(..., description="Account type (Ahorros, Corriente, PSE)")
     numero_cuenta: str = Field(..., min_length=1, max_length=50, description="Account number or N/A")
 
     @validator('razon_social')
@@ -427,7 +427,7 @@ class AcreedorGastosNacionales(BaseModel):
     @validator('tipo_cuenta')
     def validate_tipo_cuenta(cls, v):
         """Validate tipo_cuenta is valid"""
-        valid_types = ['Ahorros', 'Corriente', 'PCE', 'CUENTA DE AHORROS', 'CUENTA CORRIENTE']
+        valid_types = ['Ahorros', 'Corriente', 'PSE', 'CUENTA DE AHORROS', 'CUENTA CORRIENTE']
         if v not in valid_types:
             # Normalize common variations
             v_lower = v.lower()
@@ -435,8 +435,8 @@ class AcreedorGastosNacionales(BaseModel):
                 return 'Ahorros'
             elif 'corriente' in v_lower:
                 return 'Corriente'
-            elif 'pce' in v_lower:
-                return 'PCE'
+            elif 'pse' in v_lower:
+                return 'PSE'
             else:
                 raise ValueError(f'tipo_cuenta must be one of: {", ".join(valid_types)}')
         return v
