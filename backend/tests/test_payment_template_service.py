@@ -3209,3 +3209,257 @@ class TestRecompraSpreadRouting:
         assert intereses_row is not None, "Expected a row with spread assigned"
         assert intereses_row.get("Spread FK") is not None, f"Expected Spread FK to have value, got None"
         assert intereses_row.get("Spread PA") is None, f"Expected Spread PA to be None, got {intereses_row.get('Spread PA')}"
+
+
+# ==================== Tests for Manual COP Spread Group Aggregation ====================
+
+class TestManualCOPSpreadGroupAggregation:
+    """
+    Tests for correct Manual COP spread calculation using group-aggregated total_pagado_usd.
+
+    Business logic:
+    - For Manual COP payments, spread = (Tasa Fincargo - TRM) × Total Pagado USD (GROUP)
+    - The Total Pagado USD should be the SUM across ALL rows in the payment group
+    - Spread should only be assigned once per group (to first eligible row)
+    """
+
+    def test_manual_cop_spread_uses_group_total_usd(self, service):
+        """
+        Manual COP spread should be calculated using the aggregated group total USD,
+        not just the individual row's USD amount.
+
+        Simulates a payment group with 2 rows:
+        - Row 1: 1000 USD
+        - Row 2: 500 USD
+        - Group total: 1500 USD
+
+        Spread should be calculated as: (Tasa Fincargo - TRM) × 1500
+        """
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
+        from unittest.mock import patch
+
+        required_columns = get_required_columns("colombia")
+        concept_columns = get_concept_columns("colombia")
+        optional_columns = get_optional_columns("colombia")
+
+        # Test data: row with 1000 USD but group has 1500 USD total
+        row_data = {
+            "Cliente": "Test Client",
+            "Identificación del cliente": "123456789",
+            "Código de desembolso": "CO:123:1:1:PAG",
+            "Código de recaudo": "REC-001",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "COP",
+            "Capital": 5000000.00,
+            "Banco remitente": "Test Bank",
+            "Médio de pago": "Manual",  # Manual payment
+            "Tasa de cambio de FK/en línea": 4000.00,  # Tasa Fincargo
+            "Spread": 0,  # Not used for Manual COP
+            "Total pagado [USD]": 1000.00,  # Row's USD (group has 1500)
+            "NT": "",  # No NT -> Spread FK
+            "Recomprado": "",
+            "4x1000": 0,
+            "Fondo de garantías": 0,
+            "IVA Fondo de garantías": 0,
+            "Seguro + IVA": 0,
+            "Intereses Corrientes": 50.00,  # Non-capital for spread placement
+            "Cuenta Remitente": "60100001091",
+        }
+
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
+
+        # Group info with aggregated total (1500 USD from multiple rows)
+        group_info = {
+            "concepts": {"CAPITAL", "INTERESES"},
+            "medio_pago": "Manual",
+            "total_pagado_usd": 1500.00,  # Group total: 1000 + 500
+            "spread_assigned": False,
+            "first_cop_non_capital_row_idx": 0,
+        }
+
+        with patch('src.core.servicios.payment_template_service.trm_service') as mock_trm:
+            mock_trm.get_trm_for_date.return_value = 3800.00  # TRM
+
+            result = service._process_row(
+                row=row,
+                country="colombia",
+                required_columns=required_columns,
+                concept_columns=concept_columns,
+                optional_columns=optional_columns,
+                df_columns_normalized=df_columns_normalized,
+                is_first_row_in_group=True,
+                group_info=group_info
+            )
+
+        # Find the row with spread assigned
+        spread_row = None
+        for r in result:
+            if r.get("Spread FK") is not None:
+                spread_row = r
+                break
+
+        assert spread_row is not None, "Expected a row with Spread FK assigned"
+
+        # Expected: (4000 - 3800) × 1500 = 200 × 1500 = 300,000
+        expected_spread = (4000.00 - 3800.00) * 1500.00
+        assert spread_row.get("Spread FK") == expected_spread, (
+            f"Expected Spread FK = {expected_spread} (using group total 1500 USD), "
+            f"got {spread_row.get('Spread FK')}"
+        )
+
+    def test_manual_cop_spread_single_row_group(self, service):
+        """
+        For single-row groups, spread should use that row's total_pagado_usd.
+        """
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
+        from unittest.mock import patch
+
+        required_columns = get_required_columns("colombia")
+        concept_columns = get_concept_columns("colombia")
+        optional_columns = get_optional_columns("colombia")
+
+        row_data = {
+            "Cliente": "Test Client",
+            "Identificación del cliente": "123456789",
+            "Código de desembolso": "CO:123:1:2:PAG",
+            "Código de recaudo": "REC-002",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "COP",
+            "Capital": 0,
+            "Banco remitente": "Test Bank",
+            "Médio de pago": "Manual",
+            "Tasa de cambio de FK/en línea": 4100.00,
+            "Spread": 0,
+            "Total pagado [USD]": 2000.00,  # Single row = single group total
+            "NT": "",
+            "Recomprado": "",
+            "4x1000": 0,
+            "Fondo de garantías": 0,
+            "IVA Fondo de garantías": 0,
+            "Seguro + IVA": 0,
+            "Intereses Corrientes": 100.00,
+            "Cuenta Remitente": "60100001091",
+        }
+
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
+
+        # Single row group (same total)
+        group_info = {
+            "concepts": {"INTERESES"},
+            "medio_pago": "Manual",
+            "total_pagado_usd": 2000.00,  # Same as row's total
+            "spread_assigned": False,
+            "first_cop_non_capital_row_idx": 0,
+        }
+
+        with patch('src.core.servicios.payment_template_service.trm_service') as mock_trm:
+            mock_trm.get_trm_for_date.return_value = 3900.00
+
+            result = service._process_row(
+                row=row,
+                country="colombia",
+                required_columns=required_columns,
+                concept_columns=concept_columns,
+                optional_columns=optional_columns,
+                df_columns_normalized=df_columns_normalized,
+                is_first_row_in_group=True,
+                group_info=group_info
+            )
+
+        spread_row = None
+        for r in result:
+            if r.get("Spread FK") is not None:
+                spread_row = r
+                break
+
+        assert spread_row is not None, "Expected a row with Spread FK assigned"
+
+        # Expected: (4100 - 3900) × 2000 = 200 × 2000 = 400,000
+        expected_spread = (4100.00 - 3900.00) * 2000.00
+        assert spread_row.get("Spread FK") == expected_spread, (
+            f"Expected Spread FK = {expected_spread}, got {spread_row.get('Spread FK')}"
+        )
+
+    def test_manual_cop_spread_assigned_only_once_per_group(self, service):
+        """
+        Spread should only be assigned to the first eligible row in a group.
+        Subsequent rows should NOT receive spread (spread_assigned=True).
+        """
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
+        from unittest.mock import patch
+
+        required_columns = get_required_columns("colombia")
+        concept_columns = get_concept_columns("colombia")
+        optional_columns = get_optional_columns("colombia")
+
+        row_data = {
+            "Cliente": "Test Client",
+            "Identificación del cliente": "123456789",
+            "Código de desembolso": "CO:123:1:3:PAG",
+            "Código de recaudo": "REC-003",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "COP",
+            "Capital": 0,
+            "Banco remitente": "Test Bank",
+            "Médio de pago": "Manual",
+            "Tasa de cambio de FK/en línea": 4200.00,
+            "Spread": 0,
+            "Total pagado [USD]": 500.00,  # Second row in group
+            "NT": "",
+            "Recomprado": "",
+            "4x1000": 0,
+            "Fondo de garantías": 0,
+            "IVA Fondo de garantías": 0,
+            "Seguro + IVA": 0,
+            "Intereses Corrientes": 75.00,
+            "Cuenta Remitente": "60100001091",
+        }
+
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
+
+        # Group info with spread_assigned=True (first row already got spread)
+        group_info = {
+            "concepts": {"INTERESES"},
+            "medio_pago": "Manual",
+            "total_pagado_usd": 1500.00,
+            "spread_assigned": True,  # Spread already assigned to first row
+            "first_cop_non_capital_row_idx": 0,
+        }
+
+        with patch('src.core.servicios.payment_template_service.trm_service') as mock_trm:
+            mock_trm.get_trm_for_date.return_value = 4000.00
+
+            result = service._process_row(
+                row=row,
+                country="colombia",
+                required_columns=required_columns,
+                concept_columns=concept_columns,
+                optional_columns=optional_columns,
+                df_columns_normalized=df_columns_normalized,
+                is_first_row_in_group=False,  # Not first row
+                group_info=group_info
+            )
+
+        # No row should have spread assigned (already assigned to first row)
+        for r in result:
+            assert r.get("Spread FK") is None, (
+                f"Expected Spread FK to be None for second row, got {r.get('Spread FK')}"
+            )
+            assert r.get("Spread PA") is None, (
+                f"Expected Spread PA to be None for second row, got {r.get('Spread PA')}"
+            )
