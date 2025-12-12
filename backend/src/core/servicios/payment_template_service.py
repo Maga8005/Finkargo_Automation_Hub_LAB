@@ -553,8 +553,9 @@ class PaymentTemplateService:
             if comision_banco is not None:
                 logger.debug(f"Extracted comision_banco: {comision_banco} from '{referencia_bancaria}'")
 
-        # Determine spread column based on NT column containing "NT"
-        # If NT contains "NT" -> Spread PA, otherwise -> Spread FK
+        # Determine spread column based on NT column and recomprada flag
+        # Spread goes to Spread PA only if NT column contains "NT" AND NOT recomprada
+        # If recomprada=True, spread goes to Spread FK (Fincargo Colombia takes back ownership)
         spread_pa = None
         spread_fk = None
         spread_supra = None  # Keep for compatibility but will be None
@@ -563,12 +564,16 @@ class PaymentTemplateService:
             # Check if NT column contains "NT" text (case-insensitive)
             is_nt_spread = nt_value_for_spread and "NT" in str(nt_value_for_spread).upper()
 
-            if is_nt_spread:
+            # Spread goes to PA only if NT and NOT recomprada
+            if is_nt_spread and not is_recomprada:
                 spread_pa = spread_value
-                logger.debug(f"Spread value {spread_value} -> Spread PA (NT column contains NT)")
+                logger.debug(f"Spread value {spread_value} -> Spread PA (NT column contains NT, not recomprada)")
             else:
                 spread_fk = spread_value
-                logger.debug(f"Spread value {spread_value} -> Spread FK (NT column does not contain NT)")
+                if is_recomprada and is_nt_spread:
+                    logger.debug(f"Spread value {spread_value} -> Spread FK (recomprada overrides NT)")
+                else:
+                    logger.debug(f"Spread value {spread_value} -> Spread FK (NT column does not contain NT)")
 
         # Log spread calculation details (INFO level for key decision)
         if spread_value is not None:
@@ -577,7 +582,7 @@ class PaymentTemplateService:
                 f"Spread calculation: customer={customer_external_id}, "
                 f"payment_ref='{payment_ref}', total_pagado_usd={total_pagado_usd}, "
                 f"spread_value={spread_value}, is_nt_spread={is_nt_spread_flag}, "
-                f"spread_pa={spread_pa}, spread_fk={spread_fk}"
+                f"is_recomprada={is_recomprada}, spread_pa={spread_pa}, spread_fk={spread_fk}"
             )
 
         # Manual COP payment spread handling (Colombia only)
@@ -617,9 +622,9 @@ class PaymentTemplateService:
 
             if manual_spread is not None:
                 # Override spread_value with calculated manual spread
-                # NT flag determines PA vs FK routing (same as non-manual payments)
+                # Spread goes to PA only if NT and NOT recomprada (same logic as non-manual)
                 is_nt_spread = nt_value_for_spread and "NT" in str(nt_value_for_spread).upper()
-                if is_nt_spread:
+                if is_nt_spread and not is_recomprada:
                     spread_pa = manual_spread
                     spread_fk = None
                 else:
@@ -631,7 +636,7 @@ class PaymentTemplateService:
                     f"Manual COP spread calculated: customer={customer_external_id}, "
                     f"tasa_fincargo={original_exchangerate}, tasa_trm={tasa_trm}, "
                     f"total_pagado_usd={total_pagado_usd}, is_nt={is_nt_spread}, "
-                    f"spread_pa={spread_pa}, spread_fk={spread_fk}"
+                    f"is_recomprada={is_recomprada}, spread_pa={spread_pa}, spread_fk={spread_fk}"
                 )
             else:
                 # If manual spread couldn't be calculated, clear all spread values
