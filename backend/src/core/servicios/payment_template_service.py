@@ -614,10 +614,14 @@ class PaymentTemplateService:
             if payment_date_parsed:
                 tasa_trm = trm_service.get_trm_for_date(payment_date_parsed)
 
+            # Use group total USD for aggregated spread calculation
+            # This ensures spread is calculated across ALL rows in the payment group
+            group_total_usd_for_spread = group_info["total_pagado_usd"] if group_info else total_pagado_usd
+
             manual_spread = self._calculate_manual_cop_spread(
                 tasa_fincargo=original_exchangerate,
                 tasa_trm=tasa_trm,
-                total_pagado_usd=total_pagado_usd
+                total_pagado_usd=group_total_usd_for_spread
             )
 
             if manual_spread is not None:
@@ -635,8 +639,9 @@ class PaymentTemplateService:
                 logger.info(
                     f"Manual COP spread calculated: customer={customer_external_id}, "
                     f"tasa_fincargo={original_exchangerate}, tasa_trm={tasa_trm}, "
-                    f"total_pagado_usd={total_pagado_usd}, is_nt={is_nt_spread}, "
-                    f"is_recomprada={is_recomprada}, spread_pa={spread_pa}, spread_fk={spread_fk}"
+                    f"row_total_usd={total_pagado_usd}, group_total_usd={group_total_usd_for_spread}, "
+                    f"is_nt={is_nt_spread}, is_recomprada={is_recomprada}, "
+                    f"spread_pa={spread_pa}, spread_fk={spread_fk}"
                 )
             else:
                 # If manual spread couldn't be calculated, clear all spread values
