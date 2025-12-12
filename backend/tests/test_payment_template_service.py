@@ -3012,3 +3012,200 @@ class TestMultiCurrencyPaymentGroupGrouping:
 
         # Should create separate spread line because only CAPITAL
         assert result_capital_only is True, "Capital-only group should create separate SPREAD line"
+
+
+# ==================== Tests for Recompra Spread Column Routing ====================
+
+class TestRecompraSpreadRouting:
+    """
+    Tests for correct spread column routing when the Recomprado flag is set.
+
+    Business logic:
+    - NT contains "NT" AND NOT recomprada → Spread PA (Patrimonio Autónomo)
+    - NT contains "NT" AND recomprada → Spread FK (Fincargo Colombia takes back ownership)
+    - NT does NOT contain "NT" → Spread FK (Fincargo Colombia)
+    """
+
+    def test_nt_not_recomprada_spread_goes_to_pa(self, service):
+        """
+        NT populated with NOT recomprada should route spread to Spread PA.
+        """
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
+
+        required_columns = get_required_columns("colombia")
+        concept_columns = get_concept_columns("colombia")
+        optional_columns = get_optional_columns("colombia")
+
+        row_data = {
+            "Cliente": "Test Client",
+            "Identificación del cliente": "123456789",
+            "Código de desembolso": "CO:123:1:1:PAG",
+            "Código de recaudo": "REC-001",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "COP",
+            "Capital": 5000000.00,
+            "Banco remitente": "Test Bank",
+            "Médio de pago": "Pago en línea",
+            "Tasa de cambio de FK/en línea": 4200.00,
+            "Spread": 10,
+            "Total pagado [USD]": 1000.00,
+            "NT": "NT-12345",  # NT populated
+            "Recomprado": "No",  # NOT recomprada
+            "4x1000": 0,
+            "Fondo de garantías": 0,
+            "IVA Fondo de garantías": 0,
+            "Seguro + IVA": 0,
+            "Intereses Corrientes": 50.00,  # Non-capital to ensure no separate SPREAD line
+            "Cuenta Remitente": "60100001091",
+        }
+
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
+
+        result = service._process_row(
+            row=row,
+            country="colombia",
+            required_columns=required_columns,
+            concept_columns=concept_columns,
+            optional_columns=optional_columns,
+            df_columns_normalized=df_columns_normalized,
+            is_first_row_in_group=True
+        )
+
+        # Find the row with spread assigned (should be INTERESES row)
+        intereses_row = None
+        for r in result:
+            if r.get("Spread PA") is not None or r.get("Spread FK") is not None:
+                intereses_row = r
+                break
+
+        assert intereses_row is not None, "Expected a row with spread assigned"
+        assert intereses_row.get("Spread PA") is not None, f"Expected Spread PA to have value, got None"
+        assert intereses_row.get("Spread FK") is None, f"Expected Spread FK to be None, got {intereses_row.get('Spread FK')}"
+
+    def test_nt_recomprada_spread_goes_to_fk(self, service):
+        """
+        NT populated WITH recomprada=True should route spread to Spread FK.
+        Recomprada means Fincargo Colombia takes back ownership from Patrimonio.
+        """
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
+
+        required_columns = get_required_columns("colombia")
+        concept_columns = get_concept_columns("colombia")
+        optional_columns = get_optional_columns("colombia")
+
+        row_data = {
+            "Cliente": "Test Client",
+            "Identificación del cliente": "123456789",
+            "Código de desembolso": "CO:123:1:2:PAG",
+            "Código de recaudo": "REC-002",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "COP",
+            "Capital": 5000000.00,
+            "Banco remitente": "Test Bank",
+            "Médio de pago": "Pago en línea",
+            "Tasa de cambio de FK/en línea": 4200.00,
+            "Spread": 10,
+            "Total pagado [USD]": 1000.00,
+            "NT": "NT-12345",  # NT populated
+            "Recomprado": "Si",  # Recomprada = True
+            "4x1000": 0,
+            "Fondo de garantías": 0,
+            "IVA Fondo de garantías": 0,
+            "Seguro + IVA": 0,
+            "Intereses Corrientes": 50.00,  # Non-capital to ensure no separate SPREAD line
+            "Cuenta Remitente": "60100001091",
+        }
+
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
+
+        result = service._process_row(
+            row=row,
+            country="colombia",
+            required_columns=required_columns,
+            concept_columns=concept_columns,
+            optional_columns=optional_columns,
+            df_columns_normalized=df_columns_normalized,
+            is_first_row_in_group=True
+        )
+
+        # Find the row with spread assigned (should be INTERESES row)
+        intereses_row = None
+        for r in result:
+            if r.get("Spread PA") is not None or r.get("Spread FK") is not None:
+                intereses_row = r
+                break
+
+        assert intereses_row is not None, "Expected a row with spread assigned"
+        assert intereses_row.get("Spread FK") is not None, f"Expected Spread FK to have value, got None"
+        assert intereses_row.get("Spread PA") is None, f"Expected Spread PA to be None, got {intereses_row.get('Spread PA')}"
+
+    def test_no_nt_spread_goes_to_fk(self, service):
+        """
+        No NT value should route spread to Spread FK regardless of recomprada.
+        """
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
+
+        required_columns = get_required_columns("colombia")
+        concept_columns = get_concept_columns("colombia")
+        optional_columns = get_optional_columns("colombia")
+
+        row_data = {
+            "Cliente": "Test Client",
+            "Identificación del cliente": "123456789",
+            "Código de desembolso": "CO:123:1:3:PAG",
+            "Código de recaudo": "REC-003",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "COP",
+            "Capital": 5000000.00,
+            "Banco remitente": "Test Bank",
+            "Médio de pago": "Pago en línea",
+            "Tasa de cambio de FK/en línea": 4200.00,
+            "Spread": 10,
+            "Total pagado [USD]": 1000.00,
+            "NT": "",  # No NT
+            "Recomprado": "",  # Empty (doesn't matter since no NT)
+            "4x1000": 0,
+            "Fondo de garantías": 0,
+            "IVA Fondo de garantías": 0,
+            "Seguro + IVA": 0,
+            "Intereses Corrientes": 50.00,  # Non-capital to ensure no separate SPREAD line
+            "Cuenta Remitente": "60100001091",
+        }
+
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
+
+        result = service._process_row(
+            row=row,
+            country="colombia",
+            required_columns=required_columns,
+            concept_columns=concept_columns,
+            optional_columns=optional_columns,
+            df_columns_normalized=df_columns_normalized,
+            is_first_row_in_group=True
+        )
+
+        # Find the row with spread assigned (should be INTERESES row)
+        intereses_row = None
+        for r in result:
+            if r.get("Spread PA") is not None or r.get("Spread FK") is not None:
+                intereses_row = r
+                break
+
+        assert intereses_row is not None, "Expected a row with spread assigned"
+        assert intereses_row.get("Spread FK") is not None, f"Expected Spread FK to have value, got None"
+        assert intereses_row.get("Spread PA") is None, f"Expected Spread PA to be None, got {intereses_row.get('Spread PA')}"
