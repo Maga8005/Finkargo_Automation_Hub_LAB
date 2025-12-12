@@ -82,8 +82,13 @@ class COFileProcessor:
             contents = await file.read()
             await file.seek(0)
 
-            # Load workbook
-            workbook = openpyxl.load_workbook(io.BytesIO(contents))
+            # Load workbook in read-only mode for memory efficiency
+            # This is critical for large files (5MB+) to avoid memory issues
+            workbook = openpyxl.load_workbook(
+                io.BytesIO(contents),
+                read_only=True,
+                data_only=True  # Get calculated values instead of formulas
+            )
 
             # Get config for this file type
             config = self.column_mapping.get(file_type.value)
@@ -98,8 +103,13 @@ class COFileProcessor:
             sheet = workbook[sheet_name]
             column_map = config.get("columns", {})
 
-            # Read header row
-            header_row = [cell.value for cell in sheet[1]]
+            # Read header row (in read_only mode, we iterate rows)
+            header_row = None
+            rows_iterator = sheet.iter_rows(values_only=True)
+            try:
+                header_row = list(next(rows_iterator))
+            except StopIteration:
+                raise ValueError(f"Archivo {file_type} está vacío")
 
             # Create reverse mapping (Excel column name -> standardized field name)
             col_index_map = {}
@@ -112,11 +122,11 @@ class COFileProcessor:
                         f"Columna '{excel_col_name}' no encontrada en {file_type}"
                     )
 
-            # Read data rows
+            # Read data rows (continue from the same iterator)
             records = []
             errors = []
 
-            for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            for row_idx, row in enumerate(rows_iterator, start=2):
                 if not any(row):  # Skip empty rows
                     continue
 
@@ -152,6 +162,9 @@ class COFileProcessor:
                     )
                     errors.append(error)
                     logger.warning(f"Error en fila {row_idx} de {file_type}: {e}")
+
+            # Close workbook to free memory (important for read_only mode)
+            workbook.close()
 
             logger.info(f"Leídos {len(records)} registros de {file_type}")
             return records, errors
