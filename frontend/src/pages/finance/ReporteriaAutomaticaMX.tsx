@@ -40,6 +40,8 @@ import {
   Payment as PaymentIcon,
   CheckCircle as CheckIcon,
   Assessment as ReportIcon,
+  Sync as SyncIcon,
+  Storage as StorageIcon,
 } from '@mui/icons-material';
 import FKCombinedExcelUploader from '../../components/forms/FKCombinedExcelUploader';
 import FKFinanceHistory from '../../components/forms/FKFinanceHistory';
@@ -57,6 +59,7 @@ import {
   triggerDownload,
   clearMXFilterCache,
   getDriveCacheStatsMX,
+  precacheDriveFilesMX,
   type MXFilterRequest,
   type MXFilterResponse,
   type CacheStatsResponse,
@@ -105,6 +108,13 @@ const ReporteriaAutomaticaMX: React.FC = () => {
   // Cache state
   // =========================================================================
   const [cacheStats, setCacheStats] = useState<CacheStatsResponse | null>(null);
+  const [isLoadingCacheStats, setIsLoadingCacheStats] = useState(false);
+  const [isOptimizingCache, setIsOptimizingCache] = useState(false);
+  const [cacheOptimizeResult, setCacheOptimizeResult] = useState<{
+    success: boolean;
+    message: string;
+    stats: { total: number; cached: number; not_found: number; already_cached: number };
+  } | null>(null);
 
   // =========================================================================
   // Combined Upload tab state (Tab 1 - Facturas + Complementos)
@@ -122,20 +132,50 @@ const ReporteriaAutomaticaMX: React.FC = () => {
   const [cacheRefreshSuccess, setCacheRefreshSuccess] = useState(false);
 
   // =========================================================================
-  // Load cache stats on mount
+  // Load cache stats on mount and tab change
   // =========================================================================
-  useEffect(() => {
-    const loadCacheStats = async () => {
-      try {
-        const stats = await getDriveCacheStatsMX();
-        setCacheStats(stats);
-      } catch (error) {
-        console.error('Error loading cache stats:', error);
-        // Don't show error to user, just leave cache as not ready
-      }
-    };
-    loadCacheStats();
+  const loadCacheStats = useCallback(async () => {
+    setIsLoadingCacheStats(true);
+    try {
+      const stats = await getDriveCacheStatsMX();
+      setCacheStats(stats);
+    } catch (error) {
+      console.error('Error loading cache stats:', error);
+      setCacheStats(null);
+    } finally {
+      setIsLoadingCacheStats(false);
+    }
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 0 || activeTab === 1) {
+      loadCacheStats();
+    }
+  }, [activeTab, loadCacheStats]);
+
+  // =========================================================================
+  // Cache optimization handler
+  // =========================================================================
+  const handleOptimizeCache = useCallback(async () => {
+    setIsOptimizingCache(true);
+    setCombinedError(null);
+    setCacheOptimizeResult(null);
+    try {
+      const result = await precacheDriveFilesMX();
+      setCacheOptimizeResult(result);
+      // Reload cache stats after optimization
+      await loadCacheStats();
+    } catch (err: unknown) {
+      const errorMessage =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data
+          ?.detail ||
+        (err as { message?: string })?.message ||
+        'Error al optimizar el cache de Drive';
+      setCombinedError(errorMessage);
+    } finally {
+      setIsOptimizingCache(false);
+    }
+  }, [loadCacheStats]);
 
   // =========================================================================
   // Filter handlers (Tab 0)
@@ -420,32 +460,140 @@ const ReporteriaAutomaticaMX: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* Paso 2: Recargar Cache - Only show after upload success */}
+            {/* Paso 2: Optimizar Cache de Drive - Only show after upload success */}
             {combinedUploadSuccess && (
-              <Card sx={{ mt: 3 }} elevation={2}>
+              <Card
+                elevation={2}
+                sx={{ mt: 3 }}
+              >
                 <CardContent>
-                  <Typography variant="h6" gutterBottom color="warning.main">
-                    <RefreshIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                    Paso 2: Recargar Cache (Obligatorio)
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Después de cargar nuevos archivos, es obligatorio recargar el cache
-                    para que la pestaña "Consultar" muestre los datos actualizados.
-                  </Typography>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    color="warning"
-                    onClick={handleRefreshCache}
-                    disabled={isRefreshingCache}
-                    startIcon={isRefreshingCache ? <CircularProgress size={20} /> : <RefreshIcon />}
-                    sx={{ height: 48 }}
-                  >
-                    {isRefreshingCache ? 'Recargando Cache...' : 'Recargar Cache'}
-                  </Button>
+                  <Box display="flex" alignItems="center" gap={2} mb={2}>
+                    <Chip label="Paso 2" color="primary" size="small" />
+                    <Typography variant="h6" fontWeight={600}>
+                      Optimizar Cache de Drive
+                    </Typography>
+                  </Box>
+
+                  <Alert severity="info" sx={{ mb: 3 }}>
+                    <Typography variant="body2">
+                      Este paso indexa los archivos PDF/XML en Google Drive para acelerar la generación de ZIPs.
+                      <strong> Es necesario ejecutar esto después de cargar nuevos archivos para habilitar la descarga de ZIPs con PDFs.</strong>
+                    </Typography>
+                  </Alert>
+
+                  {/* Cache Status */}
+                  {isLoadingCacheStats ? (
+                    <Box display="flex" alignItems="center" gap={2} py={2}>
+                      <CircularProgress size={24} />
+                      <Typography>Cargando estado del cache...</Typography>
+                    </Box>
+                  ) : cacheStats ? (
+                    <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+                      <Stack spacing={2}>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <StorageIcon color={cacheStats.cache_ready ? 'success' : 'warning'} />
+                          <Typography variant="subtitle1" fontWeight={600}>
+                            Estado del Cache
+                          </Typography>
+                          <Chip
+                            label={cacheStats.cache_ready ? 'Listo' : 'No configurado'}
+                            color={cacheStats.cache_ready ? 'success' : 'warning'}
+                            size="small"
+                          />
+                        </Box>
+                        <Box display="flex" gap={3} flexWrap="wrap">
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              Total Archivos Cacheados
+                            </Typography>
+                            <Typography variant="h5" fontWeight={600}>
+                              {cacheStats.total_cached}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              PDFs
+                            </Typography>
+                            <Typography variant="h5" fontWeight={600} color="primary.main">
+                              {cacheStats.pdf_count}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              XMLs
+                            </Typography>
+                            <Typography variant="h5" fontWeight={600} color="secondary.main">
+                              {cacheStats.xml_count}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Stack>
+                    </Paper>
+                  ) : (
+                    <Alert severity="warning" sx={{ mb: 3 }}>
+                      No se pudo cargar el estado del cache.
+                    </Alert>
+                  )}
+
+                  {/* Cache Optimization Result */}
+                  {cacheOptimizeResult && (
+                    <Alert
+                      severity="success"
+                      sx={{ mb: 3 }}
+                      onClose={() => setCacheOptimizeResult(null)}
+                    >
+                      <Typography variant="body2" fontWeight={600}>
+                        {cacheOptimizeResult.message}
+                      </Typography>
+                      <Typography variant="body2">
+                        Total procesados: {cacheOptimizeResult.stats.total} |
+                        Nuevos cacheados: {cacheOptimizeResult.stats.cached} |
+                        Ya existentes: {cacheOptimizeResult.stats.already_cached} |
+                        No encontrados: {cacheOptimizeResult.stats.not_found}
+                      </Typography>
+                    </Alert>
+                  )}
+
+                  {/* Cache Refresh Success (from clear cache) */}
                   {cacheRefreshSuccess && (
-                    <Alert severity="success" sx={{ mt: 2 }}>
-                      Cache recargado exitosamente. Ya puede consultar los datos actualizados.
+                    <Alert severity="success" sx={{ mb: 3 }}>
+                      Cache de filtros recargado exitosamente. Ya puede consultar los datos actualizados.
+                    </Alert>
+                  )}
+
+                  {/* Action Buttons */}
+                  <Stack spacing={2}>
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      size="large"
+                      startIcon={isOptimizingCache ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />}
+                      onClick={handleOptimizeCache}
+                      disabled={isOptimizingCache}
+                      fullWidth
+                      sx={{ height: 56 }}
+                    >
+                      {isOptimizingCache ? 'Optimizando Cache...' : 'Optimizar Cache de Drive'}
+                    </Button>
+
+                    <Button
+                      variant="outlined"
+                      color="warning"
+                      onClick={handleRefreshCache}
+                      disabled={isRefreshingCache}
+                      startIcon={isRefreshingCache ? <CircularProgress size={20} /> : <RefreshIcon />}
+                      fullWidth
+                    >
+                      {isRefreshingCache ? 'Recargando...' : 'Recargar Cache de Filtros'}
+                    </Button>
+                  </Stack>
+
+                  {isOptimizingCache && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      <Typography variant="body2">
+                        Indexando archivos PDF/XML en Google Drive. Este proceso puede tomar varios minutos dependiendo de la cantidad de facturas.
+                        Por favor no cierre esta ventana.
+                      </Typography>
                     </Alert>
                   )}
                 </CardContent>
