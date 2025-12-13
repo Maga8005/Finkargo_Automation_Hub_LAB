@@ -209,6 +209,7 @@ export interface AcreedorGastosNacionales {
   banco: string;
   tipo_cuenta: string;
   numero_cuenta: string;
+  es_dian?: boolean; // Flag to indicate DIAN payment (auto-fills predefined wording)
 }
 
 export interface InstruccionMandatoRequest {

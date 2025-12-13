@@ -14,6 +14,10 @@ import fitz  # PyMuPDF
 
 logger = logging.getLogger(__name__)
 
+# DIAN Payment Constants
+DIAN_WORDING = "Transferencia electronica PSE a favor de la DIAN"
+DIAN_KEYWORDS = ["DIAN", "Direccion de Impuestos", "Aduanas Nacionales", "Entidad de pago de Impuestos"]
+
 # Keyword mappings for Gastos Nacionales de Importación checkboxes
 # Maps category keys to lists of keywords that indicate that category
 GASTOS_CATEGORY_KEYWORDS = {
@@ -1099,6 +1103,13 @@ class DocumentService:
         - Column 3: Tipo de Cuenta
         - Column 4: Numero de Cuenta
 
+        For DIAN creditors (es_dian=True):
+        - Razon Social: DIAN_WORDING constant
+        - NIT: N/A
+        - Banco: DIAN
+        - Tipo de Cuenta: PSE
+        - Numero de Cuenta: N/A
+
         Args:
             doc: Document object with template loaded
             acreedores: List of creditor dictionaries (max 3)
@@ -1142,12 +1153,24 @@ class DocumentService:
                     logger.warning(f"Row {row_idx} has only {len(cells)} cells, expected 5")
                     continue
 
-                # Extract creditor data
-                razon_social = acreedor.get('razon_social', '')
-                nit = acreedor.get('nit', 'N/A')
-                banco = acreedor.get('banco', '')
-                tipo_cuenta = acreedor.get('tipo_cuenta', '')
-                numero_cuenta = acreedor.get('numero_cuenta', '')
+                # Check if this is a DIAN creditor
+                is_dian = acreedor.get('es_dian', False)
+
+                if is_dian:
+                    # DIAN creditor: use predefined wording
+                    razon_social = DIAN_WORDING
+                    nit = 'N/A'
+                    banco = 'DIAN'
+                    tipo_cuenta = 'PSE'
+                    numero_cuenta = 'N/A'
+                    logger.debug(f"Creditor {idx + 1} is DIAN - using predefined wording")
+                else:
+                    # Non-DIAN creditor: use provided data
+                    razon_social = acreedor.get('razon_social', '')
+                    nit = acreedor.get('nit', 'N/A')
+                    banco = acreedor.get('banco', '')
+                    tipo_cuenta = acreedor.get('tipo_cuenta', '')
+                    numero_cuenta = acreedor.get('numero_cuenta', '')
 
                 # Replace placeholders in each cell
                 # Column 0: Razon Social
@@ -1175,7 +1198,7 @@ class DocumentService:
                     if '[' in paragraph.text and ']' in paragraph.text:
                         paragraph.text = numero_cuenta
 
-                logger.debug(f"Populated creditor row {row_idx}: {razon_social}")
+                logger.debug(f"Populated creditor row {row_idx}: {razon_social} (DIAN: {is_dian})")
 
             logger.info(f"Successfully populated {len(acreedores[:3])} creditor rows")
 

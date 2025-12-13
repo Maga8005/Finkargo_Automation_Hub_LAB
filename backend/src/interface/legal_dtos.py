@@ -410,6 +410,7 @@ class AcreedorGastosNacionales(BaseModel):
     banco: str = Field(..., min_length=1, max_length=100, description="Bank name")
     tipo_cuenta: str = Field(..., description="Account type (Ahorros, Corriente, PSE)")
     numero_cuenta: str = Field(..., min_length=1, max_length=50, description="Account number or N/A")
+    es_dian: bool = Field(default=False, description="Flag to indicate DIAN payment (auto-fills predefined wording)")
 
     @validator('razon_social')
     def validate_razon_social(cls, v):
