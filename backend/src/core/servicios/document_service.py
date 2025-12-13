@@ -1457,7 +1457,8 @@ class DocumentService:
 
         # Extract data from data_snapshot
         data = contract_data.get('data_snapshot', contract_data)
-        logger.debug(f"Data snapshot keys: {list(data.keys())}")
+        logger.info(f"Data snapshot keys: {list(data.keys())}")
+        logger.info(f"iteracion_contrato in data: {data.get('iteracion_contrato', 'NOT FOUND - defaulting to 1')}")
         logger.debug(f"numero_cotizacion_desembolso: {data.get('numero_cotizacion_desembolso')}")
         logger.debug(f"fecha_contrato_credito: {data.get('fecha_contrato_credito')}")
         logger.debug(f"monto: {data.get('monto')}")
@@ -1467,6 +1468,7 @@ class DocumentService:
         # Prepare replacements
         replacements = self._prepare_solicitud_desembolso_replacements(data)
         logger.info(f"Prepared {len(replacements)} placeholder replacements")
+        logger.info(f"[ITERACION] replacement value: {replacements.get('[ITERACION]', 'NOT IN REPLACEMENTS!')}")
         for placeholder, value in replacements.items():
             logger.debug(f"  {placeholder} -> {value}")
 
@@ -1561,6 +1563,9 @@ class DocumentService:
 
             # Client identification
             '[NIT]': data.get('nit', ''),
+
+            # Contract iteration number (for contract code format CO:NIT:ITERATION:D:M:DOM)
+            '[ITERACION]': str(data.get('iteracion_contrato', 1)),
 
             # Fecha de la Solicitud de Desembolso (current date) - split into components
             # Template format: "[día] de [mes] de 202[•]"
