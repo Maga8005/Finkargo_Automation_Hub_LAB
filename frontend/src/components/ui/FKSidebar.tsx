@@ -128,6 +128,7 @@ const FKSidebar: React.FC = () => {
    * Legal role only has access to Legal department
    * Operations role only has access to Operations department
    * Alianzas role only has access to Alianzas department
+   * comercial_paga_local role has limited access to Operations (Paga Local only)
    */
   const hasAccessToDepartment = (departmentId: string): boolean => {
     if (!userProfile) return false;
@@ -146,11 +147,21 @@ const FKSidebar: React.FC = () => {
     // Alianzas role only has access to alianzas department
     if (userRole === 'alianzas' && departmentId === 'alianzas') return true;
 
+    // comercial_paga_local role has limited access to operations department
+    // (route-level protection will further restrict access to only Paga Local)
+    if (userRole === 'comercial_paga_local' && departmentId === 'operations') return true;
+
     // For other roles, deny access (can be extended later)
     return false;
   };
 
   const handleDepartmentClick = (departmentId: string) => {
+    // For comercial_paga_local users clicking on operations, go directly to Paga Local
+    // instead of the default redirect to contratos-colombia
+    if (userProfile?.role === 'comercial_paga_local' && departmentId === 'operations') {
+      navigate('/operations/paga-local-colombia');
+      return;
+    }
     navigate(`/department/${departmentId}`);
   };
 

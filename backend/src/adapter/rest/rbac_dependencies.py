@@ -116,3 +116,4 @@ require_tesoreria_role = require_roles(['tesoreria'])
 require_alianzas_role = require_roles(['alianzas'])
 require_admin_role = require_roles(['admin'], allow_admin=False)  # Only admins
 require_legal_or_operations = require_roles(['legal', 'operations'])
+require_paga_local_role = require_roles(['operations', 'comercial_paga_local'])  # Paga Local access for Operations and Commercial

@@ -19,7 +19,7 @@ class UserRegisterDTO(BaseModel):
     password: str = Field(..., min_length=6, description="User password")
     full_name: str = Field(..., min_length=2, max_length=100, description="User full name")
     user_type: str = Field(..., description="User type: 'funcionario' (internal employee) or 'cliente' (external client)")
-    role: str = Field(default="user", description="User role (admin, legal, operations, commercial, analyst, mesa_control, manager, user, cliente)")
+    role: str = Field(default="user", description="User role (admin, legal, operations, commercial, analyst, mesa_control, manager, user, cliente, tesoreria, alianzas, comercial_paga_local)")
     company_name: Optional[str] = Field(None, max_length=200, description="Company name (only for clients)")
     client_id: Optional[str] = Field(None, max_length=50, description="External client identifier")
 
