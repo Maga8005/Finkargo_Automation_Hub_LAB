@@ -51,6 +51,7 @@ const FKSolicitudDesembolsoRequest: React.FC = () => {
   const [numeroCotizacion, setNumeroCotizacion] = useState('');
   const [fechaContrato, setFechaContrato] = useState('');
   const [diasPlazo, setDiasPlazo] = useState(120);
+  const [iteracionContrato, setIteracionContrato] = useState(1);
   const [anexoItems, setAnexoItems] = useState<AnexoItem[]>([]);
   const [montoTotal, setMontoTotal] = useState(0);
 
@@ -199,6 +200,7 @@ const FKSolicitudDesembolsoRequest: React.FC = () => {
         fecha_contrato_credito: fechaContrato,
         monto: montoTotal,
         dias_plazo: diasPlazo,
+        iteracion_contrato: iteracionContrato,
         anexo_items: anexoItems,
       };
 
@@ -223,6 +225,7 @@ const FKSolicitudDesembolsoRequest: React.FC = () => {
     setNumeroCotizacion('');
     setFechaContrato('');
     setDiasPlazo(120);
+    setIteracionContrato(1);
     setAnexoItems([]);
     setRequestedContract(null);
     setError(null);
@@ -424,6 +427,17 @@ const FKSolicitudDesembolsoRequest: React.FC = () => {
                 onChange={(e) => setNumeroCotizacion(e.target.value)}
                 required
                 size="small"
+              />
+              <TextField
+                fullWidth
+                label="Iteración del Contrato"
+                type="number"
+                value={iteracionContrato}
+                onChange={(e) => setIteracionContrato(Number(e.target.value))}
+                inputProps={{ min: 1, max: 99 }}
+                required
+                size="small"
+                helperText="Número de iteración proporcionado por Mesa de Control (1-99)"
               />
               <TextField
                 fullWidth

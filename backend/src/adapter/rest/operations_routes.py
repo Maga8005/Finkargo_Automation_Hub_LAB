@@ -301,6 +301,7 @@ async def generate_solicitud_desembolso(
             "fecha_contrato_credito": request.fecha_contrato_credito,
             "monto": float(request.monto),
             "dias_plazo": request.dias_plazo,
+            "iteracion_contrato": request.iteracion_contrato,
             "anexo_items": [
                 {
                     "acreedor": item.acreedor,

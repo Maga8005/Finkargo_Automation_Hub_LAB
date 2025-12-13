@@ -188,6 +188,7 @@ export interface SolicitudDesembolsoRequest {
   fecha_contrato_credito: string; // ISO date string
   monto: number;
   dias_plazo: number;
+  iteracion_contrato?: number; // Contract iteration number (1-99), defaults to 1
   anexo_items: AnexoItem[];
 }
 
