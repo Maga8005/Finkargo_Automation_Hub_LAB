@@ -12,7 +12,6 @@ from src.interface.alianzas_dtos import (
     BrokerResponse,
     BrokerWithSubBrokers,
     TipoBroker,
-    EstadoBroker,
 )
 
 logger = logging.getLogger(__name__)

@@ -745,6 +745,9 @@ async def generate_instruccion_mandato(
     logger = logging.getLogger(__name__)
 
     logger.info(f"Instrucción de Mandato generation request - NIT: {request.client_nit}, Quote: {request.numero_cotizacion_desembolso}, Creditors: {len(request.acreedores)}, User: {current_user.get('email', current_user.get('id'))}")
+    # Debug: Log full acreedores data received
+    for idx, acr in enumerate(request.acreedores):
+        logger.info(f"  Acreedor {idx+1}: razon_social={acr.razon_social}, nit={acr.nit}, banco={acr.banco}, tipo_cuenta={acr.tipo_cuenta}, numero_cuenta={acr.numero_cuenta}, es_dian={acr.es_dian}")
 
     try:
         # Get user_id from authenticated user
@@ -771,6 +774,7 @@ async def generate_instruccion_mandato(
                 "banco": acreedor.banco,
                 "tipo_cuenta": acreedor.tipo_cuenta,
                 "numero_cuenta": acreedor.numero_cuenta,
+                "es_dian": acreedor.es_dian,
             }
             for acreedor in request.acreedores
         ]

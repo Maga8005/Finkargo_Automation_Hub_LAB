@@ -8,13 +8,16 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from datetime import date
-import io
 import logging
 
 from src.adapter.rest.rbac_dependencies import require_roles
 from src.config.supabase_config import get_supabase_client
 from src.repositorio.broker_repository import BrokerRepository
+from src.repositorio.comision_repository import ComisionRepository
+from src.repositorio.pago_repository import PagoRepository
 from src.core.servicios.broker_service import BrokerService
+from src.core.servicios.comision_service import ComisionService
+from src.core.servicios.comision_excel_service import ComisionExcelService, get_comision_excel_service
 from src.core.servicios.contract_extractor_service import ContractExtractorService
 from src.core.servicios.landingai_contract_parser_service import LandingAIContractParserService
 from src.core.servicios.banxico_service import BanxicoService
@@ -39,7 +42,6 @@ from src.interface.alianzas_dtos import (
     ComisionAprobacionRequest,
     ComisionAprobacionResponse,
     TipoComision,
-    EstadoComision,
     # Payment DTOs
     PagoResponse,
     PagoListResponse,
@@ -86,13 +88,6 @@ def get_landingai_contract_parser() -> LandingAIContractParserService:
 def get_banxico_service() -> BanxicoService:
     """Get Banxico service instance for exchange rate lookups"""
     return BanxicoService()
-
-
-# Import commission repository and service
-from src.repositorio.comision_repository import ComisionRepository
-from src.repositorio.pago_repository import PagoRepository
-from src.core.servicios.comision_service import ComisionService
-from src.core.servicios.comision_excel_service import ComisionExcelService, get_comision_excel_service
 
 
 def get_comision_repository() -> ComisionRepository:

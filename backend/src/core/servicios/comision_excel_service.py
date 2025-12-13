@@ -12,7 +12,6 @@ import io
 import logging
 from typing import List, Dict, Any
 from datetime import datetime
-from decimal import Decimal
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter

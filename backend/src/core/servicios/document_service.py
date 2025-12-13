@@ -14,6 +14,14 @@ import fitz  # PyMuPDF
 
 logger = logging.getLogger(__name__)
 
+# DIAN Payment Constants
+DIAN_RAZON_SOCIAL = "DIAN"
+DIAN_NIT = "800.197.268-4"
+DIAN_NA_MESSAGE = "N/A – En la medida en que el pago del instrumento de pago se deberá realizar por el Mandato usando el link de pago enviado por el Mandante."
+DIAN_KEYWORDS = ["DIAN", "Direccion de Impuestos", "Aduanas Nacionales", "Entidad de pago de Impuestos"]
+# Legacy constant for backwards compatibility
+DIAN_WORDING = DIAN_RAZON_SOCIAL
+
 # Keyword mappings for Gastos Nacionales de Importación checkboxes
 # Maps category keys to lists of keywords that indicate that category
 GASTOS_CATEGORY_KEYWORDS = {
@@ -1099,6 +1107,13 @@ class DocumentService:
         - Column 3: Tipo de Cuenta
         - Column 4: Numero de Cuenta
 
+        For DIAN creditors (es_dian=True):
+        - Razon Social: "DIAN"
+        - NIT: "800.197.268-4"
+        - Banco: N/A message (payment via link)
+        - Tipo de Cuenta: N/A message (payment via link)
+        - Numero de Cuenta: N/A message (payment via link)
+
         Args:
             doc: Document object with template loaded
             acreedores: List of creditor dictionaries (max 3)
@@ -1142,40 +1157,50 @@ class DocumentService:
                     logger.warning(f"Row {row_idx} has only {len(cells)} cells, expected 5")
                     continue
 
-                # Extract creditor data
-                razon_social = acreedor.get('razon_social', '')
-                nit = acreedor.get('nit', 'N/A')
-                banco = acreedor.get('banco', '')
-                tipo_cuenta = acreedor.get('tipo_cuenta', '')
-                numero_cuenta = acreedor.get('numero_cuenta', '')
+                # Check if this is a DIAN creditor
+                is_dian = acreedor.get('es_dian', False)
 
-                # Replace placeholders in each cell
-                # Column 0: Razon Social
-                for paragraph in cells[0].paragraphs:
-                    if '[' in paragraph.text and ']' in paragraph.text:
-                        paragraph.text = razon_social
+                if is_dian:
+                    # DIAN creditor: use predefined wording per spec
+                    razon_social = DIAN_RAZON_SOCIAL
+                    nit = DIAN_NIT
+                    banco = DIAN_NA_MESSAGE
+                    tipo_cuenta = DIAN_NA_MESSAGE
+                    numero_cuenta = DIAN_NA_MESSAGE
+                    logger.debug(f"Creditor {idx + 1} is DIAN - using predefined wording")
+                else:
+                    # Non-DIAN creditor: use provided data
+                    razon_social = acreedor.get('razon_social', '')
+                    nit = acreedor.get('nit', 'N/A')
+                    banco = acreedor.get('banco', '')
+                    tipo_cuenta = acreedor.get('tipo_cuenta', '')
+                    numero_cuenta = acreedor.get('numero_cuenta', '')
 
-                # Column 1: NIT
-                for paragraph in cells[1].paragraphs:
-                    if '[' in paragraph.text and ']' in paragraph.text:
-                        paragraph.text = nit if nit else 'N/A'
+                # Log the values being set for non-DIAN creditors
+                if not is_dian:
+                    logger.debug(f"Non-DIAN creditor {idx + 1} values: banco={banco}, tipo_cuenta={tipo_cuenta}, numero_cuenta={numero_cuenta}")
 
-                # Column 2: Banco
-                for paragraph in cells[2].paragraphs:
-                    if '[' in paragraph.text and ']' in paragraph.text:
-                        paragraph.text = banco
+                # Helper function to set cell text (handles both placeholder replacement and empty cells)
+                def set_cell_text(cell, value, cell_name):
+                    """Set cell text - replace placeholder if exists, or set directly if cell is empty"""
+                    if cell.paragraphs:
+                        para = cell.paragraphs[0]
+                        original = para.text
+                        # Replace if there's a placeholder OR if cell is empty/whitespace
+                        if ('[' in original and ']' in original) or not original.strip():
+                            para.text = value
+                            logger.debug(f"  {cell_name}: '{original}' -> '{value}'")
+                        else:
+                            logger.debug(f"  {cell_name}: kept as '{original}' (no placeholder, not empty)")
 
-                # Column 3: Tipo de Cuenta
-                for paragraph in cells[3].paragraphs:
-                    if '[' in paragraph.text and ']' in paragraph.text:
-                        paragraph.text = tipo_cuenta
+                # Set values in each cell
+                set_cell_text(cells[0], razon_social, "Razon Social")
+                set_cell_text(cells[1], nit if nit else 'N/A', "NIT")
+                set_cell_text(cells[2], banco, "Banco")
+                set_cell_text(cells[3], tipo_cuenta, "Tipo Cuenta")
+                set_cell_text(cells[4], numero_cuenta, "Numero Cuenta")
 
-                # Column 4: Numero de Cuenta
-                for paragraph in cells[4].paragraphs:
-                    if '[' in paragraph.text and ']' in paragraph.text:
-                        paragraph.text = numero_cuenta
-
-                logger.debug(f"Populated creditor row {row_idx}: {razon_social}")
+                logger.debug(f"Populated creditor row {row_idx}: {razon_social} (DIAN: {is_dian})")
 
             logger.info(f"Successfully populated {len(acreedores[:3])} creditor rows")
 

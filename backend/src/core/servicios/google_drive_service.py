@@ -673,7 +673,7 @@ class GoogleDriveService:
             except HttpError as e:
                 logger.warning(f"Error HTTP descargando {file_id[:10]}...: {str(e)}")
                 return None
-            except Exception as e:
+            except Exception:
                 # Timeout u otro error - reintentar solo una vez
                 self._reset_service()
                 if attempt < max_retries - 1:

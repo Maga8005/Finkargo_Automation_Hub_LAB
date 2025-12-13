@@ -1579,114 +1579,6 @@ class GoogleDriveServiceCO:
         logger.info(f"[CO] Finished listing: {len(all_files)} total files in {page_count} pages")
         return all_files
 
-    def precache_drive_file_ids(
-        self,
-        invoice_numbers: List[str],
-        max_workers: int = 4
-    ) -> Dict[str, int]:
-        """
-        Pre-cachea los file IDs de Drive para una lista de números de factura.
-
-        OPTIMIZADO: Lista todos los archivos del Drive una sola vez
-        y hace el match en memoria (segundos en lugar de horas).
-
-        Args:
-            invoice_numbers: Lista de números de factura a pre-cachear.
-            max_workers: No usado en versión optimizada.
-
-        Returns:
-            Dict con estadísticas: {'total': int, 'cached': int, 'not_found': int, 'already_cached': int}
-        """
-        cache_repo = _get_file_cache_repo()
-        if not cache_repo:
-            logger.warning("Cache repository not available for CO, skipping precache")
-            return {'total': len(invoice_numbers), 'cached': 0, 'not_found': 0, 'already_cached': 0}
-
-        stats = {
-            'total': len(invoice_numbers),
-            'cached': 0,
-            'not_found': 0,
-            'already_cached': 0
-        }
-
-        logger.info(f"[CO] Starting OPTIMIZED precache for {len(invoice_numbers)} invoice numbers...")
-
-        # 1. Verificar cuáles ya están en cache
-        existing_cache = cache_repo.get_bulk_file_ids(invoice_numbers, "CO")
-        invoices_to_search = set()
-
-        for inv_num in invoice_numbers:
-            if inv_num in existing_cache:
-                cached_types = existing_cache[inv_num]
-                if 'pdf' in cached_types:
-                    stats['already_cached'] += 1
-                    continue
-            invoices_to_search.add(inv_num)
-
-        if not invoices_to_search:
-            logger.info(f"[CO] All {len(invoice_numbers)} invoice numbers already in cache")
-            return stats
-
-        logger.info(f"[CO] Need to search Drive for {len(invoices_to_search)} invoices not in cache...")
-
-        # 2. OPTIMIZACIÓN: Listar TODOS los archivos del Drive una sola vez
-        logger.info("[CO] Listing ALL PDF files from Google Drive (this may take a moment)...")
-        all_drive_files = self._list_all_drive_files()
-        logger.info(f"[CO] Found {len(all_drive_files)} PDF files in Drive")
-
-        # 3. Crear índice por nombre de archivo para búsqueda O(1)
-        file_index: Dict[str, Dict[str, str]] = {}
-        for file_info in all_drive_files:
-            filename = file_info.get('name', '')
-            if filename:
-                file_index[filename.lower()] = {
-                    'id': file_info['id'],
-                    'name': filename
-                }
-
-        logger.info(f"[CO] Indexed {len(file_index)} files for fast lookup")
-
-        # 4. Match números de factura con archivos en memoria (muy rápido)
-        # Busca múltiples variantes de nombre para cada factura
-        all_files_to_cache = []
-        invoices_found = set()
-
-        for inv_num in invoices_to_search:
-            # Variantes de nombre a buscar (algunos PDFs tienen prefijo dian_)
-            filename_variants = [
-                f"{inv_num}.pdf".lower(),           # FE10555.pdf
-                f"dian_{inv_num}.pdf".lower(),      # dian_FE10555.pdf
-            ]
-
-            found = False
-            for variant_filename in filename_variants:
-                if variant_filename in file_index:
-                    file_info = file_index[variant_filename]
-                    all_files_to_cache.append({
-                        'uuid': inv_num,
-                        'file_type': 'pdf',
-                        'drive_file_id': file_info['id'],
-                        'drive_file_name': file_info['name']
-                    })
-                    invoices_found.add(inv_num)
-                    found = True
-                    break  # Encontrado, no buscar más variantes
-
-            if not found:
-                stats['not_found'] += 1
-
-        logger.info(f"[CO] Matched {len(invoices_found)} invoices with {len(all_files_to_cache)} files")
-
-        # 5. Guardar en cache en batch
-        if all_files_to_cache:
-            cached_count = cache_repo.cache_bulk_file_ids(all_files_to_cache, "CO")
-            stats['cached'] = cached_count
-            logger.info(f"[CO] Cached {cached_count} file IDs for {len(invoices_found)} invoices")
-        else:
-            logger.warning("[CO] No files found to cache")
-
-        return stats
-
     def get_bulk_file_ids_from_cache(
         self,
         numeros_factura: List[str]
@@ -1816,8 +1708,8 @@ class GoogleDriveServiceCO:
 
             # Query para PDFs solamente (CO no tiene XMLs)
             query = (
-                f"mimeType='application/pdf' and "
-                f"trashed=false"
+                "mimeType='application/pdf' and "
+                "trashed=false"
             )
 
             page_token = None

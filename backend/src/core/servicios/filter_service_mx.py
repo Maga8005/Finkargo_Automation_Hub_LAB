@@ -18,7 +18,7 @@ Soporta filtros por:
 import io
 import logging
 from datetime import date, datetime
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any
 import pandas as pd
 
 from src.core.servicios.google_drive_service import get_drive_service

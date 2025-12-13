@@ -1,6 +1,13 @@
 /**
  * FKInstruccionMandatoForm - Instrucción de Mandato contract request form for Operations department
  * Specialized form with Cotización PDF upload, Bank Certificate upload, and creditor management
+ *
+ * Enhanced with DIAN checkbox support for mixed creditor types (DIAN and non-DIAN) in a single document.
+ * When a creditor is marked as DIAN:
+ * - Auto-fills predefined DIAN wording
+ * - Disables bank certificate upload
+ * - Sets account type to PSE
+ * - Auto-detects DIAN creditors based on name patterns
  */
 import React, { useState, useEffect } from 'react';
 import {
@@ -19,6 +26,9 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Checkbox,
+  FormControlLabel,
+  Chip,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -26,6 +36,7 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   CheckCircle as CheckCircleIcon,
+  AccountBalance as AccountBalanceIcon,
 } from '@mui/icons-material';
 import { legalService } from '../../services/legalService';
 import { operationsService } from '../../services/operationsService';
@@ -43,6 +54,45 @@ const MAX_CREDITORS = 3;
 
 // Account types available
 const ACCOUNT_TYPES = ['Ahorros', 'Corriente', 'PSE'];
+
+// DIAN Payment Constants
+const DIAN_RAZON_SOCIAL = 'DIAN';
+const DIAN_NIT = '800.197.268-4';
+const DIAN_NA_MESSAGE = 'N/A – En la medida en que el pago del instrumento de pago se deberá realizar por el Mandato usando el link de pago enviado por el Mandante.';
+const DIAN_KEYWORDS = ['DIAN', 'Direccion de Impuestos', 'Aduanas Nacionales', 'Entidad de pago de Impuestos'];
+// Legacy constant for backwards compatibility
+const DIAN_WORDING = DIAN_RAZON_SOCIAL;
+
+/**
+ * Check if a creditor name matches DIAN keywords for auto-detection
+ * Uses case-insensitive matching to identify DIAN-related creditors
+ * Prevents false positives (e.g., "GUARDIAN" should NOT match)
+ */
+const isDianCreditor = (acreedorName: string): boolean => {
+  const nameLower = acreedorName.toLowerCase();
+  return DIAN_KEYWORDS.some(keyword => {
+    const keywordLower = keyword.toLowerCase();
+    // For "DIAN", require it to be a word boundary to avoid false positives like "GUARDIAN"
+    if (keywordLower === 'dian') {
+      // Match DIAN as a standalone word (not part of another word)
+      return /\bdian\b/i.test(acreedorName);
+    }
+    return nameLower.includes(keywordLower);
+  });
+};
+
+/**
+ * Normalize account type from bank certificate format to dropdown format
+ * Maps: "CUENTA DE AHORROS" → "Ahorros", "CUENTA CORRIENTE" → "Corriente"
+ */
+const normalizeTipoCuenta = (tipoCuenta: string): string => {
+  const lower = tipoCuenta.toLowerCase();
+  if (lower.includes('ahorr')) return 'Ahorros';
+  if (lower.includes('corriente')) return 'Corriente';
+  if (lower.includes('pse')) return 'PSE';
+  // Return original if no match (let validation catch it)
+  return tipoCuenta;
+};
 
 const FKInstruccionMandatoForm: React.FC = () => {
   // Client search state
@@ -143,14 +193,32 @@ const FKInstruccionMandatoForm: React.FC = () => {
       setNumeroCotizacion(data.numero_cotizacion || '');
       setFechaMandato(data.fecha_contrato_credito || '');
 
-      // Initialize acreedores from anexo_items
-      const initialAcreedores: AcreedorGastosNacionales[] = (data.anexo_items || []).map(item => ({
-        razon_social: item.acreedor,
-        nit: '',
-        banco: '',
-        tipo_cuenta: '',
-        numero_cuenta: '',
-      }));
+      // Initialize acreedores from anexo_items with DIAN auto-detection
+      const initialAcreedores: AcreedorGastosNacionales[] = (data.anexo_items || []).map(item => {
+        const detectedAsDian = isDianCreditor(item.acreedor);
+
+        if (detectedAsDian) {
+          // Auto-fill DIAN creditor with predefined values per spec
+          return {
+            razon_social: DIAN_RAZON_SOCIAL,
+            nit: DIAN_NIT,
+            banco: DIAN_NA_MESSAGE,
+            tipo_cuenta: DIAN_NA_MESSAGE,
+            numero_cuenta: DIAN_NA_MESSAGE,
+            es_dian: true,
+          };
+        } else {
+          // Regular creditor - user needs to provide bank details
+          return {
+            razon_social: item.acreedor,
+            nit: '',
+            banco: '',
+            tipo_cuenta: '',
+            numero_cuenta: '',
+            es_dian: false,
+          };
+        }
+      });
       setAcreedores(initialAcreedores);
 
       setError(null);
@@ -203,7 +271,7 @@ const FKInstruccionMandatoForm: React.FC = () => {
         razon_social: data.razon_social || updatedAcreedores[index].razon_social,
         nit: data.nit || updatedAcreedores[index].nit,
         banco: data.banco || '',
-        tipo_cuenta: data.tipo_cuenta || '',
+        tipo_cuenta: data.tipo_cuenta ? normalizeTipoCuenta(data.tipo_cuenta) : '',
         numero_cuenta: data.numero_cuenta || '',
       };
       setAcreedores(updatedAcreedores);
@@ -223,6 +291,41 @@ const FKInstruccionMandatoForm: React.FC = () => {
     setAcreedores(updated);
   };
 
+  /**
+   * Handle DIAN checkbox toggle for a creditor
+   * When checked: auto-fill DIAN predefined values and disable bank cert upload
+   * When unchecked: clear auto-filled values and enable manual entry
+   */
+  const handleDianToggle = (index: number, checked: boolean) => {
+    const updated = [...acreedores];
+    if (checked) {
+      // Mark as DIAN and auto-fill predefined values per spec
+      updated[index] = {
+        razon_social: DIAN_RAZON_SOCIAL,
+        nit: DIAN_NIT,
+        banco: DIAN_NA_MESSAGE,
+        tipo_cuenta: DIAN_NA_MESSAGE,
+        numero_cuenta: DIAN_NA_MESSAGE,
+        es_dian: true,
+      };
+      // Remove bank certificate file for this creditor
+      const newBankCertFiles = new Map(bankCertFiles);
+      newBankCertFiles.delete(index);
+      setBankCertFiles(newBankCertFiles);
+    } else {
+      // Unmark as DIAN and clear auto-filled values for manual entry
+      updated[index] = {
+        razon_social: '',
+        nit: '',
+        banco: '',
+        tipo_cuenta: '',
+        numero_cuenta: '',
+        es_dian: false,
+      };
+    }
+    setAcreedores(updated);
+  };
+
   const handleAddAcreedor = () => {
     if (acreedores.length >= MAX_CREDITORS) {
       setError(`Máximo ${MAX_CREDITORS} acreedores permitidos`);
@@ -230,7 +333,7 @@ const FKInstruccionMandatoForm: React.FC = () => {
     }
     setAcreedores([
       ...acreedores,
-      { razon_social: '', nit: '', banco: '', tipo_cuenta: '', numero_cuenta: '' },
+      { razon_social: '', nit: '', banco: '', tipo_cuenta: '', numero_cuenta: '', es_dian: false },
     ]);
   };
 
@@ -250,9 +353,27 @@ const FKInstruccionMandatoForm: React.FC = () => {
     setBankCertFiles(reindexed);
   };
 
+  /**
+   * Validate all creditors before submission
+   * DIAN creditors: skip bank cert validation (auto-filled)
+   * Non-DIAN creditors: require all bank account fields
+   */
   const validateAcreedores = (): boolean => {
     for (let i = 0; i < acreedores.length; i++) {
       const acr = acreedores[i];
+
+      // DIAN creditors have pre-filled values, just verify es_dian flag is set correctly
+      if (acr.es_dian) {
+        // DIAN creditor validation - values should be pre-filled
+        if (acr.razon_social !== DIAN_WORDING) {
+          setError(`Acreedor ${i + 1}: Datos de DIAN inconsistentes. Por favor desmarque y vuelva a marcar la casilla DIAN.`);
+          return false;
+        }
+        // Skip remaining validation for DIAN creditors
+        continue;
+      }
+
+      // Non-DIAN creditor validation - require all fields
       if (!acr.razon_social.trim()) {
         setError(`Acreedor ${i + 1}: Razón Social es requerida`);
         return false;
@@ -314,8 +435,35 @@ const FKInstruccionMandatoForm: React.FC = () => {
       setRequestedContract(contract);
       setError(null);
     } catch (err) {
-      const error = err as { response?: { data?: { detail?: string } }; message?: string };
-      setError(`Error al generar documento: ${error.response?.data?.detail || error.message || 'Error desconocido'}`);
+      // Handle Pydantic validation errors which return as array of objects
+      interface PydanticError {
+        loc?: (string | number)[];
+        msg?: string;
+        type?: string;
+      }
+      const error = err as { response?: { data?: { detail?: string | PydanticError[] } }; message?: string };
+      let errorMessage = 'Error desconocido';
+
+      if (error.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        if (Array.isArray(detail)) {
+          // Pydantic validation errors come as array of objects
+          errorMessage = detail
+            .map((e: PydanticError) => {
+              const field = e.loc ? e.loc.slice(-1)[0] : 'campo';
+              return `${field}: ${e.msg || 'error de validación'}`;
+            })
+            .join('; ');
+        } else if (typeof detail === 'string') {
+          errorMessage = detail;
+        } else {
+          errorMessage = JSON.stringify(detail);
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setError(`Error al generar documento: ${errorMessage}`);
       console.error('Generation error:', err);
     } finally {
       setRequesting(false);
@@ -582,92 +730,171 @@ const FKInstruccionMandatoForm: React.FC = () => {
             )}
 
             {acreedores.map((acreedor, index) => (
-              <Card key={index} variant="outlined" sx={{ mb: 2, p: 2 }}>
+              <Card
+                key={index}
+                variant="outlined"
+                sx={{
+                  mb: 2,
+                  p: 2,
+                  bgcolor: acreedor.es_dian ? 'primary.lighter' : 'inherit',
+                  borderColor: acreedor.es_dian ? 'primary.main' : 'divider',
+                }}
+              >
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                  <Typography variant="subtitle2" fontWeight="medium">
-                    Acreedor {index + 1}
-                  </Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Typography variant="subtitle2" fontWeight="medium">
+                      Acreedor {index + 1}
+                    </Typography>
+                    {acreedor.es_dian && (
+                      <Chip
+                        label="DIAN"
+                        size="small"
+                        color="primary"
+                        icon={<AccountBalanceIcon />}
+                      />
+                    )}
+                  </Box>
                   <IconButton size="small" onClick={() => handleRemoveAcreedor(index)} color="error">
                     <DeleteIcon />
                   </IconButton>
                 </Box>
 
-                {/* Bank Certificate Upload */}
+                {/* DIAN Checkbox - Always visible at top of creditor card */}
                 <Box mb={2}>
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={handleBankCertFileChange(index)}
-                    style={{ display: 'none' }}
-                    id={`bank-cert-upload-${index}`}
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={acreedor.es_dian || false}
+                        onChange={(e) => handleDianToggle(index, e.target.checked)}
+                        color="primary"
+                      />
+                    }
+                    label={
+                      <Typography variant="body2">
+                        Es DIAN (Transferencia electrónica PSE a la DIAN)
+                      </Typography>
+                    }
                   />
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <label htmlFor={`bank-cert-upload-${index}`} style={{ flex: 1 }}>
-                      <Button variant="outlined" component="span" startIcon={<UploadFileIcon />} fullWidth size="small">
-                        {bankCertFiles.get(index)?.name || 'Cargar Certificado Bancario'}
-                      </Button>
-                    </label>
-                    {bankCertFiles.has(index) && (
-                      <Button
-                        variant="contained"
-                        size="small"
-                        onClick={() => handleExtractBankCert(index)}
-                        disabled={extractingBankCert === index}
-                        startIcon={extractingBankCert === index ? <CircularProgress size={16} /> : undefined}
-                      >
-                        {extractingBankCert === index ? 'Extrayendo...' : 'Extraer Datos'}
-                      </Button>
-                    )}
-                  </Stack>
+                  {acreedor.es_dian && (
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      Este acreedor es un pago DIAN. Los datos bancarios se llenan automáticamente.
+                    </Alert>
+                  )}
                 </Box>
 
-                <Stack spacing={2}>
-                  <TextField
-                    fullWidth
-                    label="Razón Social"
-                    value={acreedor.razon_social}
-                    onChange={(e) => handleAcreedorChange(index, 'razon_social', e.target.value)}
-                    required
-                    size="small"
-                  />
-                  <TextField
-                    fullWidth
-                    label="NIT (opcional)"
-                    value={acreedor.nit || ''}
-                    onChange={(e) => handleAcreedorChange(index, 'nit', e.target.value)}
-                    size="small"
-                  />
-                  <TextField
-                    fullWidth
-                    label="Banco"
-                    value={acreedor.banco}
-                    onChange={(e) => handleAcreedorChange(index, 'banco', e.target.value)}
-                    required
-                    size="small"
-                  />
-                  <FormControl fullWidth size="small" required>
-                    <InputLabel>Tipo de Cuenta</InputLabel>
-                    <Select
-                      value={acreedor.tipo_cuenta}
-                      label="Tipo de Cuenta"
-                      onChange={(e) => handleAcreedorChange(index, 'tipo_cuenta', e.target.value)}
-                    >
-                      {ACCOUNT_TYPES.map((type) => (
-                        <MenuItem key={type} value={type}>
-                          {type}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <TextField
-                    fullWidth
-                    label="Número de Cuenta"
-                    value={acreedor.numero_cuenta}
-                    onChange={(e) => handleAcreedorChange(index, 'numero_cuenta', e.target.value)}
-                    required
-                    size="small"
-                  />
-                </Stack>
+                {/* Conditional rendering based on DIAN status */}
+                {acreedor.es_dian ? (
+                  /* DIAN Creditor: Show read-only info card */
+                  <Box
+                    sx={{
+                      p: 2,
+                      bgcolor: 'grey.100',
+                      borderRadius: 1,
+                      border: '1px solid',
+                      borderColor: 'grey.300',
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Información de pago DIAN (auto-llenada):
+                    </Typography>
+                    <Stack spacing={1}>
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                        <Typography variant="body2" fontWeight="medium" sx={{ minWidth: 120 }}>Razón Social:</Typography>
+                        <Typography variant="body2">{acreedor.razon_social}</Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                        <Typography variant="body2" fontWeight="medium" sx={{ minWidth: 120 }}>NIT:</Typography>
+                        <Typography variant="body2">{acreedor.nit}</Typography>
+                      </Box>
+                      <Box display="flex" flexDirection="column" gap={0.5}>
+                        <Typography variant="body2" fontWeight="medium">Banco / Tipo de Cuenta / Número de Cuenta:</Typography>
+                        <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
+                          {DIAN_NA_MESSAGE}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Box>
+                ) : (
+                  /* Non-DIAN Creditor: Show editable fields and bank cert upload */
+                  <>
+                    {/* Bank Certificate Upload */}
+                    <Box mb={2}>
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={handleBankCertFileChange(index)}
+                        style={{ display: 'none' }}
+                        id={`bank-cert-upload-${index}`}
+                      />
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <label htmlFor={`bank-cert-upload-${index}`} style={{ flex: 1 }}>
+                          <Button variant="outlined" component="span" startIcon={<UploadFileIcon />} fullWidth size="small">
+                            {bankCertFiles.get(index)?.name || 'Cargar Certificado Bancario'}
+                          </Button>
+                        </label>
+                        {bankCertFiles.has(index) && (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={() => handleExtractBankCert(index)}
+                            disabled={extractingBankCert === index}
+                            startIcon={extractingBankCert === index ? <CircularProgress size={16} /> : undefined}
+                          >
+                            {extractingBankCert === index ? 'Extrayendo...' : 'Extraer Datos'}
+                          </Button>
+                        )}
+                      </Stack>
+                    </Box>
+
+                    <Stack spacing={2}>
+                      <TextField
+                        fullWidth
+                        label="Razón Social"
+                        value={acreedor.razon_social}
+                        onChange={(e) => handleAcreedorChange(index, 'razon_social', e.target.value)}
+                        required
+                        size="small"
+                      />
+                      <TextField
+                        fullWidth
+                        label="NIT (opcional)"
+                        value={acreedor.nit || ''}
+                        onChange={(e) => handleAcreedorChange(index, 'nit', e.target.value)}
+                        size="small"
+                      />
+                      <TextField
+                        fullWidth
+                        label="Banco"
+                        value={acreedor.banco}
+                        onChange={(e) => handleAcreedorChange(index, 'banco', e.target.value)}
+                        required
+                        size="small"
+                      />
+                      <FormControl fullWidth size="small" required>
+                        <InputLabel>Tipo de Cuenta</InputLabel>
+                        <Select
+                          value={acreedor.tipo_cuenta}
+                          label="Tipo de Cuenta"
+                          onChange={(e) => handleAcreedorChange(index, 'tipo_cuenta', e.target.value)}
+                        >
+                          {ACCOUNT_TYPES.map((type) => (
+                            <MenuItem key={type} value={type}>
+                              {type}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      <TextField
+                        fullWidth
+                        label="Número de Cuenta"
+                        value={acreedor.numero_cuenta}
+                        onChange={(e) => handleAcreedorChange(index, 'numero_cuenta', e.target.value)}
+                        required
+                        size="small"
+                      />
+                    </Stack>
+                  </>
+                )}
               </Card>
             ))}
           </CardContent>

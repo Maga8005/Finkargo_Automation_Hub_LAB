@@ -4,7 +4,7 @@ Broker management, commission tracking, and payment DTOs.
 """
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List
-from datetime import datetime, date
+from datetime import date
 from decimal import Decimal
 from enum import Enum
 

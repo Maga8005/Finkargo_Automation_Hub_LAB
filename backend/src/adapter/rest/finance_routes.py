@@ -21,9 +21,7 @@ from src.interface.finance_dtos import (
     CombinedUploadResponse,
     CombinedSearchRequest,
     CombinedSearchResponse,
-    CombinedSearchResult,
     DocumentType,
-    ArchivoEstado
 )
 from src.interface.finance_dtos_co import (
     COProcessingResponse,
