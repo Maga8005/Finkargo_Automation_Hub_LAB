@@ -358,6 +358,7 @@ class SolicitudDesembolsoRequest(BaseModel):
     fecha_contrato_credito: str = Field(..., description="Credit contract date (ISO format)")
     monto: Decimal = Field(..., description="Total disbursement amount in COP")
     dias_plazo: int = Field(default=120, ge=30, le=180, description="Term in days (30-180)")
+    iteracion_contrato: int = Field(default=1, ge=1, le=99, description="Contract iteration number (1-99)")
     anexo_items: list[AnexoItem] = Field(..., min_items=1, description="At least one Anexo I item required")
 
     @validator('client_nit')
