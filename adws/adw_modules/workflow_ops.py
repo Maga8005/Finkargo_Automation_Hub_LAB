@@ -144,7 +144,7 @@ def build_plan(
         slash_command=command,
         args=[str(issue.number), adw_id, issue.model_dump_json(by_alias=True)],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     logger.debug(
@@ -200,7 +200,7 @@ def implement_plan(
         slash_command="/implement",
         args=[plan_file],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     logger.debug(
