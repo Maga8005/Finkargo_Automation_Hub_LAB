@@ -78,7 +78,8 @@ export type UserRole =
   | 'user'
   | 'cliente' // Special role for external clients
   | 'tesoreria' // Treasury department role
-  | 'alianzas'; // Partnerships department role
+  | 'alianzas' // Partnerships department role
+  | 'comercial_paga_local'; // Commercial team with limited access to Paga Local only
 
 export const UserRole = {
   ADMIN: 'admin' as const,
@@ -92,6 +93,7 @@ export const UserRole = {
   CLIENTE: 'cliente' as const, // Special role for external clients
   TESORERIA: 'tesoreria' as const, // Treasury department role
   ALIANZAS: 'alianzas' as const, // Partnerships department role
+  COMERCIAL_PAGA_LOCAL: 'comercial_paga_local' as const, // Commercial team with limited access to Paga Local only
 };
 
 /**

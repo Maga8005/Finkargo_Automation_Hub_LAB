@@ -79,9 +79,30 @@ function App() {
               />
 
               {/* Operations Routes - Country-specific contracts */}
-              <Route path="operations/contratos-colombia" element={<OperationsContractsColombia />} />
-              <Route path="operations/contratos-mexico" element={<OperationsContractsMexico />} />
-              <Route path="operations/paga-local-colombia" element={<OperationsPagaLocalColombia />} />
+              <Route
+                path="operations/contratos-colombia"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.OPERATIONS]}>
+                    <OperationsContractsColombia />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="operations/contratos-mexico"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.OPERATIONS]}>
+                    <OperationsContractsMexico />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="operations/paga-local-colombia"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.OPERATIONS, UserRole.COMERCIAL_PAGA_LOCAL]}>
+                    <OperationsPagaLocalColombia />
+                  </RoleProtectedRoute>
+                }
+              />
 
               {/* Alianzas Routes - Broker management */}
               <Route

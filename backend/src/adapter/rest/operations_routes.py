@@ -19,7 +19,7 @@ from src.core.servicios.rut_parser_service import RUTParserService
 from src.core.servicios.landingai_rut_parser_service import LandingAIRUTParserService
 from src.core.servicios.cotizacion_parser_service import CotizacionParserService
 from src.core.servicios.bank_certificate_parser_service import BankCertificateParserService
-from src.adapter.rest.rbac_dependencies import require_operations_role
+from src.adapter.rest.rbac_dependencies import require_operations_role, require_paga_local_role
 from src.interface.legal_dtos import (
     ContractGenerationRequest,
     ContractGenerationResponse,
@@ -181,7 +181,7 @@ async def request_contract_generation(
 @router.post("/contracts/solicitud-desembolso/parse-cotizacion", response_model=CotizacionData)
 async def parse_cotizacion_pdf(
     file: UploadFile = File(..., description="Cotización PDF document"),
-    current_user: dict = Depends(require_operations_role)
+    current_user: dict = Depends(require_paga_local_role)
 ):
     """
     Parse Cotización PDF and extract disbursement request data (Operations role or Admin required)
@@ -248,7 +248,7 @@ async def generate_solicitud_desembolso(
     request: SolicitudDesembolsoRequest,
     service: ContractService = Depends(get_contract_service),
     client_repo: ClientRepository = Depends(get_client_repo),
-    current_user: dict = Depends(require_operations_role)
+    current_user: dict = Depends(require_paga_local_role)
 ):
     """
     Generate Solicitud de Desembolso contract (Operations role or Admin required)
@@ -352,7 +352,7 @@ async def get_approved_contracts(
     cupo_min: Optional[float] = None,
     cupo_max: Optional[float] = None,
     contract_repo: ContractRepository = Depends(get_contract_repo),
-    current_user: dict = Depends(require_operations_role)
+    current_user: dict = Depends(require_paga_local_role)
 ):
     """
     Get all approved contracts for Operations team (Operations role or Admin required)
@@ -430,7 +430,7 @@ async def get_approved_contracts(
 async def get_contract_details(
     contract_id: UUID = Path(..., description="Contract UUID"),
     service: ContractService = Depends(get_contract_service),
-    current_user: dict = Depends(require_operations_role)
+    current_user: dict = Depends(require_paga_local_role)
 ):
     """Get contract details by ID (Operations role or Admin required)"""
     contract = await service.get_contract_details(str(contract_id))
@@ -443,7 +443,7 @@ async def get_contract_details(
 async def download_approved_contract_pdf(
     contract_id: UUID = Path(..., description="Contract UUID"),
     contract_repo: ContractRepository = Depends(get_contract_repo),
-    current_user: dict = Depends(require_operations_role)
+    current_user: dict = Depends(require_paga_local_role)
 ):
     """
     Download approved contract PDF from storage (Operations role or Admin required)
@@ -518,7 +518,7 @@ async def download_approved_contract_docx(
     contract_id: UUID = Path(..., description="Contract UUID"),
     contract_repo: ContractRepository = Depends(get_contract_repo),
     service: ContractService = Depends(get_contract_service),
-    current_user: dict = Depends(require_operations_role)
+    current_user: dict = Depends(require_paga_local_role)
 ):
     """
     Download approved contract as DOCX file (Operations role or Admin required)
@@ -591,7 +591,7 @@ async def download_approved_contract_docx(
 @router.post("/contracts/instruccion-mandato/parse-cotizacion", response_model=CotizacionData)
 async def parse_cotizacion_for_mandato(
     file: UploadFile = File(..., description="Cotización PDF document"),
-    current_user: dict = Depends(require_operations_role)
+    current_user: dict = Depends(require_paga_local_role)
 ):
     """
     Parse Cotización PDF for Instrucción de Mandato (Operations role or Admin required)
@@ -655,7 +655,7 @@ async def parse_cotizacion_for_mandato(
 @router.post("/contracts/instruccion-mandato/parse-bank-certificate", response_model=BankCertificateData)
 async def parse_bank_certificate(
     file: UploadFile = File(..., description="Bank Certificate PDF document"),
-    current_user: dict = Depends(require_operations_role)
+    current_user: dict = Depends(require_paga_local_role)
 ):
     """
     Parse Bank Certificate PDF and extract creditor bank account information (Operations role or Admin required)
@@ -724,7 +724,7 @@ async def generate_instruccion_mandato(
     request: InstruccionMandatoRequest,
     service: ContractService = Depends(get_contract_service),
     client_repo: ClientRepository = Depends(get_client_repo),
-    current_user: dict = Depends(require_operations_role)
+    current_user: dict = Depends(require_paga_local_role)
 ):
     """
     Generate Instrucción de Mandato contract (Operations role or Admin required)
@@ -835,7 +835,7 @@ async def generate_instruccion_mandato(
 @router.post("/contracts/dian-mandato/parse-cotizacion", response_model=CotizacionData)
 async def parse_cotizacion_for_dian_mandato(
     file: UploadFile = File(..., description="Cotización PDF document"),
-    current_user: dict = Depends(require_operations_role)
+    current_user: dict = Depends(require_paga_local_role)
 ):
     """
     Parse Cotización PDF for DIAN Mandato (IM) (Operations role or Admin required)
@@ -896,7 +896,7 @@ async def generate_dian_mandato(
     request: DIANMandatoRequest,
     service: ContractService = Depends(get_contract_service),
     client_repo: ClientRepository = Depends(get_client_repo),
-    current_user: dict = Depends(require_operations_role)
+    current_user: dict = Depends(require_paga_local_role)
 ):
     """
     Generate DIAN Mandato (IM) contract (Operations role or Admin required)
