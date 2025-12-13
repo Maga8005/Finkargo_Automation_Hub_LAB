@@ -3,11 +3,10 @@ Comision Repository - Database operations for broker commission management
 """
 from typing import List, Optional, Dict, Any
 from supabase import Client
-from datetime import datetime
 from decimal import Decimal
 import logging
 
-from src.interface.alianzas_dtos import TipoComision, EstadoComision
+from src.interface.alianzas_dtos import TipoComision
 
 logger = logging.getLogger(__name__)
 

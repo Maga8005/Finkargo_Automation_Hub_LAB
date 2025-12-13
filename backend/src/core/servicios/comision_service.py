@@ -7,8 +7,8 @@ This service implements:
 3. USD to MXN conversion using Banxico exchange rates
 4. Business rule validation and persistence
 """
-from typing import List, Optional, Dict, Any
-from datetime import date, datetime
+from typing import List, Optional, Dict
+from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 import logging
 
