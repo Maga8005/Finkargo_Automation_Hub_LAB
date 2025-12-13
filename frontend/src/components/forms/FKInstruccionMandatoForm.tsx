@@ -56,8 +56,12 @@ const MAX_CREDITORS = 3;
 const ACCOUNT_TYPES = ['Ahorros', 'Corriente', 'PSE'];
 
 // DIAN Payment Constants
-const DIAN_WORDING = 'Transferencia electronica PSE a favor de la DIAN';
+const DIAN_RAZON_SOCIAL = 'DIAN';
+const DIAN_NIT = '800.197.268-4';
+const DIAN_NA_MESSAGE = 'N/A – En la medida en que el pago del instrumento de pago se deberá realizar por el Mandato usando el link de pago enviado por el Mandante.';
 const DIAN_KEYWORDS = ['DIAN', 'Direccion de Impuestos', 'Aduanas Nacionales', 'Entidad de pago de Impuestos'];
+// Legacy constant for backwards compatibility
+const DIAN_WORDING = DIAN_RAZON_SOCIAL;
 
 /**
  * Check if a creditor name matches DIAN keywords for auto-detection
@@ -75,6 +79,19 @@ const isDianCreditor = (acreedorName: string): boolean => {
     }
     return nameLower.includes(keywordLower);
   });
+};
+
+/**
+ * Normalize account type from bank certificate format to dropdown format
+ * Maps: "CUENTA DE AHORROS" → "Ahorros", "CUENTA CORRIENTE" → "Corriente"
+ */
+const normalizeTipoCuenta = (tipoCuenta: string): string => {
+  const lower = tipoCuenta.toLowerCase();
+  if (lower.includes('ahorr')) return 'Ahorros';
+  if (lower.includes('corriente')) return 'Corriente';
+  if (lower.includes('pse')) return 'PSE';
+  // Return original if no match (let validation catch it)
+  return tipoCuenta;
 };
 
 const FKInstruccionMandatoForm: React.FC = () => {
@@ -181,13 +198,13 @@ const FKInstruccionMandatoForm: React.FC = () => {
         const detectedAsDian = isDianCreditor(item.acreedor);
 
         if (detectedAsDian) {
-          // Auto-fill DIAN creditor with predefined values
+          // Auto-fill DIAN creditor with predefined values per spec
           return {
-            razon_social: DIAN_WORDING,
-            nit: 'N/A',
-            banco: 'DIAN',
-            tipo_cuenta: 'PSE',
-            numero_cuenta: 'N/A',
+            razon_social: DIAN_RAZON_SOCIAL,
+            nit: DIAN_NIT,
+            banco: DIAN_NA_MESSAGE,
+            tipo_cuenta: DIAN_NA_MESSAGE,
+            numero_cuenta: DIAN_NA_MESSAGE,
             es_dian: true,
           };
         } else {
@@ -254,7 +271,7 @@ const FKInstruccionMandatoForm: React.FC = () => {
         razon_social: data.razon_social || updatedAcreedores[index].razon_social,
         nit: data.nit || updatedAcreedores[index].nit,
         banco: data.banco || '',
-        tipo_cuenta: data.tipo_cuenta || '',
+        tipo_cuenta: data.tipo_cuenta ? normalizeTipoCuenta(data.tipo_cuenta) : '',
         numero_cuenta: data.numero_cuenta || '',
       };
       setAcreedores(updatedAcreedores);
@@ -282,13 +299,13 @@ const FKInstruccionMandatoForm: React.FC = () => {
   const handleDianToggle = (index: number, checked: boolean) => {
     const updated = [...acreedores];
     if (checked) {
-      // Mark as DIAN and auto-fill predefined values
+      // Mark as DIAN and auto-fill predefined values per spec
       updated[index] = {
-        razon_social: DIAN_WORDING,
-        nit: 'N/A',
-        banco: 'DIAN',
-        tipo_cuenta: 'PSE',
-        numero_cuenta: 'N/A',
+        razon_social: DIAN_RAZON_SOCIAL,
+        nit: DIAN_NIT,
+        banco: DIAN_NA_MESSAGE,
+        tipo_cuenta: DIAN_NA_MESSAGE,
+        numero_cuenta: DIAN_NA_MESSAGE,
         es_dian: true,
       };
       // Remove bank certificate file for this creditor
@@ -418,8 +435,35 @@ const FKInstruccionMandatoForm: React.FC = () => {
       setRequestedContract(contract);
       setError(null);
     } catch (err) {
-      const error = err as { response?: { data?: { detail?: string } }; message?: string };
-      setError(`Error al generar documento: ${error.response?.data?.detail || error.message || 'Error desconocido'}`);
+      // Handle Pydantic validation errors which return as array of objects
+      interface PydanticError {
+        loc?: (string | number)[];
+        msg?: string;
+        type?: string;
+      }
+      const error = err as { response?: { data?: { detail?: string | PydanticError[] } }; message?: string };
+      let errorMessage = 'Error desconocido';
+
+      if (error.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        if (Array.isArray(detail)) {
+          // Pydantic validation errors come as array of objects
+          errorMessage = detail
+            .map((e: PydanticError) => {
+              const field = e.loc ? e.loc.slice(-1)[0] : 'campo';
+              return `${field}: ${e.msg || 'error de validación'}`;
+            })
+            .join('; ');
+        } else if (typeof detail === 'string') {
+          errorMessage = detail;
+        } else {
+          errorMessage = JSON.stringify(detail);
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setError(`Error al generar documento: ${errorMessage}`);
       console.error('Generation error:', err);
     } finally {
       setRequesting(false);
@@ -754,21 +798,19 @@ const FKInstruccionMandatoForm: React.FC = () => {
                       Información de pago DIAN (auto-llenada):
                     </Typography>
                     <Stack spacing={1}>
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography variant="body2" fontWeight="medium">Razón Social:</Typography>
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                        <Typography variant="body2" fontWeight="medium" sx={{ minWidth: 120 }}>Razón Social:</Typography>
                         <Typography variant="body2">{acreedor.razon_social}</Typography>
                       </Box>
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography variant="body2" fontWeight="medium">Banco:</Typography>
-                        <Typography variant="body2">{acreedor.banco}</Typography>
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                        <Typography variant="body2" fontWeight="medium" sx={{ minWidth: 120 }}>NIT:</Typography>
+                        <Typography variant="body2">{acreedor.nit}</Typography>
                       </Box>
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography variant="body2" fontWeight="medium">Tipo de Cuenta:</Typography>
-                        <Typography variant="body2">{acreedor.tipo_cuenta}</Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography variant="body2" fontWeight="medium">Número de Cuenta:</Typography>
-                        <Typography variant="body2">{acreedor.numero_cuenta}</Typography>
+                      <Box display="flex" flexDirection="column" gap={0.5}>
+                        <Typography variant="body2" fontWeight="medium">Banco / Tipo de Cuenta / Número de Cuenta:</Typography>
+                        <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>
+                          {DIAN_NA_MESSAGE}
+                        </Typography>
                       </Box>
                     </Stack>
                   </Box>

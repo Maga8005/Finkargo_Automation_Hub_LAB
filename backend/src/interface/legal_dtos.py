@@ -1,7 +1,7 @@
 """
 Legal Contract Automation - Data Transfer Objects (DTOs)
 """
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, root_validator
 from typing import Optional, Dict, Any
 from datetime import datetime
 from decimal import Decimal
@@ -407,9 +407,9 @@ class AcreedorGastosNacionales(BaseModel):
     """Creditor information for Instruccion de Mandato (National Expense Creditor)"""
     razon_social: str = Field(..., min_length=1, max_length=255, description="Company name")
     nit: Optional[str] = Field(None, max_length=20, description="Colombian tax ID (optional for DIAN)")
-    banco: str = Field(..., min_length=1, max_length=100, description="Bank name")
-    tipo_cuenta: str = Field(..., description="Account type (Ahorros, Corriente, PSE)")
-    numero_cuenta: str = Field(..., min_length=1, max_length=50, description="Account number or N/A")
+    banco: str = Field(..., min_length=1, max_length=255, description="Bank name or N/A message for DIAN")
+    tipo_cuenta: str = Field(..., max_length=255, description="Account type (Ahorros, Corriente, PSE) or N/A for DIAN")
+    numero_cuenta: str = Field(..., min_length=1, max_length=255, description="Account number or N/A message for DIAN")
     es_dian: bool = Field(default=False, description="Flag to indicate DIAN payment (auto-fills predefined wording)")
 
     @validator('razon_social')
@@ -421,14 +421,21 @@ class AcreedorGastosNacionales(BaseModel):
 
     @validator('banco')
     def validate_banco(cls, v):
-        """Validate banco is not empty"""
+        """Validate banco is not empty. Allow N/A values for DIAN payments."""
         if not v or not v.strip():
             raise ValueError('banco cannot be empty')
+        # Allow N/A values for DIAN payments (these start with "N/A")
+        if v.strip().startswith('N/A'):
+            return v.strip()
         return v.strip()
 
     @validator('tipo_cuenta')
     def validate_tipo_cuenta(cls, v):
-        """Validate tipo_cuenta is valid"""
+        """Validate tipo_cuenta is valid. Allow N/A values for DIAN payments."""
+        # Allow N/A values for DIAN payments (these start with "N/A")
+        if v.strip().startswith('N/A'):
+            return v.strip()
+
         valid_types = ['Ahorros', 'Corriente', 'PSE', 'CUENTA DE AHORROS', 'CUENTA CORRIENTE']
         if v not in valid_types:
             # Normalize common variations
@@ -440,8 +447,33 @@ class AcreedorGastosNacionales(BaseModel):
             elif 'pse' in v_lower:
                 return 'PSE'
             else:
-                raise ValueError(f'tipo_cuenta must be one of: {", ".join(valid_types)}')
+                raise ValueError(f'tipo_cuenta must be one of: {", ".join(valid_types)} (or N/A for DIAN)')
         return v
+
+    @validator('numero_cuenta')
+    def validate_numero_cuenta(cls, v):
+        """Validate numero_cuenta is not empty. Allow N/A values for DIAN payments."""
+        if not v or not v.strip():
+            raise ValueError('numero_cuenta cannot be empty')
+        # Allow N/A values for DIAN payments (these start with "N/A")
+        return v.strip()
+
+    @root_validator(skip_on_failure=True)
+    def validate_dian_consistency(cls, values):
+        """
+        Validate DIAN creditor consistency.
+        If es_dian=True, banco/tipo_cuenta/numero_cuenta should contain N/A messages.
+        This is a safeguard to ensure proper DIAN creditor configuration.
+        """
+        es_dian = values.get('es_dian', False)
+        tipo_cuenta = values.get('tipo_cuenta', '')
+
+        if not es_dian:
+            # For non-DIAN creditors, tipo_cuenta should be a valid account type (not N/A)
+            if tipo_cuenta.startswith('N/A'):
+                raise ValueError('Non-DIAN creditor cannot have N/A tipo_cuenta. Check es_dian flag.')
+
+        return values
 
 
 class InstruccionMandatoRequest(BaseModel):
