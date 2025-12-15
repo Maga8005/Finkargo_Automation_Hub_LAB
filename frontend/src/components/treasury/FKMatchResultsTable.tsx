@@ -145,6 +145,28 @@ const FKMatchResultsTable: React.FC<FKMatchResultsTableProps> = ({
       },
     },
     {
+      field: 'record_info',
+      headerName: 'Filas',
+      width: 100,
+      renderCell: (params: GridRenderCellParams<MatchResult>) => {
+        const { record_count, record_row_numbers } = params.row.payment_group;
+        if (record_count === 1) {
+          return (
+            <Typography variant="caption" color="text.secondary">
+              Fila {record_row_numbers[0]}
+            </Typography>
+          );
+        }
+        return (
+          <Tooltip title={`Filas: ${record_row_numbers.join(', ')}`}>
+            <Typography variant="caption" color="text.secondary">
+              {record_count} filas
+            </Typography>
+          </Tooltip>
+        );
+      },
+    },
+    {
       field: 'declaration_number',
       headerName: 'No. Declaracion',
       width: 140,

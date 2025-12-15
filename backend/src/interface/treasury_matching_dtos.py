@@ -10,6 +10,12 @@ from typing import List, Optional, Dict
 from enum import Enum
 
 
+class MatchMode(str, Enum):
+    """Matching mode for the algorithm."""
+    GROUPED = "grouped"      # Group records by customer+date, then match totals
+    INDIVIDUAL = "individual"  # Match individual records one-to-one with declarations
+
+
 class MatchStatus(str, Enum):
     """Match status for a payment group."""
     MATCHED = "matched"
@@ -85,6 +91,10 @@ class MatchConfig(BaseModel):
     """
     Configuration for the matching algorithm.
     """
+    match_mode: MatchMode = Field(
+        default=MatchMode.GROUPED,
+        description="Matching mode: 'grouped' aggregates payments by customer+date, 'individual' matches each record"
+    )
     date_tolerance_days: int = Field(default=7, ge=1, le=14, description="Days tolerance for date matching")
     amount_tolerance: float = Field(default=2.0, ge=0.5, le=5.0, description="USD tolerance for amount matching")
     customer_match_threshold: int = Field(default=85, ge=50, le=100, description="Fuzzy match threshold (0-100)")

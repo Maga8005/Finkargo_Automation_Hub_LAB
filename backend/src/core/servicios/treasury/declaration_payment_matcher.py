@@ -17,6 +17,7 @@ from src.interface.treasury_matching_dtos import (
     MatchResult,
     MatchStatus,
     MatchingStatistics,
+    MatchMode,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,9 +50,10 @@ class DeclarationPaymentMatcher:
         Returns:
             Tuple of (match results, statistics)
         """
+        mode_label = "individual records" if config.match_mode == MatchMode.INDIVIDUAL else "grouped payments"
         logger.info(
-            f"Matching {len(payment_groups)} payment groups to {len(declarations)} declarations. "
-            f"Config: date_tolerance={config.date_tolerance_days}d, "
+            f"Matching {len(payment_groups)} {mode_label} to {len(declarations)} declarations. "
+            f"Config: mode={config.match_mode.value}, date_tolerance={config.date_tolerance_days}d, "
             f"amount_tolerance=${config.amount_tolerance}, "
             f"customer_threshold={config.customer_match_threshold}"
         )

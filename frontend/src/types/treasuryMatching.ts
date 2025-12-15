@@ -5,6 +5,13 @@
  */
 
 /**
+ * Matching mode for the algorithm.
+ * - grouped: Aggregates payments by customer+date, then matches totals
+ * - individual: Each payment record is matched individually (1:1 with declarations)
+ */
+export type MatchMode = 'grouped' | 'individual';
+
+/**
  * Match status for a payment group.
  */
 export type MatchStatus = 'matched' | 'partial' | 'unmatched' | 'conflict';
@@ -70,6 +77,7 @@ export interface DeclarationItem {
  * Configuration for the matching algorithm.
  */
 export interface MatchConfig {
+  match_mode: MatchMode;
   date_tolerance_days: number;
   amount_tolerance: number;
   customer_match_threshold: number;
@@ -80,10 +88,27 @@ export interface MatchConfig {
  * Default matching configuration.
  */
 export const DEFAULT_MATCH_CONFIG: MatchConfig = {
+  match_mode: 'grouped',
   date_tolerance_days: 7,
   amount_tolerance: 2.0,
   customer_match_threshold: 85,
   customer_match_strict: false,
+};
+
+/**
+ * Labels for match modes (Spanish).
+ */
+export const MATCH_MODE_LABELS: Record<MatchMode, string> = {
+  grouped: 'Agrupado (por fecha)',
+  individual: 'Individual (por registro)',
+};
+
+/**
+ * Descriptions for match modes (Spanish).
+ */
+export const MATCH_MODE_DESCRIPTIONS: Record<MatchMode, string> = {
+  grouped: 'Agrupa los pagos por cliente y fecha, luego busca coincidencias con el total agrupado',
+  individual: 'Cada registro de pago se compara individualmente con las declaraciones (recomendado para mayor precision)',
 };
 
 /**

@@ -15,14 +15,20 @@ import {
   Grid,
   Tooltip,
   Alert,
+  RadioGroup,
+  Radio,
+  FormControl,
+  FormLabel,
 } from '@mui/material';
 import {
   CalendarMonth as CalendarIcon,
   AttachMoney as MoneyIcon,
   Person as PersonIcon,
   Info as InfoIcon,
+  GroupWork as GroupIcon,
 } from '@mui/icons-material';
-import type { MatchConfig } from '../../types/treasuryMatching';
+import type { MatchConfig, MatchMode } from '../../types/treasuryMatching';
+import { MATCH_MODE_LABELS, MATCH_MODE_DESCRIPTIONS } from '../../types/treasuryMatching';
 
 interface FKMatchingConfigFormProps {
   config: MatchConfig;
@@ -65,6 +71,13 @@ const FKMatchingConfigForm: React.FC<FKMatchingConfigFormProps> = ({
     });
   };
 
+  const handleMatchModeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    onChange({
+      ...config,
+      match_mode: event.target.value as MatchMode,
+    });
+  };
+
   return (
     <Card>
       <CardContent>
@@ -82,6 +95,57 @@ const FKMatchingConfigForm: React.FC<FKMatchingConfigFormProps> = ({
             <strong>{declarationCount}</strong> declaraciones disponibles.
           </Typography>
         </Alert>
+
+        {/* Match Mode Selection */}
+        <Box sx={{ mb: 4, p: 2, bgcolor: 'primary.50', borderRadius: 1, border: '1px solid', borderColor: 'primary.200' }}>
+          <FormControl component="fieldset">
+            <FormLabel component="legend" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <GroupIcon color="primary" />
+              <Typography variant="subtitle1" fontWeight="medium">
+                Modo de Coincidencia
+              </Typography>
+              <Tooltip title="El modo 'Individual' generalmente produce mas coincidencias cuando hay multiples pagos en la misma fecha">
+                <InfoIcon fontSize="small" color="action" />
+              </Tooltip>
+            </FormLabel>
+            <RadioGroup
+              value={config.match_mode}
+              onChange={handleMatchModeChange}
+              row
+            >
+              <FormControlLabel
+                value="grouped"
+                control={<Radio />}
+                label={
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">
+                      {MATCH_MODE_LABELS.grouped}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {MATCH_MODE_DESCRIPTIONS.grouped}
+                    </Typography>
+                  </Box>
+                }
+                sx={{ alignItems: 'flex-start', mr: 4 }}
+              />
+              <FormControlLabel
+                value="individual"
+                control={<Radio />}
+                label={
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">
+                      {MATCH_MODE_LABELS.individual}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {MATCH_MODE_DESCRIPTIONS.individual}
+                    </Typography>
+                  </Box>
+                }
+                sx={{ alignItems: 'flex-start' }}
+              />
+            </RadioGroup>
+          </FormControl>
+        </Box>
 
         <Grid container spacing={4}>
           {/* Date Tolerance */}
@@ -209,6 +273,11 @@ const FKMatchingConfigForm: React.FC<FKMatchingConfigFormProps> = ({
             Resumen de Configuracion
           </Typography>
           <Typography variant="body2" color="text.secondary">
+            {config.match_mode === 'individual'
+              ? 'Cada registro de pago se comparara individualmente con las declaraciones.'
+              : 'Los pagos se agruparan por cliente y fecha, luego el total se comparara con declaraciones.'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             Un pago coincidira con una declaracion si:
           </Typography>
           <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
