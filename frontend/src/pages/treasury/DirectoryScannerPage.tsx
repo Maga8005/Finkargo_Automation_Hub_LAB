@@ -83,13 +83,13 @@ const DirectoryScannerPage: React.FC = () => {
 
       <Grid container spacing={3}>
         {/* Scan Form */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <FKDirectoryScanForm onScanStart={handleScanStart} />
         </Grid>
 
         {/* Scan Result (if available) */}
         {scanResult && (
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Alert
               severity="success"
               onClose={() => setScanResult(null)}
@@ -160,7 +160,7 @@ const DirectoryScannerPage: React.FC = () => {
         )}
 
         {/* Inventory Files Table */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <FKInventoryFilesTable refreshTrigger={refreshTrigger} />
         </Grid>
       </Grid>
