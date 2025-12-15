@@ -149,6 +149,12 @@ const treasuryModules: TreasuryModule[] = [
     route: '/tesoreria/plantillas-netsuite/mexico',
     icon: <Description fontSize="small" />,
   },
+  {
+    id: 'declaration-matching',
+    name: 'Coincidencia Declaraciones',
+    route: '/treasury/declaration-matching',
+    icon: <Assessment fontSize="small" />,
+  },
 ];
 
 // Alianzas sub-modules (direct navigation, no further nesting)
@@ -207,7 +213,7 @@ const FKSidebarWithCollapse: React.FC = () => {
     }
 
     // Auto-expand treasury if on a treasury route
-    if (location.pathname.includes('/tesoreria/')) {
+    if (location.pathname.includes('/tesoreria/') || location.pathname.includes('/treasury/')) {
       setTreasuryOpen(true);
     }
 
@@ -549,7 +555,8 @@ const FKSidebarWithCollapse: React.FC = () => {
 
                   // Special handling for Treasury department (has submenu)
                   if (department.id === 'tesoreria') {
-                    const hasActiveSubmenu = treasuryModules.some(m => location.pathname === m.route);
+                    const hasActiveSubmenu = treasuryModules.some(m => location.pathname === m.route) ||
+                                             location.pathname.includes('/treasury/');
                     return (
                       <React.Fragment key={department.id}>
                         <ListItem disablePadding sx={{ mb: 0.5 }}>
