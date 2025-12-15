@@ -167,6 +167,60 @@ async def upload_historial(
         )
 
 
+def parse_amount_value(value) -> Optional[float]:
+    """Parse amount from various formats (European, US, or plain number).
+
+    Handles:
+    - European format: 8.111,43 (dots for thousands, comma for decimal)
+    - US format: $4,862.00 (dollar sign, commas for thousands, dot for decimal)
+    - Simple comma decimal: 8111,43
+    - Standard number with commas: 8,111.43
+    - Plain numbers: 8111.43
+    """
+    if pd.isna(value):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    value_str = str(value).strip()
+
+    # Empty string
+    if not value_str:
+        return None
+
+    try:
+        # US format: $4,862.00
+        if '$' in value_str:
+            clean = value_str.replace('$', '').replace(',', '').strip()
+            return float(clean)
+
+        # European format: 8.111,43 (dots for thousands, comma for decimal)
+        if ',' in value_str and '.' in value_str:
+            # European: remove dots (thousands), replace comma with dot (decimal)
+            clean = value_str.replace('.', '').replace(',', '.')
+            return float(clean)
+
+        # Simple comma decimal: 8111,43
+        if ',' in value_str and '.' not in value_str:
+            clean = value_str.replace(',', '.')
+            return float(clean)
+
+        # Standard number with commas as thousands: 8,111.43
+        clean = value_str.replace(',', '')
+        return float(clean)
+    except ValueError:
+        return None
+
+
+def find_col_with_priority(df_cols, variations):
+    """Find column with priority (earlier in variations list = higher priority)."""
+    df_cols_lower = {c.lower().strip(): c for c in df_cols}
+    for var in variations:
+        if var.lower().strip() in df_cols_lower:
+            return df_cols_lower[var.lower().strip()]
+    return None
+
+
 @router.post("/upload-declarations", response_model=DeclarationInventoryUploadResponse)
 async def upload_declarations(
     session_id: str = Query(..., description="Session ID from upload-historial"),
@@ -205,25 +259,21 @@ async def upload_declarations(
         declarations: List[DeclarationItem] = []
         errors: List[str] = []
 
-        # Expected columns (try common variations)
-        customer_cols = ['Cliente', 'Customer', 'Nombre', 'customer_name']
-        date_cols = ['Fecha', 'Date', 'fecha']
-        amount_cols = ['Monto', 'Amount', 'Valor', 'amount']
-        number_cols = ['Numero', 'Number', 'Declaracion', 'declaration_number', 'DC']
-        pdf_cols = ['PDF', 'Archivo', 'File', 'pdf_file_name', 'Nombre PDF']
+        # Extended column variations (backward compatible + new scanner format)
+        # Priority order: preferred columns listed first for date/amount
+        customer_cols = ['Cliente', 'Customer', 'Nombre', 'customer_name', 'Customer Name']
+        # Prefer Parsed Date (YYYY-MM-DD) over Date Folder (DD-MM-YYYY)
+        date_cols_priority = ['Parsed Date', 'Fecha', 'Date', 'fecha', 'Date Folder']
+        # Prefer Parsed Amount (standard) over Amount Folder (European format)
+        amount_cols_priority = ['Parsed Amount', 'Monto', 'Amount', 'Valor', 'amount', 'Amount Folder']
+        number_cols = ['Numero', 'Number', 'Declaracion', 'declaration_number', 'DC', 'Declaration Number']
+        pdf_cols = ['PDF', 'Archivo', 'File', 'pdf_file_name', 'Nombre PDF', 'PDF File Name']
 
-        def find_col(df_cols, variations):
-            df_cols_lower = {c.lower().strip(): c for c in df_cols}
-            for var in variations:
-                if var.lower().strip() in df_cols_lower:
-                    return df_cols_lower[var.lower().strip()]
-            return None
-
-        customer_col = find_col(df.columns, customer_cols)
-        date_col = find_col(df.columns, date_cols)
-        amount_col = find_col(df.columns, amount_cols)
-        number_col = find_col(df.columns, number_cols)
-        pdf_col = find_col(df.columns, pdf_cols)
+        customer_col = find_col_with_priority(df.columns, customer_cols)
+        date_col = find_col_with_priority(df.columns, date_cols_priority)
+        amount_col = find_col_with_priority(df.columns, amount_cols_priority)
+        number_col = find_col_with_priority(df.columns, number_cols)
+        pdf_col = find_col_with_priority(df.columns, pdf_cols)
 
         if not all([customer_col, date_col, amount_col, number_col]):
             missing = []
@@ -273,22 +323,25 @@ async def upload_declarations(
                         errors.append(f"Fila {idx + 2}: Fecha inválida '{date_val}'")
                         continue
 
-                # Parse amount
+                # Parse amount using multi-format parser
                 amount_val = row[amount_col]
-                if pd.isna(amount_val):
-                    continue
-
-                try:
-                    if isinstance(amount_val, (int, float)):
-                        amount = float(amount_val)
-                    else:
-                        amount_str = str(amount_val).replace('$', '').replace(',', '').strip()
-                        amount = float(amount_str)
-                except ValueError:
+                amount = parse_amount_value(amount_val)
+                if amount is None:
                     errors.append(f"Fila {idx + 2}: Monto inválido '{amount_val}'")
                     continue
 
-                declaration_number = str(row[number_col]) if pd.notna(row[number_col]) else ""
+                # Handle NaN values for declaration number
+                number_val = row[number_col]
+                if pd.isna(number_val) or str(number_val).lower() == 'nan':
+                    # Skip rows without declaration numbers
+                    continue
+                else:
+                    # Convert float to int string (81590.0 → "81590")
+                    if isinstance(number_val, float) and number_val == int(number_val):
+                        declaration_number = str(int(number_val))
+                    else:
+                        declaration_number = str(number_val).strip()
+
                 pdf_filename = str(row[pdf_col]) if pdf_col and pd.notna(row[pdf_col]) else f"DC_{declaration_number}.pdf"
 
                 # Normalize customer name

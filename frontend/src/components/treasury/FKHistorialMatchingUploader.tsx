@@ -262,7 +262,7 @@ const FKHistorialMatchingUploader: React.FC<FKHistorialMatchingUploaderProps> = 
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Suba el archivo Excel con el inventario de declaraciones de cambio.
-            Debe contener: Cliente, Fecha, Monto, Numero de Declaracion.
+            Columnas aceptadas: Cliente/Customer Name, Fecha/Parsed Date/Date Folder, Monto/Parsed Amount/Amount Folder, Numero/Declaration Number.
           </Typography>
 
           {!sessionId ? (
@@ -311,7 +311,7 @@ const FKHistorialMatchingUploader: React.FC<FKHistorialMatchingUploaderProps> = 
                     />
                   </Button>
                   <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-                    Columnas requeridas: Cliente, Fecha, Monto, Numero DC
+                    Columnas requeridas: Cliente/Customer Name, Fecha/Date Folder, Monto/Amount Folder, Numero DC/Declaration Number
                   </Typography>
                 </>
               )}

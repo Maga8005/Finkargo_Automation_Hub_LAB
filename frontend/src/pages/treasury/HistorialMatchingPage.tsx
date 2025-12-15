@@ -62,6 +62,19 @@ const STEPS = [
   },
 ];
 
+// Session error message shown when session is lost
+const SESSION_EXPIRED_MESSAGE =
+  'La sesion ha expirado o el servidor fue reiniciado. Por favor, vuelva a cargar el archivo de Historial de Pagos para continuar.';
+
+// Helper to check if error is a 404 session error
+const isSessionError = (err: unknown): boolean => {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const response = (err as { response?: { status?: number } }).response;
+    return response?.status === 404;
+  }
+  return false;
+};
+
 const HistorialMatchingPage: React.FC = () => {
   // Workflow state
   const [activeStep, setActiveStep] = useState(0);
@@ -81,6 +94,17 @@ const HistorialMatchingPage: React.FC = () => {
   const [selectedGroupForOverride, setSelectedGroupForOverride] = useState<PaymentGroup | null>(
     null
   );
+
+  // Reset session and workflow state when session is lost
+  const resetSession = useCallback(() => {
+    setSessionId(null);
+    setUploadResponse(null);
+    setDeclarationsResponse(null);
+    setMatchingResponse(null);
+    setActiveStep(0);
+    setManualMatchDialogOpen(false);
+    setSelectedGroupForOverride(null);
+  }, []);
 
   // Upload handlers
   const handleHistorialUpload = useCallback(async (file: File) => {
@@ -105,7 +129,11 @@ const HistorialMatchingPage: React.FC = () => {
 
   const handleDeclarationsUpload = useCallback(
     async (file: File) => {
-      if (!sessionId) return;
+      // Validate session before attempting upload
+      if (!sessionId) {
+        setError('No hay sesion activa. Por favor, primero suba el archivo de Historial de Pagos.');
+        return;
+      }
 
       setLoading(true);
       setError(null);
@@ -118,13 +146,19 @@ const HistorialMatchingPage: React.FC = () => {
           setError('Error al procesar el inventario de declaraciones');
         }
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Error al cargar archivo';
-        setError(errorMessage);
+        // Handle 404 session errors specifically
+        if (isSessionError(err)) {
+          setError(SESSION_EXPIRED_MESSAGE);
+          resetSession();
+        } else {
+          const errorMessage = err instanceof Error ? err.message : 'Error al cargar archivo';
+          setError(errorMessage);
+        }
       } finally {
         setLoading(false);
       }
     },
-    [sessionId]
+    [sessionId, resetSession]
   );
 
   // Execute matching
@@ -139,12 +173,18 @@ const HistorialMatchingPage: React.FC = () => {
       setMatchingResponse(response);
       setActiveStep(2); // Move to results step
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al ejecutar coincidencias';
-      setError(errorMessage);
+      // Handle 404 session errors specifically
+      if (isSessionError(err)) {
+        setError(SESSION_EXPIRED_MESSAGE);
+        resetSession();
+      } else {
+        const errorMessage = err instanceof Error ? err.message : 'Error al ejecutar coincidencias';
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
-  }, [sessionId, matchConfig]);
+  }, [sessionId, matchConfig, resetSession]);
 
   // Manual override handlers
   const handleOpenOverrideDialog = useCallback(
@@ -178,13 +218,19 @@ const HistorialMatchingPage: React.FC = () => {
         setManualMatchDialogOpen(false);
         setSelectedGroupForOverride(null);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Error al asignar declaracion';
-        setError(errorMessage);
+        // Handle 404 session errors specifically
+        if (isSessionError(err)) {
+          setError(SESSION_EXPIRED_MESSAGE);
+          resetSession();
+        } else {
+          const errorMessage = err instanceof Error ? err.message : 'Error al asignar declaracion';
+          setError(errorMessage);
+        }
       } finally {
         setLoading(false);
       }
     },
-    [sessionId, selectedGroupForOverride]
+    [sessionId, selectedGroupForOverride, resetSession]
   );
 
   const handleClearMatch = useCallback(
@@ -205,13 +251,19 @@ const HistorialMatchingPage: React.FC = () => {
         const response = await treasuryMatchingService.getResults(sessionId);
         setMatchingResponse(response);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Error al quitar coincidencia';
-        setError(errorMessage);
+        // Handle 404 session errors specifically
+        if (isSessionError(err)) {
+          setError(SESSION_EXPIRED_MESSAGE);
+          resetSession();
+        } else {
+          const errorMessage = err instanceof Error ? err.message : 'Error al quitar coincidencia';
+          setError(errorMessage);
+        }
       } finally {
         setLoading(false);
       }
     },
-    [sessionId]
+    [sessionId, resetSession]
   );
 
   // Download handler
@@ -227,12 +279,18 @@ const HistorialMatchingPage: React.FC = () => {
       const filename = `Historial_Enriquecido_${timestamp}.xlsx`;
       treasuryMatchingService.downloadBlob(blob, filename);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al descargar archivo';
-      setError(errorMessage);
+      // Handle 404 session errors specifically
+      if (isSessionError(err)) {
+        setError(SESSION_EXPIRED_MESSAGE);
+        resetSession();
+      } else {
+        const errorMessage = err instanceof Error ? err.message : 'Error al descargar archivo';
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, resetSession]);
 
   // Navigation
   const canProceedToStep2 =
