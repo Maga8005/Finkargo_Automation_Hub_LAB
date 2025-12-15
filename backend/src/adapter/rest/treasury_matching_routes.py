@@ -25,7 +25,6 @@ from src.interface.treasury_matching_dtos import (
     HistorialUploadResponse,
     MatchConfig,
     MatchingSessionResponse,
-    MatchResult,
     MatchingStatistics,
     ManualOverrideRequest,
     ManualOverrideResponse,
@@ -489,7 +488,6 @@ async def manual_override(
             break
 
     # Recalculate statistics
-    config = session.get('config', MatchConfig())
     used_declarations = set(
         r.declaration.declaration_id for r in updated_results
         if r.declaration

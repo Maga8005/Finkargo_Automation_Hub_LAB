@@ -6,7 +6,7 @@ Uses fuzzy string matching to match payment groups to exchange declarations.
 
 import logging
 from typing import List, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from rapidfuzz import fuzz
 

@@ -8,7 +8,6 @@ to Historial de Pagos matching workflow.
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from enum import Enum
-from decimal import Decimal
 
 
 class MatchStatus(str, Enum):

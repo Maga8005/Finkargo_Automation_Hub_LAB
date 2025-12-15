@@ -185,9 +185,7 @@ class EnrichedExcelGenerator:
         """
         # Define styles
         title_font = Font(size=14, bold=True, color=FINKARGO_PRIMARY)
-        header_font = Font(bold=True)
-        success_fill = PatternFill(start_color=FINKARGO_SUCCESS, end_color=FINKARGO_SUCCESS, fill_type="solid")
-        error_fill = PatternFill(start_color=FINKARGO_ERROR, end_color=FINKARGO_ERROR, fill_type="solid")
+        header_font = Font(bold=True)  # noqa: F841 - kept for future styling
 
         # Title
         ws['A1'] = "Resumen de Coincidencias"
