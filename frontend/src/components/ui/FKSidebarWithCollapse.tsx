@@ -28,6 +28,7 @@ import {
   ExpandLess,
   ExpandMore,
   Description,
+  FolderOpen,
   AccountBalance,
   Handshake,
   Payment,
@@ -154,6 +155,12 @@ const treasuryModules: TreasuryModule[] = [
     name: 'Coincidencia Declaraciones',
     route: '/treasury/declaration-matching',
     icon: <Assessment fontSize="small" />,
+  },
+  {
+    id: 'directory-scanner',
+    name: 'Escaneo Directorio Local',
+    route: '/treasury/directory-scanner',
+    icon: <FolderOpen fontSize="small" />,
   },
 ];
 

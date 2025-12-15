@@ -24,6 +24,7 @@ import BrokersPage from './pages/alianzas/BrokersPage';
 import ComisionesCalculo from './pages/alianzas/ComisionesCalculo';
 import PagosHistorial from './pages/alianzas/PagosHistorial';
 import HistorialMatchingPage from './pages/treasury/HistorialMatchingPage';
+import DirectoryScannerPage from './pages/treasury/DirectoryScannerPage';
 import { UserRole } from './types';
 
 function App() {
@@ -83,6 +84,14 @@ function App() {
                 element={
                   <RoleProtectedRoute allowedRoles={[UserRole.TESORERIA, UserRole.ADMIN]}>
                     <HistorialMatchingPage />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="treasury/directory-scanner"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.TESORERIA, UserRole.ADMIN]}>
+                    <DirectoryScannerPage />
                   </RoleProtectedRoute>
                 }
               />
