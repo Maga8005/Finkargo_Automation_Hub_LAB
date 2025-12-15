@@ -392,11 +392,15 @@ async def execute_matching(
     """
     Execute the matching algorithm with the provided configuration.
 
+    The match_mode parameter controls how payments are grouped:
+    - "grouped" (default): Aggregates payments by customer+date, then matches totals
+    - "individual": Each payment record is matched individually (1:1 with declarations)
+
     Required role: tesoreria (or admin)
     """
     logger.info(
         f"User {current_user.get('id')} executing matching for session {session_id}. "
-        f"Config: date_tolerance={config.date_tolerance_days}, "
+        f"Config: mode={config.match_mode.value}, date_tolerance={config.date_tolerance_days}, "
         f"amount_tolerance={config.amount_tolerance}"
     )
 
@@ -404,13 +408,13 @@ async def execute_matching(
     if not session:
         raise HTTPException(status_code=404, detail="Sesión no encontrada o expirada")
 
-    payment_groups = session.get('payment_groups', [])
+    historial_records = session.get('historial_records', [])
     declarations = session.get('declarations', [])
 
-    if not payment_groups:
+    if not historial_records:
         raise HTTPException(
             status_code=400,
-            detail="No hay grupos de pago. Primero suba el archivo Historial de Pagos."
+            detail="No hay registros de pago. Primero suba el archivo Historial de Pagos."
         )
 
     if not declarations:
@@ -420,6 +424,16 @@ async def execute_matching(
         )
 
     try:
+        # Re-aggregate payments based on match_mode
+        # This allows switching between grouped and individual modes without re-uploading
+        payment_groups = payment_group_aggregator.aggregate_payments(
+            records=historial_records,
+            match_mode=config.match_mode
+        )
+
+        # Store the regenerated groups in session (for download and display)
+        session['payment_groups'] = payment_groups
+
         # Execute matching
         results, statistics = declaration_payment_matcher.match_payments_to_declarations(
             payment_groups=payment_groups,

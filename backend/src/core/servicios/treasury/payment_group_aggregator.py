@@ -2,6 +2,9 @@
 Payment Group Aggregator for Treasury Declaration-Historial Matching.
 
 Groups HistorialRecords by (cliente_normalized, fecha_pago) and sums capital amounts.
+Supports two modes:
+- GROUPED: Traditional grouping by customer+date with summed capital
+- INDIVIDUAL: Each record becomes its own "group" for 1:1 matching
 """
 
 import logging
@@ -12,6 +15,7 @@ from collections import defaultdict
 from src.interface.treasury_matching_dtos import (
     HistorialRecord,
     PaymentGroup,
+    MatchMode,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,6 +33,69 @@ class PaymentGroupAggregator:
 
     def aggregate_payments(
         self,
+        records: List[HistorialRecord],
+        match_mode: MatchMode = MatchMode.GROUPED
+    ) -> List[PaymentGroup]:
+        """
+        Group payment records based on matching mode.
+
+        Args:
+            records: List of parsed HistorialRecords
+            match_mode: GROUPED (aggregate by customer+date) or INDIVIDUAL (each record separate)
+
+        Returns:
+            List of PaymentGroup aggregations
+        """
+        if match_mode == MatchMode.INDIVIDUAL:
+            return self._create_individual_groups(records)
+        else:
+            return self._create_grouped_groups(records)
+
+    def _create_individual_groups(
+        self,
+        records: List[HistorialRecord]
+    ) -> List[PaymentGroup]:
+        """
+        Create one PaymentGroup per record for individual matching.
+
+        In individual mode, each record is its own "group" with record_count=1.
+        This enables 1:1 matching between payments and declarations.
+
+        Args:
+            records: List of parsed HistorialRecords
+
+        Returns:
+            List of PaymentGroup (one per record)
+        """
+        logger.info(f"Creating individual groups for {len(records)} payment records (1:1 mode)")
+
+        payment_groups: List[PaymentGroup] = []
+
+        for record in records:
+            payment_group = PaymentGroup(
+                group_id=str(uuid.uuid4()),
+                cliente=record.cliente,
+                cliente_normalized=record.cliente_normalized,
+                identificacion_cliente=record.identificacion_cliente,
+                fecha_pago=record.fecha_pago,
+                total_capital=round(record.capital, 2),
+                record_count=1,
+                record_row_numbers=[record.row_number],
+                moneda=record.moneda,
+            )
+            payment_groups.append(payment_group)
+
+        # Sort by date descending, then by customer name
+        payment_groups.sort(key=lambda g: (g.fecha_pago, g.cliente_normalized), reverse=True)
+
+        logger.info(
+            f"Created {len(payment_groups)} individual payment groups from {len(records)} records"
+        )
+
+        return payment_groups
+
+    def _create_grouped_groups(
+        self,
         records: List[HistorialRecord]
     ) -> List[PaymentGroup]:
         """
@@ -40,7 +107,7 @@ class PaymentGroupAggregator:
         Returns:
             List of PaymentGroup aggregations
         """
-        logger.info(f"Aggregating {len(records)} payment records into groups")
+        logger.info(f"Aggregating {len(records)} payment records into groups (grouped mode)")
 
         # Group by (cliente_normalized, fecha_pago)
         groups: Dict[str, Dict] = defaultdict(lambda: {
