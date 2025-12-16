@@ -27,7 +27,6 @@ Author: Finkargo Engineering
 Date: 2025-11-03
 """
 
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
@@ -36,7 +35,6 @@ import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from .local_directory_scanner import InventoryRecord
 
@@ -57,7 +55,7 @@ class InventoryExcelGenerator:
 
     def __init__(self):
         """Initialize the Excel generator service."""
-        print(f"INFO [InventoryExcelGenerator]: Service initialized")
+        print("INFO [InventoryExcelGenerator]: Service initialized")
 
     def generate_inventory_excel(
         self,
@@ -125,7 +123,7 @@ class InventoryExcelGenerator:
         Returns:
             DataFrame with inventory columns
         """
-        print(f"INFO [InventoryExcelGenerator]: Creating inventory DataFrame")
+        print("INFO [InventoryExcelGenerator]: Creating inventory DataFrame")
 
         # Convert records to dictionaries
         data = []
@@ -160,7 +158,7 @@ class InventoryExcelGenerator:
         Returns:
             Dictionary with statistics
         """
-        print(f"INFO [InventoryExcelGenerator]: Calculating statistics")
+        print("INFO [InventoryExcelGenerator]: Calculating statistics")
 
         # Basic counts
         total_pdfs = len(records)
@@ -207,7 +205,7 @@ class InventoryExcelGenerator:
             writer: pandas ExcelWriter object
             statistics: Dictionary with calculated statistics
         """
-        print(f"INFO [InventoryExcelGenerator]: Creating summary sheet")
+        print("INFO [InventoryExcelGenerator]: Creating summary sheet")
 
         # Create summary data
         summary_data = [
@@ -235,7 +233,7 @@ class InventoryExcelGenerator:
         summary_df = pd.DataFrame(summary_data)
         summary_df.to_excel(writer, sheet_name='Summary', index=False, header=False)
 
-        print(f"INFO [InventoryExcelGenerator]: Summary sheet created")
+        print("INFO [InventoryExcelGenerator]: Summary sheet created")
 
     def _apply_inventory_styling(self, file_path: str):
         """
@@ -244,7 +242,7 @@ class InventoryExcelGenerator:
         Args:
             file_path: Path to Excel file
         """
-        print(f"INFO [InventoryExcelGenerator]: Applying styling to Excel file")
+        print("INFO [InventoryExcelGenerator]: Applying styling to Excel file")
 
         # Load workbook
         wb = load_workbook(file_path)
@@ -258,7 +256,7 @@ class InventoryExcelGenerator:
         # Save workbook
         wb.save(file_path)
 
-        print(f"SUCCESS [InventoryExcelGenerator]: Styling applied successfully")
+        print("SUCCESS [InventoryExcelGenerator]: Styling applied successfully")
 
     def _style_inventory_sheet(self, sheet):
         """
@@ -320,7 +318,7 @@ class InventoryExcelGenerator:
         # Add auto-filter
         sheet.auto_filter.ref = sheet.dimensions
 
-        print(f"INFO [InventoryExcelGenerator]: Inventory sheet styled")
+        print("INFO [InventoryExcelGenerator]: Inventory sheet styled")
 
     def _style_summary_sheet(self, sheet):
         """
@@ -350,4 +348,4 @@ class InventoryExcelGenerator:
         sheet.column_dimensions['A'].width = 30
         sheet.column_dimensions['B'].width = 25
 
-        print(f"INFO [InventoryExcelGenerator]: Summary sheet styled")
+        print("INFO [InventoryExcelGenerator]: Summary sheet styled")

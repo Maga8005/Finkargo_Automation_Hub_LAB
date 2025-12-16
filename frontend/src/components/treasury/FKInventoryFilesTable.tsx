@@ -66,9 +66,9 @@ const FKInventoryFilesTable: React.FC<FKInventoryFilesTableProps> = ({
 
       console.log('[FKInventoryFilesTable] Files fetched:', filesData.length);
       setFiles(filesData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[FKInventoryFilesTable] Failed to fetch files:', err);
-      setError(err.message || 'Error al cargar archivos de inventario');
+      setError(err instanceof Error ? err.message : 'Error al cargar archivos de inventario');
     } finally {
       setIsLoading(false);
     }
@@ -87,9 +87,9 @@ const FKInventoryFilesTable: React.FC<FKInventoryFilesTableProps> = ({
       await downloadInventoryFile(filename);
 
       console.log('[FKInventoryFilesTable] File downloaded successfully');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[FKInventoryFilesTable] Download failed:', err);
-      setError(err.message || 'Error al descargar archivo');
+      setError(err instanceof Error ? err.message : 'Error al descargar archivo');
     } finally {
       setDownloadingFile(null);
     }

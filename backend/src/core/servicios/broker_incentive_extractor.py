@@ -14,7 +14,7 @@ Date: 2025-12-16
 
 import re
 import logging
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from datetime import datetime
 
 import fitz  # PyMuPDF

@@ -35,6 +35,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { departmentService } from '../../services/departmentService';
+import { useAuth } from '../../hooks/useAuth';
 import type { Department } from '../../types';
 
 const DRAWER_WIDTH = 280;
@@ -203,6 +204,7 @@ const alianzasModules: AlianzasModule[] = [
 const FKSidebarWithCollapse: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { userProfile } = useAuth();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -273,6 +275,12 @@ const FKSidebarWithCollapse: React.FC = () => {
   };
 
   const handleOperationsToggle = () => {
+    // For comercial_paga_local users, navigate directly to Paga Local Colombia
+    // instead of expanding the submenu (they only have access to this route)
+    if (userProfile?.role === 'comercial_paga_local') {
+      navigate('/operations/paga-local-colombia');
+      return;
+    }
     setOperationsOpen(!operationsOpen);
   };
 

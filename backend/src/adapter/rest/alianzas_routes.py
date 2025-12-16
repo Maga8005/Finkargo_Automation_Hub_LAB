@@ -21,6 +21,14 @@ from src.core.servicios.comision_excel_service import ComisionExcelService, get_
 from src.core.servicios.contract_extractor_service import ContractExtractorService
 from src.core.servicios.landingai_contract_parser_service import LandingAIContractParserService
 from src.core.servicios.banxico_service import BanxicoService
+from src.core.servicios.broker_contract_scanner import BrokerContractScanner
+from src.core.servicios.broker_incentive_extractor import BrokerIncentiveExtractor
+from src.core.servicios.broker_incentive_excel_generator import BrokerIncentiveExcelGenerator
+from src.interface.broker_incentive_dtos import (
+    BrokerContractScanConfigDTO,
+    BrokerContractScanResultDTO,
+    BrokerIncentiveData,
+)
 from src.interface.alianzas_dtos import (
     BrokerCreate,
     BrokerUpdate,
@@ -1532,16 +1540,6 @@ async def actualizar_estado_pago(
 
 
 # ==================== Broker Contract Incentive Extraction ====================
-
-# Import services and DTOs for incentive extraction
-from src.core.servicios.broker_contract_scanner import BrokerContractScanner
-from src.core.servicios.broker_incentive_extractor import BrokerIncentiveExtractor
-from src.core.servicios.broker_incentive_excel_generator import BrokerIncentiveExcelGenerator
-from src.interface.broker_incentive_dtos import (
-    BrokerContractScanConfigDTO,
-    BrokerContractScanResultDTO,
-    BrokerIncentiveData,
-)
 
 # In-memory storage for scan results (per-session)
 _scan_results_cache: Dict = {}

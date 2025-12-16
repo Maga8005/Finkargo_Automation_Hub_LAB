@@ -90,7 +90,7 @@ def parse_date_from_folder_name(folder_name: str) -> Optional[datetime]:
         None
     """
     if not folder_name:
-        print(f"WARNING [FolderNameParser]: Empty folder name provided for date parsing")
+        print("WARNING [FolderNameParser]: Empty folder name provided for date parsing")
         return None
 
     # Clean folder name
@@ -159,7 +159,7 @@ def parse_amount_from_filename(filename: str) -> Optional[float]:
         None
     """
     if not filename:
-        print(f"WARNING [FolderNameParser]: Empty filename provided for amount parsing")
+        print("WARNING [FolderNameParser]: Empty filename provided for amount parsing")
         return None
 
     # Remove file extension
