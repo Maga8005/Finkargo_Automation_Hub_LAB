@@ -51,10 +51,10 @@ class LocalDirectoryScanConfigDTO(BaseModel):
         description="List of PDF file extensions to scan"
     )
     request_timeout_seconds: int = Field(
-        default=600,
+        default=3600,
         ge=60,
-        le=1800,
-        description="Request timeout in seconds (default: 600 = 10 minutes, max: 1800 = 30 minutes)"
+        le=7200,
+        description="Request timeout in seconds (default: 3600 = 60 minutes, max: 7200 = 2 hours)"
     )
 
     model_config = {"from_attributes": True}

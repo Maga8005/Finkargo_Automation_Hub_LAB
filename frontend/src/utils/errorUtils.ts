@@ -156,3 +156,133 @@ export function isNotFoundError(error: unknown): boolean {
   const axiosError = error as { response?: { status?: number } };
   return axiosError?.response?.status === 404;
 }
+
+/**
+ * Check if an error is a timeout error
+ */
+export function isTimeoutError(error: unknown): boolean {
+  const axiosError = error as { code?: string; message?: string };
+  return axiosError?.code === 'ECONNABORTED' ||
+         (axiosError?.message?.toLowerCase().includes('timeout') ?? false);
+}
+
+/**
+ * Extract error message from various error types
+ *
+ * This is a comprehensive error extractor that handles:
+ * - String errors directly
+ * - Error instances with message property
+ * - Axios errors with response.data.detail
+ * - FastAPI validation errors (arrays)
+ * - Timeout errors
+ * - Network errors
+ * - Objects with msg/message properties
+ * - Fallback JSON stringification with circular reference protection
+ *
+ * @param error - Any error type
+ * @param fallbackMessage - Optional fallback message (default: Spanish generic error)
+ * @returns Human-readable error message string
+ */
+export function extractErrorMessage(
+  error: unknown,
+  fallbackMessage: string = 'Error al procesar la solicitud. Por favor intente nuevamente.'
+): string {
+  // Handle null/undefined
+  if (error === null || error === undefined) {
+    return fallbackMessage;
+  }
+
+  // Handle string errors directly
+  if (typeof error === 'string') {
+    return error || fallbackMessage;
+  }
+
+  // Type assertion for various error structures
+  const errorObj = error as {
+    response?: { data?: { detail?: unknown }; status?: number };
+    message?: string;
+    code?: string;
+    msg?: string;
+  };
+
+  // Handle timeout errors specifically
+  if (isTimeoutError(error)) {
+    return 'La operación tardó demasiado tiempo. Por favor intente nuevamente.';
+  }
+
+  // Handle axios error structure
+  if (errorObj?.response?.data) {
+    const { detail } = errorObj.response.data;
+
+    // Case 1: Pydantic validation errors (array of error objects)
+    if (Array.isArray(detail)) {
+      const validationErrors = detail as ValidationError[];
+      if (validationErrors.length > 0) {
+        const messages = validationErrors.map(formatValidationError);
+        return messages.join('; ');
+      }
+    }
+
+    // Case 2: Simple string error message
+    if (typeof detail === 'string') {
+      return ERROR_TRANSLATIONS[detail] || detail;
+    }
+
+    // Case 3: Object with message or msg property
+    if (typeof detail === 'object' && detail !== null) {
+      const detailObj = detail as { message?: string; msg?: string };
+      if (detailObj.message) {
+        return ERROR_TRANSLATIONS[detailObj.message] || detailObj.message;
+      }
+      if (detailObj.msg) {
+        return ERROR_TRANSLATIONS[detailObj.msg] || detailObj.msg;
+      }
+
+      // Try to stringify the detail object safely
+      try {
+        const stringified = JSON.stringify(detail);
+        if (stringified && stringified !== '{}') {
+          return stringified;
+        }
+      } catch {
+        // Circular reference or other JSON error - ignore
+      }
+    }
+  }
+
+  // Handle Error instances
+  if (error instanceof Error) {
+    // Check for network errors
+    if (error.message.includes('Network Error') || error.message.includes('ERR_NETWORK')) {
+      return 'Error de conexión. Verifique su conexión a internet e intente nuevamente.';
+    }
+    return ERROR_TRANSLATIONS[error.message] || error.message || fallbackMessage;
+  }
+
+  // Handle objects with message property
+  if (errorObj?.message) {
+    if (errorObj.message.includes('Network Error') || errorObj.message.includes('ERR_NETWORK')) {
+      return 'Error de conexión. Verifique su conexión a internet e intente nuevamente.';
+    }
+    return ERROR_TRANSLATIONS[errorObj.message] || errorObj.message;
+  }
+
+  // Handle objects with msg property
+  if (errorObj?.msg) {
+    return ERROR_TRANSLATIONS[errorObj.msg] || errorObj.msg;
+  }
+
+  // Last resort: try to stringify the error object
+  if (typeof error === 'object') {
+    try {
+      const stringified = JSON.stringify(error);
+      if (stringified && stringified !== '{}' && stringified !== '[]') {
+        return stringified;
+      }
+    } catch {
+      // Circular reference or other JSON error - use fallback
+    }
+  }
+
+  return fallbackMessage;
+}

@@ -8,11 +8,12 @@
  */
 
 import apiClient from '../api/clients/apiClient';
+import { extractErrorMessage } from '../utils/errorUtils';
 
 const BASE_PATH = '/v1/treasury/directory-scanner';
 
-// Timeout for directory scanning operations (10 minutes)
-const SCAN_TIMEOUT = 600000;
+// Timeout for directory scanning operations (60 minutes for large directories)
+const SCAN_TIMEOUT = 3600000;
 
 /**
  * Configuration for local directory scan.
@@ -23,7 +24,7 @@ export interface LocalDirectoryScanConfig {
   extract_declaration_numbers?: boolean;
   recursive?: boolean;
   pdf_extensions?: string[];
-  /** Request timeout in seconds (default: 600 = 10 minutes, max: 1800 = 30 minutes) */
+  /** Request timeout in seconds (default: 3600 = 60 minutes, max: 7200 = 2 hours) */
   request_timeout_seconds?: number;
 }
 
@@ -79,8 +80,8 @@ export interface InventoryFileMetadata {
 export const scanLocalDirectory = async (
   config: LocalDirectoryScanConfig
 ): Promise<LocalDirectoryScanResult> => {
-  // Default timeout to 10 minutes (600 seconds) to match backend default
-  const requestTimeoutSeconds = config.request_timeout_seconds ?? 600;
+  // Default timeout to 60 minutes (3600 seconds) for large directory scans
+  const requestTimeoutSeconds = config.request_timeout_seconds ?? 3600;
 
   // Calculate axios timeout (add 5 second buffer for network overhead)
   // Use SCAN_TIMEOUT as minimum to ensure we have enough time
@@ -115,19 +116,16 @@ export const scanLocalDirectory = async (
     });
 
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const axiosError = error as { message?: string; response?: { data?: unknown; status?: number } };
     console.error('[directoryScannerService.scanLocalDirectory] Scan failed:', {
-      error: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
+      error: axiosError.message,
+      response: axiosError.response?.data,
+      status: axiosError.response?.status,
     });
 
-    // Convert error to user-friendly format
-    const errorMessage =
-      error.response?.data?.detail ||
-      error.message ||
-      'Failed to scan directory';
-
+    // Convert error to user-friendly format using extractErrorMessage
+    const errorMessage = extractErrorMessage(error, 'Error al escanear directorio');
     throw new Error(errorMessage);
   }
 };
@@ -160,18 +158,15 @@ export const listInventoryFiles = async (): Promise<InventoryFileMetadata[]> => 
     });
 
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const axiosError = error as { message?: string; response?: { data?: unknown; status?: number } };
     console.error('[directoryScannerService.listInventoryFiles] Failed to list files:', {
-      error: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
+      error: axiosError.message,
+      response: axiosError.response?.data,
+      status: axiosError.response?.status,
     });
 
-    const errorMessage =
-      error.response?.data?.detail ||
-      error.message ||
-      'Failed to list inventory files';
-
+    const errorMessage = extractErrorMessage(error, 'Error al listar archivos de inventario');
     throw new Error(errorMessage);
   }
 };
@@ -210,18 +205,15 @@ export const downloadInventoryFile = async (filename: string): Promise<void> => 
     window.URL.revokeObjectURL(url);
 
     console.log('[directoryScannerService.downloadInventoryFile] File downloaded successfully');
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const axiosError = error as { message?: string; response?: { data?: unknown; status?: number } };
     console.error('[directoryScannerService.downloadInventoryFile] Download failed:', {
-      error: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
+      error: axiosError.message,
+      response: axiosError.response?.data,
+      status: axiosError.response?.status,
     });
 
-    const errorMessage =
-      error.response?.data?.detail ||
-      error.message ||
-      'Failed to download inventory file';
-
+    const errorMessage = extractErrorMessage(error, 'Error al descargar archivo de inventario');
     throw new Error(errorMessage);
   }
 };
