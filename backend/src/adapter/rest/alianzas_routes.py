@@ -6,7 +6,7 @@ Provides endpoints for broker management, commission tracking, and payments.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Path
 from fastapi.responses import StreamingResponse
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import date
 import logging
 
@@ -1528,4 +1528,328 @@ async def actualizar_estado_pago(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al actualizar estado de pago"
+        )
+
+
+# ==================== Broker Contract Incentive Extraction ====================
+
+# Import services and DTOs for incentive extraction
+from src.core.servicios.broker_contract_scanner import BrokerContractScanner
+from src.core.servicios.broker_incentive_extractor import BrokerIncentiveExtractor
+from src.core.servicios.broker_incentive_excel_generator import BrokerIncentiveExcelGenerator
+from src.interface.broker_incentive_dtos import (
+    BrokerContractScanConfigDTO,
+    BrokerContractScanResultDTO,
+    BrokerIncentiveData,
+)
+
+# In-memory storage for scan results (per-session)
+_scan_results_cache: Dict = {}
+
+
+def get_broker_contract_scanner() -> BrokerContractScanner:
+    """Get broker contract scanner instance."""
+    return BrokerContractScanner()
+
+
+def get_broker_incentive_extractor() -> BrokerIncentiveExtractor:
+    """Get broker incentive extractor instance."""
+    return BrokerIncentiveExtractor()
+
+
+def get_broker_incentive_excel_generator() -> BrokerIncentiveExcelGenerator:
+    """Get broker incentive Excel generator instance."""
+    return BrokerIncentiveExcelGenerator()
+
+
+@router.post(
+    "/broker-contracts/scan",
+    response_model=BrokerContractScanResultDTO,
+    summary="Scan directory for broker contracts",
+    description=(
+        "Scan a local directory containing broker contract folders and extract "
+        "incentive percentages from PDF contracts. Folders should follow the "
+        "naming convention 'YYYYMMDD Broker Name'."
+    )
+)
+async def scan_broker_contracts(
+    config: BrokerContractScanConfigDTO,
+    current_user: dict = Depends(require_alianzas_role),
+    scanner: BrokerContractScanner = Depends(get_broker_contract_scanner),
+    extractor: BrokerIncentiveExtractor = Depends(get_broker_incentive_extractor),
+    excel_generator: BrokerIncentiveExcelGenerator = Depends(get_broker_incentive_excel_generator)
+):
+    """
+    Scan directory for broker contracts and extract incentive data.
+
+    This endpoint:
+    1. Scans the specified directory for folders matching 'YYYYMMDD Broker Name'
+    2. Extracts PDF text and identifies contract type (Bono vs Incentivos)
+    3. Uses regex patterns to extract incentive percentages
+    4. Extracts RFC and signatory information
+    5. Generates a styled Excel report with all extracted data
+
+    Args:
+        config: Scan configuration with directory path
+        current_user: Authenticated user with alianzas role
+        scanner: BrokerContractScanner instance
+        extractor: BrokerIncentiveExtractor instance
+        excel_generator: BrokerIncentiveExcelGenerator instance
+
+    Returns:
+        BrokerContractScanResultDTO with results and statistics
+    """
+    import time
+    from datetime import datetime
+
+    try:
+        user_id = current_user.get('id')
+        logger.info(
+            f"Broker contract scan requested by user {user_id} "
+            f"for directory: {config.directory_path}"
+        )
+
+        start_time = time.time()
+
+        # Step 1: Scan directory for broker folders
+        try:
+            broker_folders = scanner.scan_directory(
+                root_path=config.directory_path,
+                include_subfolders=config.include_subfolders
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+
+        if not broker_folders:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    "No se encontraron carpetas de brokers en el directorio especificado. "
+                    "Las carpetas deben seguir el formato 'YYYYMMDD Nombre Broker'."
+                )
+            )
+
+        logger.info(f"Found {len(broker_folders)} broker folders")
+
+        # Step 2: Extract incentive data from each folder
+        records: List[BrokerIncentiveData] = []
+        successful = 0
+        failed = 0
+
+        for folder in broker_folders:
+            try:
+                record = extractor.extract_from_folder(folder)
+                records.append(record)
+
+                if record.extraction_confidence > 0.5:
+                    successful += 1
+                else:
+                    failed += 1
+
+            except Exception as e:
+                logger.error(f"Error extracting from folder {folder.folder_name}: {e}")
+                failed += 1
+                # Create a record with error
+                records.append(BrokerIncentiveData(
+                    broker_name=folder.broker_name,
+                    contract_date=folder.contract_date,
+                    pdf_path=folder.folder_path,
+                    warnings=[f"Extraction error: {str(e)}"],
+                    extraction_confidence=0.0
+                ))
+
+        # Step 3: Generate Excel file
+        output_path = config.output_file_path
+        if not output_path:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_path = f"/tmp/broker_incentives_{timestamp}.xlsx"
+
+        try:
+            excel_path = excel_generator.generate_excel(
+                records=records,
+                output_path=output_path
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Error generating Excel: {str(e)}"
+            )
+
+        # Calculate duration
+        duration = time.time() - start_time
+
+        # Calculate statistics
+        from src.interface.broker_incentive_dtos import ContractType
+
+        bono_count = sum(1 for r in records if r.contract_type == ContractType.BONO)
+        incentivos_count = sum(1 for r in records if r.contract_type == ContractType.INCENTIVOS)
+        unknown_count = sum(1 for r in records if r.contract_type == ContractType.UNKNOWN)
+
+        credit_line_values = [
+            r.credit_line_incentive_pct for r in records
+            if r.credit_line_incentive_pct is not None
+        ]
+        operations_values = [
+            r.operations_incentive_pct for r in records
+            if r.operations_incentive_pct is not None
+        ]
+
+        avg_credit_line = (
+            sum(credit_line_values) / len(credit_line_values)
+            if credit_line_values else 0
+        )
+        avg_operations = (
+            sum(operations_values) / len(operations_values)
+            if operations_values else 0
+        )
+
+        statistics = {
+            'bono_contracts': bono_count,
+            'incentivos_contracts': incentivos_count,
+            'unknown_contracts': unknown_count,
+            'average_credit_line_pct': round(avg_credit_line, 2),
+            'average_operations_pct': round(avg_operations, 2),
+        }
+
+        # Store results in cache for export endpoint
+        _scan_results_cache[user_id] = {
+            'records': records,
+            'output_path': excel_path,
+            'timestamp': datetime.now().isoformat()
+        }
+
+        logger.info(
+            f"Scan completed: {len(broker_folders)} folders, "
+            f"{successful} successful, {failed} failed, "
+            f"duration: {duration:.2f}s"
+        )
+
+        return BrokerContractScanResultDTO(
+            total_folders_found=len(broker_folders),
+            total_pdfs_processed=len(records),
+            successful_extractions=successful,
+            failed_extractions=failed,
+            output_file_path=excel_path,
+            scan_duration_seconds=round(duration, 2),
+            records=records,
+            statistics=statistics
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error scanning broker contracts: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al escanear contratos de brokers: {str(e)}"
+        )
+
+
+@router.get(
+    "/broker-contracts/results",
+    response_model=List[BrokerIncentiveData],
+    summary="Get latest scan results",
+    description="Get the results from the most recent broker contract scan."
+)
+async def get_broker_scan_results(
+    current_user: dict = Depends(require_alianzas_role)
+):
+    """
+    Get the latest broker contract scan results for the current user.
+
+    Args:
+        current_user: Authenticated user with alianzas role
+
+    Returns:
+        List of BrokerIncentiveData records from the last scan
+    """
+    try:
+        user_id = current_user.get('id')
+        cached = _scan_results_cache.get(user_id)
+
+        if not cached:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No hay resultados de escaneo disponibles. Ejecute un escaneo primero."
+            )
+
+        return cached['records']
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting scan results: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al obtener resultados del escaneo"
+        )
+
+
+@router.get(
+    "/broker-contracts/export",
+    summary="Export broker incentives to Excel",
+    description="Download the Excel file from the most recent broker contract scan."
+)
+async def export_broker_incentives(
+    current_user: dict = Depends(require_alianzas_role)
+):
+    """
+    Export broker incentive data to Excel file.
+
+    Downloads the Excel file generated from the most recent scan.
+
+    Args:
+        current_user: Authenticated user with alianzas role
+
+    Returns:
+        StreamingResponse with Excel file download
+    """
+    import os
+
+    try:
+        user_id = current_user.get('id')
+        cached = _scan_results_cache.get(user_id)
+
+        if not cached:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No hay archivo de exportación disponible. Ejecute un escaneo primero."
+            )
+
+        output_path = cached['output_path']
+
+        if not os.path.exists(output_path):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="El archivo de exportación ya no está disponible. Ejecute un nuevo escaneo."
+            )
+
+        # Read file and return as streaming response
+        filename = os.path.basename(output_path)
+
+        def file_iterator():
+            with open(output_path, 'rb') as f:
+                while chunk := f.read(8192):
+                    yield chunk
+
+        logger.info(f"Exporting broker incentives Excel: {filename}")
+
+        return StreamingResponse(
+            file_iterator(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting broker incentives: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al exportar incentivos de brokers"
         )

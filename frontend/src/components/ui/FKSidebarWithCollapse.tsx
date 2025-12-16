@@ -192,6 +192,12 @@ const alianzasModules: AlianzasModule[] = [
     route: '/alianzas/pagos',
     icon: <Payment fontSize="small" />,
   },
+  {
+    id: 'incentivos',
+    name: 'Extracción Incentivos',
+    route: '/alianzas/incentivos',
+    icon: <Description fontSize="small" />,
+  },
 ];
 
 const FKSidebarWithCollapse: React.FC = () => {
