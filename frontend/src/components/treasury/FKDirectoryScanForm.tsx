@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import type { LocalDirectoryScanConfig } from '../../services/directoryScannerService';
+import { extractErrorMessage } from '../../utils/errorUtils';
 
 interface FKDirectoryScanFormProps {
   onScanStart: (config: LocalDirectoryScanConfig) => Promise<void>;
@@ -115,9 +116,9 @@ const FKDirectoryScanForm: React.FC<FKDirectoryScanFormProps> = ({
       await onScanStart(config);
 
       console.log('[FKDirectoryScanForm] Scan completed successfully');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[FKDirectoryScanForm] Scan failed:', err);
-      setError(err.message || 'Error al escanear directorio');
+      setError(extractErrorMessage(err, 'Error al escanear directorio'));
     } finally {
       setIsScanning(false);
     }

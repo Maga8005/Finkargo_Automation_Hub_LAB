@@ -13,6 +13,7 @@ import {
   type LocalDirectoryScanConfig,
   type LocalDirectoryScanResult,
 } from '../../services/directoryScannerService';
+import { extractErrorMessage } from '../../utils/errorUtils';
 
 const DirectoryScannerPage: React.FC = () => {
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
@@ -50,11 +51,11 @@ const DirectoryScannerPage: React.FC = () => {
 
       // Trigger inventory files table refresh
       setRefreshTrigger((prev) => prev + 1);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DirectoryScannerPage] Scan failed', error);
 
-      // Show error message
-      setSnackbarMessage(error.message || 'Error al escanear directorio');
+      // Show error message using extractErrorMessage for proper handling
+      setSnackbarMessage(extractErrorMessage(error, 'Error al escanear directorio'));
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
 
