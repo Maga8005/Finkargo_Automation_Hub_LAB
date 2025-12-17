@@ -1,0 +1,17 @@
+Speaker 1
+ Similar to the functionality in the tesoreria department called Escaneo directorio local, where we go into a file and has multiple subfolders to arrive at the declaration number. We have something of the sort of. But in this case we need to do it for the allianzas department. It will be a separate functionality to what's already there in terms of menu items. And what we need here is to take the 2024 file within the example files for recs directory and that file has each folder within it is for a broker. Within each broker there should be there are multiple files, but one of them should be a PDF that is a contract that's signed. Each one of those contracts contains the economic incentives that are agreed to for each broker. There generally are two types of incentives.
+01:22
+ Speaker 1
+ One for operations eligible operations and another for the credit line. There are generally two types of contracts. One has corresponds the language talks about bono. And there is another one that talks about incentives incentivos. So for the bono type of contract there is annex. An annex a which talks about the bono specification or in Spanish specificacion is that buono. And this one has a section that has a part that says un bono qui olente to. So in Spanish un bono que olente al oenta porcento or whatever percentage del monto cora canoa o cliente por concepto e buono de apertura. So that's the credit line bonus and that's the wording in this case. And then there is the other which is for eligible operations that says un buono que alente al sera punto something percent. So that's the other one.
+02:43
+ Speaker 1
+ We also have the style of another type which is an older type of contract that talks about incentivos. It's in Article 3 and we have a wording that says finkargo Reconnozera incentive something percent in this example, 0.07% sod El Monte Co operas en el hi alta porca nuevo cliente. That's the wording for that style of contract. So we have those two styles and we should be. We would need to get the incentives extracted and mapped to each broker as the broker is say named for the within the folder. So you have, for example 2024. We have 2024, 05 said Heretiz I would be a broker. You have 2024, 0119 simply capital Sasa would be another. You got 2024, 2702 Rodrigo Martinez, that would be another. And so on and so forth. So additionally within each contract.
+03:58
+ Speaker 1
+ At the end of the contract there is a section that says where there are signatures and the broker signs and underneath the signature there is a name followed by the RFC number. We would also want to put that in the Excel file so that it's easy to see associate the broker name, the RFC and the economic incentives for the credit line and for the operations. So in both cases the signature has a name and often the rfc. If the RFC is not there, then we just place the name. It.
+
+
+
+
+
+

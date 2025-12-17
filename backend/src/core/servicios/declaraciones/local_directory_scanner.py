@@ -9,7 +9,6 @@ Example: FINKARGO DCS/BIIRTUALSCORE SAS/12-09-2025/11.081,50/DC 11.081,50.pdf
 Example: FINKARGO DCS/3G SINTETICOS SAS/Septiembre/09-09-2025/10.500,00/DC 10.500,00.pdf
 """
 
-import os
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -17,7 +16,6 @@ from datetime import datetime
 from .folder_name_parser import (
     parse_date_from_folder_name,
     parse_amount_from_filename,
-    normalize_customer_folder_name
 )
 
 
@@ -120,7 +118,7 @@ class LocalDirectoryScanner:
             inventory_records.extend(customer_records)
             total_pdfs_found = len(customer_records)
 
-            print(f"SUCCESS [LocalDirectoryScanner]: Scan completed")
+            print("SUCCESS [LocalDirectoryScanner]: Scan completed")
             print(f"INFO [LocalDirectoryScanner]: Total PDFs found: {total_pdfs_found}")
             print(f"INFO [LocalDirectoryScanner]: Total folders scanned: {total_folders_scanned}")
 

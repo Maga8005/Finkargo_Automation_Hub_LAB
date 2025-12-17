@@ -132,7 +132,7 @@ async def scan_local_directory(
 
             print(f"INFO [DirectoryScannerEndpoint]: Extraction complete: {successful_extractions} successful, {failed_extractions} failed")
         else:
-            print(f"INFO [DirectoryScannerEndpoint]: Skipping declaration number extraction")
+            print("INFO [DirectoryScannerEndpoint]: Skipping declaration number extraction")
 
         # Generate output file path if not provided
         # Check if output_file_path is None or empty string (type-safe checking)
@@ -238,7 +238,7 @@ async def list_inventory_files():
         # Ensure output directory exists
         output_dir = Path(INVENTORY_OUTPUT_DIR)
         if not output_dir.exists():
-            print(f"WARN [DirectoryScannerEndpoint]: Output directory does not exist, creating it")
+            print("WARN [DirectoryScannerEndpoint]: Output directory does not exist, creating it")
             output_dir.mkdir(parents=True, exist_ok=True)
             return []
 

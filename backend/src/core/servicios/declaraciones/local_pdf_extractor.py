@@ -12,7 +12,6 @@ Updated: 2025-12-15 - Made standalone without PDFExtractorService dependency
 from typing import Dict, Any, Optional
 from pathlib import Path
 import re
-import io
 
 # PDF extraction imports
 import pdfplumber
@@ -48,7 +47,7 @@ class LocalPDFExtractor:
         Args:
             supabase_client: Unused, kept for interface compatibility
         """
-        print(f"INFO [LocalPDFExtractor]: Service initialized for local file extraction")
+        print("INFO [LocalPDFExtractor]: Service initialized for local file extraction")
 
     def extract_from_local_file(self, file_path: str) -> Dict[str, Any]:
         """
