@@ -21,7 +21,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
 import logging
 
-from src.interface.broker_incentive_dtos import BrokerIncentiveData, ContractType
+from src.interface.broker_incentive_dtos import BrokerIncentiveData, ContractType, ContractStatus
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,7 @@ class BrokerIncentiveExcelGenerator:
         'credit_line_incentive_pct': 'Incentivo Línea Crédito (%)',
         'operations_incentive_pct': 'Incentivo Operaciones (%)',
         'contract_type': 'Tipo Contrato',
+        'contract_status': 'Estado Contrato',
         'contract_date': 'Fecha Contrato',
         'pdf_path': 'Archivo Fuente',
         'extraction_date': 'Fecha Extracción',
@@ -156,6 +157,7 @@ class BrokerIncentiveExcelGenerator:
                     else 'N/A'
                 ),
                 'Tipo Contrato': self._format_contract_type(record.contract_type),
+                'Estado Contrato': self._format_contract_status(record.contract_status),
                 'Fecha Contrato': record.contract_date or 'N/A',
                 'Archivo Fuente': record.pdf_path,
                 'Fecha Extracción': self._format_datetime(record.extraction_date),
@@ -174,6 +176,19 @@ class BrokerIncentiveExcelGenerator:
             return "Bono"
         elif contract_type == ContractType.INCENTIVOS:
             return "Incentivos"
+        elif contract_type == ContractType.COLABORACION:
+            return "Colaboración"
+        else:
+            return "Desconocido"
+
+    def _format_contract_status(self, contract_status: ContractStatus) -> str:
+        """Format contract status for display."""
+        if contract_status == ContractStatus.FOUND:
+            return "Encontrado"
+        elif contract_status == ContractStatus.NOT_FOUND:
+            return "Sin Contrato"
+        elif contract_status == ContractStatus.ERROR:
+            return "Error"
         else:
             return "Desconocido"
 
@@ -202,7 +217,13 @@ class BrokerIncentiveExcelGenerator:
         # Contract type counts
         bono_count = sum(1 for r in records if r.contract_type == ContractType.BONO)
         incentivos_count = sum(1 for r in records if r.contract_type == ContractType.INCENTIVOS)
+        colaboracion_count = sum(1 for r in records if r.contract_type == ContractType.COLABORACION)
         unknown_count = sum(1 for r in records if r.contract_type == ContractType.UNKNOWN)
+
+        # Contract status counts
+        contracts_found = sum(1 for r in records if r.contract_status == ContractStatus.FOUND)
+        contracts_not_found = sum(1 for r in records if r.contract_status == ContractStatus.NOT_FOUND)
+        contracts_error = sum(1 for r in records if r.contract_status == ContractStatus.ERROR)
 
         # RFC and signatory completeness
         rfc_found = sum(1 for r in records if r.rfc)
@@ -237,7 +258,11 @@ class BrokerIncentiveExcelGenerator:
             'total_records': total_records,
             'bono_contracts': bono_count,
             'incentivos_contracts': incentivos_count,
+            'colaboracion_contracts': colaboracion_count,
             'unknown_contracts': unknown_count,
+            'contracts_found': contracts_found,
+            'contracts_not_found': contracts_not_found,
+            'contracts_error': contracts_error,
             'rfc_found': rfc_found,
             'rfc_missing': total_records - rfc_found,
             'signatory_found': signatory_found,
@@ -270,9 +295,15 @@ class BrokerIncentiveExcelGenerator:
             ['Total de Registros', statistics['total_records']],
             ['Tasa de Éxito de Extracción', f"{statistics['extraction_success_rate']:.1f}%"],
             ['', ''],
+            ['Estado de Contratos', ''],
+            ['  Contratos Encontrados', statistics['contracts_found']],
+            ['  Sin Contrato', statistics['contracts_not_found']],
+            ['  Con Error', statistics['contracts_error']],
+            ['', ''],
             ['Tipos de Contrato', ''],
             ['  Contratos Bono', statistics['bono_contracts']],
             ['  Contratos Incentivos', statistics['incentivos_contracts']],
+            ['  Contratos Colaboración', statistics['colaboracion_contracts']],
             ['  Contratos Desconocidos', statistics['unknown_contracts']],
             ['', ''],
             ['Completitud de Datos', ''],
@@ -373,7 +404,43 @@ class BrokerIncentiveExcelGenerator:
                     fill_type='solid'
                 )
                 cell.font = Font(color=self.WARNING_TEXT_COLOR, bold=True)
+            elif value == 'Colaboración':
+                # Use a blue theme for COLABORACIÓN contracts (similar to primary color)
+                cell.fill = PatternFill(
+                    start_color='E0E7FF',  # Light blue background
+                    end_color='E0E7FF',
+                    fill_type='solid'
+                )
+                cell.font = Font(color='3C47D3', bold=True)  # Primary main color
             elif value == 'Desconocido':
+                cell.fill = PatternFill(
+                    start_color=self.ERROR_BG_COLOR,
+                    end_color=self.ERROR_BG_COLOR,
+                    fill_type='solid'
+                )
+                cell.font = Font(color=self.ERROR_TEXT_COLOR, bold=True)
+
+        # Conditional formatting for Estado Contrato column (column 7)
+        contract_status_col = 7
+        for row_idx in range(2, sheet.max_row + 1):
+            cell = sheet.cell(row=row_idx, column=contract_status_col)
+            value = cell.value
+
+            if value == 'Encontrado':
+                cell.fill = PatternFill(
+                    start_color=self.SUCCESS_BG_COLOR,
+                    end_color=self.SUCCESS_BG_COLOR,
+                    fill_type='solid'
+                )
+                cell.font = Font(color=self.SUCCESS_TEXT_COLOR, bold=True)
+            elif value == 'Sin Contrato':
+                cell.fill = PatternFill(
+                    start_color=self.WARNING_BG_COLOR,
+                    end_color=self.WARNING_BG_COLOR,
+                    fill_type='solid'
+                )
+                cell.font = Font(color=self.WARNING_TEXT_COLOR, bold=True)
+            elif value == 'Error':
                 cell.fill = PatternFill(
                     start_color=self.ERROR_BG_COLOR,
                     end_color=self.ERROR_BG_COLOR,
@@ -412,7 +479,8 @@ class BrokerIncentiveExcelGenerator:
                 ops_cell.font = Font(color=self.NEUTRAL_TEXT_COLOR)
 
         # Auto-size columns
-        column_widths = [25, 15, 25, 22, 22, 15, 15, 50, 18, 40]
+        # Columns: Broker, RFC, Firmante, LC%, Ops%, Tipo, Estado, Fecha, Archivo, Extracción, Notas
+        column_widths = [25, 15, 25, 22, 22, 15, 14, 15, 50, 18, 40]
         for idx, width in enumerate(column_widths, start=1):
             sheet.column_dimensions[get_column_letter(idx)].width = width
 

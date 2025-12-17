@@ -18,7 +18,15 @@ class ContractType(str, Enum):
     """Type of broker contract."""
     BONO = "bono"
     INCENTIVOS = "incentivos"
+    COLABORACION = "colaboracion"
     UNKNOWN = "unknown"
+
+
+class ContractStatus(str, Enum):
+    """Status indicating whether a contract was found and processed."""
+    FOUND = "found"  # Contract PDF was found and processed
+    NOT_FOUND = "not_found"  # Folder exists but no contract PDF found
+    ERROR = "error"  # PDF exists but extraction had critical errors
 
 
 class SignatoryInfo(BaseModel):
@@ -91,6 +99,10 @@ class BrokerIncentiveData(BaseModel):
     contract_type: ContractType = Field(
         default=ContractType.UNKNOWN,
         description="Type of contract (bono, incentivos, or unknown)"
+    )
+    contract_status: ContractStatus = Field(
+        default=ContractStatus.FOUND,
+        description="Status indicating whether contract was found and processed"
     )
     pdf_path: str = Field(
         ...,

@@ -70,6 +70,21 @@ class BrokerContractScanner:
     # Max file size for PDFs (50MB)
     MAX_PDF_SIZE_BYTES = 50 * 1024 * 1024
 
+    # Contract filename patterns (case-insensitive)
+    # A PDF is considered a valid contract if its filename contains any of these patterns
+    CONTRACT_FILENAME_PATTERNS = [
+        r'complete.*con.*docusign',      # DocuSign completed
+        r'completado.*con.*docusign',    # DocuSign completed (Spanish)
+        r'contrato',                      # Contract
+        r'contract',                      # Contract (English)
+        r'corretaje',                     # Brokerage
+        r'correta',                       # Brokerage (partial)
+        r'bono',                          # Bonus
+        r'incentivo',                     # Incentive
+        r'convenio',                      # Agreement
+        r'acuerdo',                       # Agreement
+    ]
+
     def __init__(self):
         """Initialize the broker contract scanner."""
         logger.info("BrokerContractScanner initialized")
@@ -156,6 +171,10 @@ class BrokerContractScanner:
         """
         Scan for broker folders within the root directory.
 
+        Now includes ALL folders matching the naming pattern, even those
+        without PDFs or contract PDFs. This allows tracking of folders
+        where contracts are not available.
+
         Args:
             root_path: Root directory path object
             include_subfolders: Whether to scan subdirectories
@@ -177,18 +196,24 @@ class BrokerContractScanner:
                     # This folder matches our pattern
                     pdf_files = self._find_pdf_files(entry)
 
-                    if pdf_files:  # Only include folders with PDFs
-                        folder = BrokerFolder(
-                            folder_path=str(entry.absolute()),
-                            folder_name=entry.name,
-                            broker_name=broker_name,
-                            contract_date=contract_date,
-                            pdf_files=pdf_files
-                        )
-                        broker_folders.append(folder)
-                        logger.info(f"Found broker folder: {entry.name} ({len(pdf_files)} PDFs)")
+                    # Include ALL folders (even those without PDFs or contract PDFs)
+                    folder = BrokerFolder(
+                        folder_path=str(entry.absolute()),
+                        folder_name=entry.name,
+                        broker_name=broker_name,
+                        contract_date=contract_date,
+                        pdf_files=pdf_files
+                    )
+                    broker_folders.append(folder)
+
+                    # Log appropriate message based on PDF status
+                    if not pdf_files:
+                        logger.info(f"Found broker folder: {entry.name} (no PDFs)")
+                    elif not self.has_contract_pdf(folder):
+                        logger.info(f"Found broker folder: {entry.name} ({len(pdf_files)} PDFs, none match contract patterns)")
                     else:
-                        logger.warning(f"Folder '{entry.name}' has no PDF files, skipping")
+                        logger.info(f"Found broker folder: {entry.name} ({len(pdf_files)} PDFs)")
+
                 elif include_subfolders:
                     # Check if this folder contains broker subfolders
                     nested_folders = self._scan_broker_folders(entry, include_subfolders)
@@ -281,40 +306,71 @@ class BrokerContractScanner:
 
         return pdf_files
 
-    def find_contract_pdf(self, folder: BrokerFolder) -> Optional[str]:
+    def is_contract_pdf(self, filename: str) -> bool:
         """
-        Find the main contract PDF in a broker folder.
+        Check if a filename matches any contract filename pattern.
 
-        Looks for PDFs with common contract naming patterns.
-        If multiple PDFs exist, returns the first one that looks like a contract.
+        Uses CONTRACT_FILENAME_PATTERNS to identify valid contract PDFs.
+        Patterns are matched case-insensitively.
+
+        Args:
+            filename: PDF filename (with or without path)
+
+        Returns:
+            True if filename matches a contract pattern, False otherwise
+        """
+        # Get just the filename without path
+        name_only = Path(filename).name.lower()
+
+        for pattern in self.CONTRACT_FILENAME_PATTERNS:
+            if re.search(pattern, name_only, re.IGNORECASE):
+                return True
+
+        return False
+
+    def has_contract_pdf(self, folder: BrokerFolder) -> bool:
+        """
+        Check if a folder contains any PDF that matches contract filename patterns.
 
         Args:
             folder: BrokerFolder object
 
         Returns:
-            Path to contract PDF or None if not found
+            True if any PDF in folder matches contract patterns, False otherwise
+        """
+        if not folder.pdf_files:
+            return False
+
+        for pdf_path in folder.pdf_files:
+            if self.is_contract_pdf(pdf_path):
+                return True
+
+        return False
+
+    def find_contract_pdf(self, folder: BrokerFolder) -> Optional[str]:
+        """
+        Find the main contract PDF in a broker folder.
+
+        Uses CONTRACT_FILENAME_PATTERNS to identify valid contract PDFs.
+        Only returns PDFs that match contract patterns.
+        If no PDF matches contract patterns, returns None (even if folder has other PDFs).
+
+        Args:
+            folder: BrokerFolder object
+
+        Returns:
+            Path to contract PDF or None if no contract PDF found
         """
         if not folder.pdf_files:
             return None
 
-        # Common patterns for contract filenames
-        contract_patterns = [
-            r'contrato',
-            r'contract',
-            r'convenio',
-            r'acuerdo',
-            r'bono',
-            r'incentivo',
-        ]
-
-        # First, look for files matching contract patterns
+        # Look for files matching contract filename patterns
         for pdf_path in folder.pdf_files:
-            filename_lower = Path(pdf_path).stem.lower()
-            for pattern in contract_patterns:
-                if pattern in filename_lower:
-                    logger.debug(f"Found contract PDF by pattern '{pattern}': {pdf_path}")
-                    return pdf_path
+            if self.is_contract_pdf(pdf_path):
+                filename = Path(pdf_path).name
+                logger.debug(f"Found contract PDF: {filename}")
+                return pdf_path
 
-        # If no matching pattern, return the first PDF
-        logger.debug(f"No contract pattern match, using first PDF: {folder.pdf_files[0]}")
-        return folder.pdf_files[0]
+        # No PDF matches contract patterns
+        logger.debug(f"No contract PDF found in folder: {folder.folder_name}")
+        return None

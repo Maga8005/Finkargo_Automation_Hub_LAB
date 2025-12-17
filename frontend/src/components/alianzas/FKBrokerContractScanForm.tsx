@@ -29,7 +29,7 @@ interface FKBrokerContractScanFormProps {
   disabled?: boolean;
 }
 
-const DEFAULT_DIRECTORY_PATH = '/Users/alianzas/Brokers';
+const DEFAULT_DIRECTORY_PATH = '/Users/danielrestrepo/Finkargo_Automation_Hub/Example FIles for Reqs/2024';
 
 const FKBrokerContractScanForm: React.FC<FKBrokerContractScanFormProps> = ({
   onScanStart,
@@ -159,7 +159,7 @@ const FKBrokerContractScanForm: React.FC<FKBrokerContractScanFormProps> = ({
           required
           fullWidth
           variant="outlined"
-          placeholder="/Users/alianzas/Brokers"
+          placeholder="/Users/danielrestrepo/Finkargo_Automation_Hub/Example FIles for Reqs/2024"
         />
 
         {/* Output File Name (Optional) */}

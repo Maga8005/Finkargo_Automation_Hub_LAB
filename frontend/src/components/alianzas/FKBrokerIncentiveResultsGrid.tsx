@@ -16,11 +16,14 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import type {
   BrokerIncentiveData,
   ContractType,
+  ContractStatus,
 } from '../../services/brokerIncentiveService';
 import {
   formatPercentage,
   formatContractType,
   getContractTypeColor,
+  formatContractStatus,
+  getContractStatusColor,
   exportBrokerIncentives,
 } from '../../services/brokerIncentiveService';
 
@@ -46,6 +49,24 @@ const renderContractTypeCell = (params: GridRenderCellParams<BrokerIncentiveData
     <Chip
       label={formatContractType(type)}
       color={getContractTypeColor(type)}
+      size="small"
+      variant="filled"
+      sx={{ fontWeight: 600 }}
+    />
+  );
+};
+
+/**
+ * Render contract status chip with color
+ */
+const renderContractStatusCell = (params: GridRenderCellParams<BrokerIncentiveData, ContractStatus>) => {
+  const status = params.value;
+  if (!status) return null;
+
+  return (
+    <Chip
+      label={formatContractStatus(status)}
+      color={getContractStatusColor(status)}
       size="small"
       variant="filled"
       sx={{ fontWeight: 600 }}
@@ -176,6 +197,14 @@ const columns: GridColDef<BrokerIncentiveData>[] = [
     renderCell: renderContractTypeCell,
   },
   {
+    field: 'contract_status',
+    headerName: 'Estado Contrato',
+    width: 140,
+    align: 'center',
+    headerAlign: 'center',
+    renderCell: renderContractStatusCell,
+  },
+  {
     field: 'contract_date',
     headerName: 'Fecha Contrato',
     width: 120,
@@ -221,6 +250,11 @@ const FKBrokerIncentiveResultsGrid: React.FC<FKBrokerIncentiveResultsGridProps> 
   const bonoCount = records.filter((r) => r.contract_type === 'bono').length;
   const incentivosCount = records.filter((r) => r.contract_type === 'incentivos').length;
   const unknownCount = records.filter((r) => r.contract_type === 'unknown').length;
+
+  // Contract status counts
+  const foundCount = records.filter((r) => r.contract_status === 'found').length;
+  const notFoundCount = records.filter((r) => r.contract_status === 'not_found').length;
+  const errorCount = records.filter((r) => r.contract_status === 'error').length;
 
   const creditLineValues = records
     .filter((r) => r.credit_line_incentive_pct !== null)
@@ -312,6 +346,30 @@ const FKBrokerIncentiveResultsGrid: React.FC<FKBrokerIncentiveResultsGridProps> 
             </Typography>
             <Typography variant="body1" fontWeight={600} color="error.main">
               {unknownCount}
+            </Typography>
+          </Box>
+          <Box sx={{ borderLeft: '1px solid', borderColor: 'divider', pl: 2 }}>
+            <Typography variant="caption" color="text.secondary">
+              Encontrados
+            </Typography>
+            <Typography variant="body1" fontWeight={600} color="success.main">
+              {foundCount}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Sin Contrato
+            </Typography>
+            <Typography variant="body1" fontWeight={600} color="warning.main">
+              {notFoundCount}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Errores
+            </Typography>
+            <Typography variant="body1" fontWeight={600} color="error.main">
+              {errorCount}
             </Typography>
           </Box>
           <Box sx={{ borderLeft: '1px solid', borderColor: 'divider', pl: 2 }}>

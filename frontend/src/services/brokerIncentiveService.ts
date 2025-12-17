@@ -10,7 +10,7 @@
 import apiClient from '../api/clients/apiClient';
 import { extractErrorMessage } from '../utils/errorUtils';
 
-const BASE_PATH = '/api/alianzas/broker-contracts';
+const BASE_PATH = '/alianzas/broker-contracts';
 
 // Timeout for directory scanning operations (30 minutes for large directories)
 const SCAN_TIMEOUT = 1800000;
@@ -18,7 +18,12 @@ const SCAN_TIMEOUT = 1800000;
 /**
  * Contract type enumeration.
  */
-export type ContractType = 'bono' | 'incentivos' | 'unknown';
+export type ContractType = 'bono' | 'incentivos' | 'colaboracion' | 'unknown';
+
+/**
+ * Contract status enumeration.
+ */
+export type ContractStatus = 'found' | 'not_found' | 'error';
 
 /**
  * Configuration for broker contract directory scan.
@@ -41,6 +46,7 @@ export interface BrokerIncentiveData {
   credit_line_incentive_pct: number | null;
   operations_incentive_pct: number | null;
   contract_type: ContractType;
+  contract_status: ContractStatus;
   pdf_path: string;
   extraction_date: string;
   warnings: string[];
@@ -246,6 +252,8 @@ export const formatContractType = (type: ContractType): string => {
       return 'Bono';
     case 'incentivos':
       return 'Incentivos';
+    case 'colaboracion':
+      return 'Colaboracion';
     default:
       return 'Desconocido';
   }
@@ -257,12 +265,52 @@ export const formatContractType = (type: ContractType): string => {
  * @param type - Contract type
  * @returns MUI color string
  */
-export const getContractTypeColor = (type: ContractType): 'success' | 'warning' | 'error' => {
+export const getContractTypeColor = (type: ContractType): 'success' | 'warning' | 'error' | 'info' => {
   switch (type) {
     case 'bono':
       return 'success';
     case 'incentivos':
       return 'warning';
+    case 'colaboracion':
+      return 'info';
+    default:
+      return 'error';
+  }
+};
+
+/**
+ * Format contract status for display.
+ *
+ * @param status - Contract status
+ * @returns Spanish display string
+ */
+export const formatContractStatus = (status: ContractStatus): string => {
+  switch (status) {
+    case 'found':
+      return 'Encontrado';
+    case 'not_found':
+      return 'Sin Contrato';
+    case 'error':
+      return 'Error';
+    default:
+      return 'Desconocido';
+  }
+};
+
+/**
+ * Get color for contract status display.
+ *
+ * @param status - Contract status
+ * @returns MUI color string
+ */
+export const getContractStatusColor = (status: ContractStatus): 'success' | 'warning' | 'error' => {
+  switch (status) {
+    case 'found':
+      return 'success';
+    case 'not_found':
+      return 'warning';
+    case 'error':
+      return 'error';
     default:
       return 'error';
   }
