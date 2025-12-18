@@ -37,8 +37,8 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            server:
-              - 'server/**'
+            backend:
+              - 'backend/**'
 
       - name: Print Changed Components
         run: "echo 'Changed Components: ${{ steps.filter.outputs.changes }}'"
