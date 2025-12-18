@@ -146,10 +146,7 @@ jobs:
             --resolve-s3 \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --image-repository ${IMAGE_URI%:*} \
-            --parameter-overrides \
-              Environment=${ENVIRONMENT} \
-              ImageUri=${IMAGE_URI}
+            --parameter-overrides Environment=${ENVIRONMENT} ImageUri=${IMAGE_URI}
 
       - name: Get Lambda Function Info
         env:
