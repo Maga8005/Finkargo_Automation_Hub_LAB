@@ -75,3 +75,5 @@ nul
 
 # Agents
 /agents/
+
+backend/infrastructure/samconfig.toml

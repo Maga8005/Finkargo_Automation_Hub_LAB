@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Finkargo fkhub - Backend API (Lambda + HTTP API Gateway)
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - staging
+      - prod
+    Description: Environment name
+
+  AuthorizerMemorySize:
+    Type: Number
+    Default: 1024
+    MinValue: 128
+    MaxValue: 10240
+    Description: Memory size for the authorizer Lambda function (MB)
+
+  AuthorizerTimeout:
+    Type: Number
+    Default: 120
+    MinValue: 3
+    MaxValue: 120
+    Description: Timeout for the authorizer Lambda function (seconds)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures:
+      - x86_64
+    Timeout: !Ref AuthorizerTimeout
+
+Resources:
+  FinkargoFKhubAPI:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python3.12
+      BuildProperties:
+        PipRequirements: requirements.txt
+    Properties:
+      FunctionName: !Sub api-fkhub-${Environment}
+      Description: FastAPI backend for Finkargo fkhub System
+      CodeUri: ../
+      Handler: lambda_handler.handler
+      MemorySize: !Ref AuthorizerMemorySize
+      Environment:
+        Variables:
+          APP_NAME: Finkargo fkhub System
+      Tags:
+        Environment: !Ref Environment
+        Application: api-fkhub
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref FinkargoFKhubAPI
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:2spr393u04/*/*"
+
+  AuthorizerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/api-fkhub-${Environment}
+      RetentionInDays: 7
+
+Outputs:
+  FinkargoFKhubAPIFunction:
+    Description: Lambda Function ARN
+    Value: !GetAtt FinkargoFKhubAPI.Arn
+    Export:
+      Name: FinkargoFKhubAPIFunctionArn
+
+  FinkargoFKhubAPIFunctionIamRole:
+    Description: IAM Role for Lambda function
+    Value: !GetAtt FinkargoFKhubAPIRole.Arn
+    Export:
+      Name: FinkargoFKhubAPIFunctionRoleArn
+
+  LogGroupName:
+    Description: CloudWatch Log Group for the Authorizer Lambda
+    Value: !Ref AuthorizerLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-LogGroupName
