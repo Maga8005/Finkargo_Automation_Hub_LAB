@@ -1,8 +1,6 @@
-# This workflow is triggered on push events to the ARQ/devops branch.
-# It detects changes in specific directories and deploys AWS Lambda functions accordingly.
-
-name: Deploy AWS Lambdas
-run-name: Deploy AWS Lambdas Workflow
+# This workflow builds a Docker image, pushes it to ECR, and deploys to Lambda
+name: Deploy AWS Lambda (Docker)
+run-name: Deploy AWS Lambda with Docker Container
 
 on:
   workflow_dispatch:
@@ -10,7 +8,7 @@ on:
     branches:
       - main
 
-# Define minimal permissions required for the workflow.
+# Define minimal permissions required for the workflow
 permissions:
   id-token: write # Required for requesting the JWT
   contents: read # Required for checking out the repository
@@ -43,11 +41,71 @@ jobs:
       - name: Print Changed Components
         run: "echo 'Changed Components: ${{ steps.filter.outputs.changes }}'"
 
-  validate-and-build:
+  build-and-push:
     needs: detect-changes
     if: ${{ success() && needs.detect-changes.outputs.changed-components != '[]' }}
-    name: Validate and Build
+    name: Build Docker Image and Push to ECR
     runs-on: ubuntu-latest
+    environment: production
+
+    outputs:
+      image-uri: ${{ steps.build-image.outputs.image }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION_CLOUD_GOVERMENT }}
+          AWS_ROLE: ${{ secrets.ROLE_AWS_SANDBOX_CG }}
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          role-session-name: GitHub-AWS-Role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Docker Image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: fkhub-api
+          IMAGE_TAG: ${{ github.sha }}
+          ENVIRONMENT: ${{ vars.ENVIRONMENT || 'prod' }}
+        run: |
+          # Create ECR repository if it doesn't exist
+          aws ecr describe-repositories --repository-names ${ECR_REPOSITORY} || \
+            aws ecr create-repository --repository-name ${ECR_REPOSITORY}
+
+          # Build Docker image
+          cd backend
+          docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} .
+          docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:${ENVIRONMENT}
+          docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+
+          # Push all tags
+          docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+          docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${ENVIRONMENT}
+          docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+
+          # Output image URI for deployment
+          echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Print Image URI
+        run: echo "Built and pushed image ${{ steps.build-image.outputs.image }}"
+
+  deploy:
+    name: Deploy to AWS Lambda
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-and-push]
+    if: ${{ success() && needs.detect-changes.outputs.changed-components != '[]' }}
+    environment: production
 
     steps:
       - name: Checkout Repository
@@ -59,71 +117,6 @@ jobs:
         uses: aws-actions/setup-sam@v2
         with:
           use-installer: true
-
-      - name: Cache SAM Build
-        uses: actions/cache@v4
-        with:
-          path: backend/infrastructure/.aws-sam
-          key: sam-build-${{ hashFiles('backend/**', 'backend/infrastructure/template.yaml') }}
-          restore-keys: |
-            sam-build-
-
-      - name: Validate SAM Template
-        run: |
-          cd backend/infrastructure
-          sam validate --lint
-
-      - name: Build Lambda Layers
-        run: |
-          cd backend
-
-          # Build Data Processing Layer
-          echo "Building Data Processing Layer..."
-          cd layers/data-processing
-          mkdir -p python
-          pip install -r requirements.txt -t python --platform manylinux2014_x86_64 --only-binary=:all: --upgrade
-          cd ../..
-
-          # Build Google APIs Layer
-          echo "Building Google APIs Layer..."
-          cd layers/google-apis
-          mkdir -p python
-          pip install -r requirements.txt -t python --platform manylinux2014_x86_64 --only-binary=:all: --upgrade
-          cd ../..
-
-      - name: Build Lambda Functions
-        run: |
-          cd backend/infrastructure
-          sam build --cached
-
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: sam-build
-          path: backend/infrastructure/.aws-sam/build/
-          retention-days: 1
-
-  deploy:
-    name: Deploy to AWS
-    runs-on: ubuntu-latest
-    needs: [detect-changes, validate-and-build]
-    if: ${{ success() && needs.detect-changes.outputs.changed-components != '[]' }}
-    environment: production
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: sam-build
-          path: backend/infrastructure/.aws-sam/build/
-
-      - name: Verify SAM CLI
-        run: sam --version
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -138,11 +131,12 @@ jobs:
       - name: Validate AWS Authentication
         run: aws sts get-caller-identity
 
-      - name: Deploy to AWS
+      - name: Deploy to AWS with SAM
         env:
           AWS_REGION: ${{ secrets.AWS_REGION_CLOUD_GOVERMENT }}
           STACK_NAME: ${{ vars.STACK_NAME || 'api-fkhub' }}
           ENVIRONMENT: ${{ vars.ENVIRONMENT || 'prod' }}
+          IMAGE_URI: ${{ needs.build-and-push.outputs.image-uri }}
         run: |
           cd backend/infrastructure
           sam deploy \
@@ -152,4 +146,18 @@ jobs:
             --resolve-s3 \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --parameter-overrides Environment=${ENVIRONMENT}
+            --image-repository ${IMAGE_URI%:*} \
+            --parameter-overrides \
+              Environment=${ENVIRONMENT} \
+              ImageUri=${IMAGE_URI}
+
+      - name: Get Lambda Function Info
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION_CLOUD_GOVERMENT }}
+          ENVIRONMENT: ${{ vars.ENVIRONMENT || 'prod' }}
+        run: |
+          aws lambda get-function \
+            --function-name api-fkhub-${ENVIRONMENT} \
+            --region ${AWS_REGION} \
+            --query 'Configuration.[FunctionName,Runtime,MemorySize,Timeout,PackageType]' \
+            --output table

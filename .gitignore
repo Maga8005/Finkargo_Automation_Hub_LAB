@@ -78,7 +78,8 @@ nul
 
 backend/infrastructure/samconfig.toml
 
-# Lambda Layers build artifacts
-backend/layers/**/python/
-backend/layers/**/.aws-sam/
-*.zip
+# AWS SAM
+.aws-sam/
+
+# Docker
+*.dockerignore.bak

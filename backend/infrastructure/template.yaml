@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Finkargo fkhub - Backend API (Lambda + HTTP API Gateway)
+Description: Finkargo fkhub - Backend API (Lambda Container + HTTP API Gateway)
 
 Parameters:
   Environment:
@@ -13,7 +13,7 @@ Parameters:
 
   AuthorizerMemorySize:
     Type: Number
-    Default: 1024
+    Default: 2048
     MinValue: 128
     MaxValue: 10240
     Description: Memory size for the authorizer Lambda function (MB)
@@ -22,64 +22,46 @@ Parameters:
     Type: Number
     Default: 120
     MinValue: 3
-    MaxValue: 120
+    MaxValue: 900
     Description: Timeout for the authorizer Lambda function (seconds)
+
+  ImageUri:
+    Type: String
+    Description: ECR image URI for the Lambda function
+    Default: ""
+
+Conditions:
+  UseImageUri: !Not [!Equals [!Ref ImageUri, ""]]
 
 Globals:
   Function:
-    Runtime: python3.12
     Architectures:
       - x86_64
     Timeout: !Ref AuthorizerTimeout
 
 Resources:
-  # Lambda Layer: Data Processing (pandas, PyMuPDF, openpyxl, etc.)
-  DataProcessingLayer:
-    Type: AWS::Serverless::LayerVersion
-    Metadata:
-      BuildMethod: python3.12
-    Properties:
-      LayerName: !Sub fkhub-data-processing-${Environment}
-      Description: Data processing libraries - pandas, PyMuPDF, openpyxl, pdfplumber, PyPDF2, sqlalchemy
-      ContentUri: ../layers/data-processing/
-      CompatibleRuntimes:
-        - python3.12
-      RetentionPolicy: Retain
-
-  # Lambda Layer: Google APIs (google-api-python-client, google-auth)
-  GoogleAPIsLayer:
-    Type: AWS::Serverless::LayerVersion
-    Metadata:
-      BuildMethod: python3.12
-    Properties:
-      LayerName: !Sub fkhub-google-apis-${Environment}
-      Description: Google Drive API dependencies
-      ContentUri: ../layers/google-apis/
-      CompatibleRuntimes:
-        - python3.12
-      RetentionPolicy: Retain
-
   FinkargoFKhubAPI:
     Type: AWS::Serverless::Function
-    Metadata:
-      BuildMethod: python3.12
-      BuildProperties:
-        PipRequirements: requirements.txt
     Properties:
       FunctionName: !Sub api-fkhub-${Environment}
-      Description: FastAPI backend for Finkargo fkhub System
-      CodeUri: ../
-      Handler: lambda_handler.handler
+      Description: FastAPI backend for Finkargo fkhub System (Docker Container)
+      PackageType: Image
+      ImageUri: !If
+        - UseImageUri
+        - !Ref ImageUri
+        - !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/fkhub-api:latest"
       MemorySize: !Ref AuthorizerMemorySize
-      Layers:
-        - !Ref DataProcessingLayer
-        - !Ref GoogleAPIsLayer
+      Timeout: !Ref AuthorizerTimeout
       Environment:
         Variables:
           APP_NAME: Finkargo fkhub System
       Tags:
         Environment: !Ref Environment
         Application: api-fkhub
+    Metadata:
+      DockerTag: !Ref Environment
+      DockerContext: ../
+      Dockerfile: Dockerfile
 
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -109,7 +91,7 @@ Outputs:
       Name: FinkargoFKhubAPIFunctionRoleArn
 
   LogGroupName:
-    Description: CloudWatch Log Group for the Authorizer Lambda
+    Description: CloudWatch Log Group for the Lambda
     Value: !Ref AuthorizerLogGroup
     Export:
       Name: !Sub ${AWS::StackName}-LogGroupName

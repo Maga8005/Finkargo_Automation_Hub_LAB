@@ -1,0 +1,88 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+tests/
+*_test.py
+test_*.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.*
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Database files
+database/
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+
+# SAM artifacts
+infrastructure/
+.aws-sam/
+samconfig.toml
+
+# Alembic (keep alembic.ini but exclude versions)
+alembic/versions/*.py
+!alembic/versions/__init__.py
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+~$*
+nul
+
+# Data files (large)
+*.csv
+*.xlsx
+*.xls
+*.pdf
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+
+# Agents
+agents/
