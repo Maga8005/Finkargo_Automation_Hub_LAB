@@ -143,6 +143,10 @@ jobs:
           # Debug: Print IMAGE_URI
           echo "IMAGE_URI: ${IMAGE_URI}"
 
+          # Extract repository (remove tag)
+          IMAGE_REPO="${IMAGE_URI%:*}"
+          echo "IMAGE_REPO: ${IMAGE_REPO}"
+
           # Deploy with SAM
           sam deploy \
             --stack-name ${STACK_NAME} \
@@ -151,6 +155,7 @@ jobs:
             --resolve-s3 \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
+            --image-repository ${IMAGE_REPO} \
             --parameter-overrides "ParameterKey=Environment,ParameterValue=${ENVIRONMENT}" "ParameterKey=ImageUri,ParameterValue=${IMAGE_URI}"
 
       - name: Get Lambda Function Info
