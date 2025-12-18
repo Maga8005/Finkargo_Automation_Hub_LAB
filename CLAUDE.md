@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Production URLs:**
 - Frontend: https://finkargo-automation-hub.vercel.app/
-- Backend: https://finkargo-automation-hub.onrender.com/api
+- Backend API: https://api-sandbox.finkargo.com.co/fkhub/
 
 ## Core Architecture Principles
 
@@ -223,7 +223,12 @@ backend/src/
 
 ### Base URLs
 - **Development**: `http://localhost:8000/api`
-- **Production**: `https://finkargo-automation-hub.onrender.com/api`
+- **Production**: `https://api-sandbox.finkargo.com.co/fkhub`
+
+### Authentication Headers
+All API requests to the production endpoint must include:
+- `x-api-key`: Required API key for Finkargo API Gateway
+- `Authorization`: Bearer token from Supabase authentication (for user-specific requests)
 
 ### Key Endpoints
 
@@ -455,8 +460,9 @@ const breakpoints = {
 VITE_SUPABASE_URL=https://[project-id].supabase.co
 VITE_SUPABASE_ANON_KEY=[anon-key]
 
-# API
-VITE_API_URL=http://localhost:8000/api
+# API (Finkargo Production API)
+VITE_API_URL=https://api-sandbox.finkargo.com.co/fkhub
+VITE_API_KEY=pk_prod_PO1DbQCi8Z0TSiHHTCNtkA
 VITE_API_TIMEOUT=30000
 
 # App Settings
