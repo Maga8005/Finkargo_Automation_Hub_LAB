@@ -1,24 +1,22 @@
-FROM python:3.11-slim
+# Use AWS Lambda Python 3.12 base image
+FROM public.ecr.aws/lambda/python:3.12
 
-# Install LibreOffice and system dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    libreoffice \
-    libreoffice-writer \
-    && rm -rf /var/lib/apt/lists/*
+# Set working directory to Lambda task root
+WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Set working directory
-WORKDIR /app
-
-# Copy requirements and install Python dependencies
+# Copy requirements file
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Python dependencies
+# --no-cache-dir reduces image size
+# --upgrade ensures latest compatible versions
+RUN pip install --no-cache-dir -r requirements.txt --upgrade
 
 # Copy application code
-COPY . .
+# This includes: main.py, lambda_handler.py, src/, etc.
+COPY . ${LAMBDA_TASK_ROOT}
 
-# Expose port (Render provides this via $PORT environment variable)
-EXPOSE 8000
-
-# Start the application
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Set the CMD to Lambda handler
+# Format: module_name.function_name
+# This points to the 'handler' function in lambda_handler.py
+CMD ["lambda_handler.handler"]
