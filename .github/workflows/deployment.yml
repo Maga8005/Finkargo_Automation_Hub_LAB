@@ -143,6 +143,13 @@ jobs:
           # Debug: Print IMAGE_URI
           echo "IMAGE_URI: ${IMAGE_URI}"
 
+          # Validate IMAGE_URI is not empty
+          if [ -z "${IMAGE_URI}" ]; then
+            echo "ERROR: IMAGE_URI is empty. Build job may have failed or been skipped."
+            echo "Check the 'Build Docker Image and Push to ECR' job output."
+            exit 1
+          fi
+
           # Extract repository (remove tag)
           IMAGE_REPO="${IMAGE_URI%:*}"
           echo "IMAGE_REPO: ${IMAGE_REPO}"
