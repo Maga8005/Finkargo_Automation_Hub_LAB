@@ -73,6 +73,24 @@ jobs:
           cd backend/infrastructure
           sam validate --lint
 
+      - name: Build Lambda Layers
+        run: |
+          cd backend
+
+          # Build Data Processing Layer
+          echo "Building Data Processing Layer..."
+          cd layers/data-processing
+          mkdir -p python
+          pip install -r requirements.txt -t python --platform manylinux2014_x86_64 --only-binary=:all: --upgrade
+          cd ../..
+
+          # Build Google APIs Layer
+          echo "Building Google APIs Layer..."
+          cd layers/google-apis
+          mkdir -p python
+          pip install -r requirements.txt -t python --platform manylinux2014_x86_64 --only-binary=:all: --upgrade
+          cd ../..
+
       - name: Build Lambda Functions
         run: |
           cd backend/infrastructure
@@ -133,5 +151,5 @@ jobs:
             --region ${AWS_REGION} \
             --resolve-s3 \
             --no-confirm-changeset \
-            htt \
+            --no-fail-on-empty-changeset \
             --parameter-overrides Environment=${ENVIRONMENT}

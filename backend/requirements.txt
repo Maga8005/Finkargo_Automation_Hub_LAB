@@ -1,36 +1,38 @@
+# Lambda Function Dependencies (Lightweight only)
+# Heavy dependencies moved to Lambda Layers:
+# - requirements-layer-data.txt: pandas, PyMuPDF, openpyxl, pdfplumber, PyPDF2, sqlalchemy, alembic, psycopg2-binary
+# - requirements-layer-google.txt: google-api-python-client, google-auth-*
+
+# Core Framework
 fastapi>=0.104.1
 uvicorn[standard]>=0.24.0
-sqlalchemy>=2.0.23
-alembic>=1.12.1
-psycopg2-binary>=2.9.9
+mangum==0.17.0
+
+# Data Validation
 pydantic>=2.5.2
 pydantic-settings>=2.1.0
 email-validator>=2.1.0
-python-multipart>=0.0.6
+
+# HTTP & File Upload
 httpx>=0.24.1
+python-multipart>=0.0.6
+requests>=2.31.0
+
+# Cloud & Auth
+supabase>=2.0.0
+PyJWT>=2.8.0
+
+# Document Processing (Light)
+python-docx>=1.0.0
+lxml>=4.9.0
+
+# String Matching
+rapidfuzz>=3.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+
+# Testing (dev only, not included in Lambda)
 pytest>=7.4.3
 pytest-asyncio>=0.21.1
 ruff>=0.1.0
-python-dotenv>=1.0.0
-supabase>=2.0.0
-openpyxl>=3.0.0
-python-docx>=1.0.0
-docx2pdf>=0.1.8
-lxml>=4.9.0
-PyJWT>=2.8.0
-PyMuPDF>=1.23.0
-PyPDF2>=3.0.0
-
-# PDF extraction (for Directory Scanner)
-pdfplumber>=0.10.0
-
-# Fuzzy string matching (for Declaration-Historial matching)
-rapidfuzz>=3.0.0
-
-# Google Drive API (for Facturación MX)
-google-api-python-client>=2.111.0
-google-auth>=2.25.2
-google-auth-httplib2>=0.2.0
-google-auth-oauthlib>=1.2.0
-
-mangum==0.17.0  # AWS Lambda ASGI adapter

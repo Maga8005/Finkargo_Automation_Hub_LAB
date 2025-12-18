@@ -33,6 +33,32 @@ Globals:
     Timeout: !Ref AuthorizerTimeout
 
 Resources:
+  # Lambda Layer: Data Processing (pandas, PyMuPDF, openpyxl, etc.)
+  DataProcessingLayer:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.12
+    Properties:
+      LayerName: !Sub fkhub-data-processing-${Environment}
+      Description: Data processing libraries - pandas, PyMuPDF, openpyxl, pdfplumber, PyPDF2, sqlalchemy
+      ContentUri: ../layers/data-processing/
+      CompatibleRuntimes:
+        - python3.12
+      RetentionPolicy: Retain
+
+  # Lambda Layer: Google APIs (google-api-python-client, google-auth)
+  GoogleAPIsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.12
+    Properties:
+      LayerName: !Sub fkhub-google-apis-${Environment}
+      Description: Google Drive API dependencies
+      ContentUri: ../layers/google-apis/
+      CompatibleRuntimes:
+        - python3.12
+      RetentionPolicy: Retain
+
   FinkargoFKhubAPI:
     Type: AWS::Serverless::Function
     Metadata:
@@ -45,6 +71,9 @@ Resources:
       CodeUri: ../
       Handler: lambda_handler.handler
       MemorySize: !Ref AuthorizerMemorySize
+      Layers:
+        - !Ref DataProcessingLayer
+        - !Ref GoogleAPIsLayer
       Environment:
         Variables:
           APP_NAME: Finkargo fkhub System

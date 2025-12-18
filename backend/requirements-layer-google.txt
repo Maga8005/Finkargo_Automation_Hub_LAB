@@ -1,0 +1,8 @@
+# Lambda Layer: Google APIs
+# Dependencies for Google Drive integration
+# Estimated size: ~50-70 MB
+
+google-api-python-client>=2.111.0
+google-auth>=2.25.2
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.2.0

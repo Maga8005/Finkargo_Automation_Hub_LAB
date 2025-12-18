@@ -77,3 +77,8 @@ nul
 /agents/
 
 backend/infrastructure/samconfig.toml
+
+# Lambda Layers build artifacts
+backend/layers/**/python/
+backend/layers/**/.aws-sam/
+*.zip
