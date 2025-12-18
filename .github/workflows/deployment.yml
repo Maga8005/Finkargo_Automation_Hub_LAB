@@ -49,7 +49,7 @@ jobs:
     environment: production
 
     outputs:
-      image-uri: ${{ steps.build-image.outputs.image }}
+      container_image: ${{ steps.build-image.outputs.image }}
 
     steps:
       - name: Checkout Repository
@@ -136,22 +136,22 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION_CLOUD_GOVERMENT }}
           STACK_NAME: ${{ vars.STACK_NAME || 'api-fkhub' }}
           ENVIRONMENT: ${{ vars.ENVIRONMENT || 'prod' }}
-          IMAGE_URI: ${{ needs.build-and-push.outputs.image-uri }}
+          CONTAINER_IMAGE: ${{ needs.build-and-push.outputs.container_image }}
         run: |
           cd backend/infrastructure
 
-          # Debug: Print IMAGE_URI
-          echo "IMAGE_URI: ${IMAGE_URI}"
+          # Debug: Print CONTAINER_IMAGE
+          echo "CONTAINER_IMAGE: ${CONTAINER_IMAGE}"
 
-          # Validate IMAGE_URI is not empty
-          if [ -z "${IMAGE_URI}" ]; then
-            echo "ERROR: IMAGE_URI is empty. Build job may have failed or been skipped."
+          # Validate CONTAINER_IMAGE is not empty
+          if [ -z "${CONTAINER_IMAGE}" ]; then
+            echo "ERROR: CONTAINER_IMAGE is empty. Build job may have failed or been skipped."
             echo "Check the 'Build Docker Image and Push to ECR' job output."
             exit 1
           fi
 
           # Extract repository (remove tag)
-          IMAGE_REPO="${IMAGE_URI%:*}"
+          IMAGE_REPO="${CONTAINER_IMAGE%:*}"
           echo "IMAGE_REPO: ${IMAGE_REPO}"
 
           # Deploy with SAM
@@ -163,7 +163,7 @@ jobs:
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --image-repository ${IMAGE_REPO} \
-            --parameter-overrides "ParameterKey=Environment,ParameterValue=${ENVIRONMENT}" "ParameterKey=ImageUri,ParameterValue=${IMAGE_URI}"
+            --parameter-overrides "ParameterKey=Environment,ParameterValue=${ENVIRONMENT}" "ParameterKey=ImageUri,ParameterValue=${CONTAINER_IMAGE}"
 
       - name: Get Lambda Function Info
         env:
