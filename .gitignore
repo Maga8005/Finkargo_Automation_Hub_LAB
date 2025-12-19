@@ -76,6 +76,9 @@ nul
 # Agents
 /agents/
 
+# Example files
+Example FIles for Reqs/
+
 backend/infrastructure/samconfig.toml
 
 # AWS SAM

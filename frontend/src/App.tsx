@@ -23,6 +23,7 @@ import PlantillasNetSuiteMX from './pages/tesoreria/PlantillasNetSuiteMX';
 import BrokersPage from './pages/alianzas/BrokersPage';
 import ComisionesCalculo from './pages/alianzas/ComisionesCalculo';
 import PagosHistorial from './pages/alianzas/PagosHistorial';
+import BrokerIncentivesPage from './pages/alianzas/BrokerIncentivesPage';
 import HistorialMatchingPage from './pages/treasury/HistorialMatchingPage';
 import DirectoryScannerPage from './pages/treasury/DirectoryScannerPage';
 import { UserRole } from './types';
@@ -144,6 +145,14 @@ function App() {
                 element={
                   <RoleProtectedRoute allowedRoles={[UserRole.ALIANZAS, UserRole.ADMIN]}>
                     <PagosHistorial />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="alianzas/incentivos"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.ALIANZAS, UserRole.ADMIN]}>
+                    <BrokerIncentivesPage />
                   </RoleProtectedRoute>
                 }
               />
