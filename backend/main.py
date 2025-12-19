@@ -46,7 +46,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_origin_regex=r"https://.*\.vercel\.app"  # Support all Vercel preview URLs
+    allow_origin_regex=r"https://.*\.finkargo\.com"  # Support all Vercel preview URLs
 )
 
 # GZip middleware for compressing JSON responses
