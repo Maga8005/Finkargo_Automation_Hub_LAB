@@ -15,6 +15,8 @@ from adw_modules.data_types import (
     GitHubIssue,
     AgentPromptResponse,
     IssueClassSlashCommand,
+    ReviewResult,
+    ReviewIssue,
 )
 from adw_modules.agent import execute_template
 from adw_modules.github import get_repo_url, extract_repo_path
@@ -516,5 +518,120 @@ def create_or_find_branch(
     
     state.update(branch_name=branch_name)
     logger.info(f"Created and checked out new branch: {branch_name}")
-    
+
     return branch_name, None
+
+
+def find_spec_file(state: ADWState, logger: logging.Logger) -> Optional[str]:
+    """Find the spec file from state or by searching the specs directory.
+
+    Args:
+        state: ADWState instance containing workflow state
+        logger: Logger instance
+
+    Returns:
+        Path to spec file if found, None otherwise
+    """
+    import os
+
+    # First check if plan_file is in state
+    plan_file = state.get("plan_file")
+    if plan_file:
+        # Check if the file exists
+        if os.path.exists(plan_file):
+            logger.info(f"Found spec file in state: {plan_file}")
+            return plan_file
+        else:
+            logger.warning(f"Spec file in state does not exist: {plan_file}")
+
+    # Try to find by issue number and adw_id
+    issue_number = state.get("issue_number")
+    adw_id = state.get("adw_id")
+
+    if issue_number and adw_id:
+        # Look in specs directory with naming pattern
+        specs_pattern = f"specs/*issue-{issue_number}*adw-{adw_id}*.md"
+        matches = glob.glob(specs_pattern)
+        if matches:
+            spec_file = matches[0]
+            logger.info(f"Found spec file by pattern: {spec_file}")
+            return spec_file
+
+    # Fallback: search for any spec with the issue number
+    if issue_number:
+        specs_pattern = f"specs/*{issue_number}*.md"
+        matches = glob.glob(specs_pattern)
+        if matches:
+            spec_file = matches[0]
+            logger.info(f"Found spec file by issue number: {spec_file}")
+            return spec_file
+
+    logger.error("Could not find spec file")
+    return None
+
+
+def create_and_implement_patch(
+    adw_id: str,
+    review_change_request: str,
+    logger: logging.Logger,
+    agent_name_planner: str,
+    agent_name_implementor: str,
+    spec_path: str,
+    issue_screenshots: Optional[str] = None,
+) -> Tuple[Optional[str], AgentPromptResponse]:
+    """Create a patch plan and implement it to resolve review issues.
+
+    Args:
+        adw_id: ADW workflow ID
+        review_change_request: Description of what needs to be fixed
+        logger: Logger instance
+        agent_name_planner: Name for the patch planner agent
+        agent_name_implementor: Name for the patch implementor agent
+        spec_path: Path to the spec file
+        issue_screenshots: Optional path to screenshots showing the issue
+
+    Returns:
+        Tuple of (patch_file_path, implement_response)
+        patch_file_path is None if patch creation failed
+    """
+    # Build args for the /patch command
+    patch_args = [adw_id, spec_path, review_change_request]
+    if issue_screenshots:
+        patch_args.append(issue_screenshots)
+
+    # Create patch plan using /patch command
+    patch_request = AgentTemplateRequest(
+        agent_name=agent_name_planner,
+        slash_command="/patch",
+        args=patch_args,
+        adw_id=adw_id,
+        model="opus",
+    )
+
+    logger.debug(f"Patch request: {patch_request.model_dump_json(indent=2, by_alias=True)}")
+
+    patch_response = execute_template(patch_request)
+
+    logger.debug(f"Patch response: {patch_response.model_dump_json(indent=2, by_alias=True)}")
+
+    if not patch_response.success:
+        logger.error(f"Failed to create patch plan: {patch_response.output}")
+        return None, patch_response
+
+    # Extract patch file path from response
+    patch_file = patch_response.output.strip()
+
+    # Validate it looks like a file path
+    if not patch_file or "/" not in patch_file or patch_file == "0":
+        logger.error(f"Invalid patch file path: {patch_file}")
+        return None, AgentPromptResponse(
+            output=f"Invalid patch file path: {patch_file}",
+            success=False,
+        )
+
+    logger.info(f"Created patch file: {patch_file}")
+
+    # Implement the patch using /implement command
+    implement_response = implement_plan(patch_file, adw_id, logger)
+
+    return patch_file, implement_response

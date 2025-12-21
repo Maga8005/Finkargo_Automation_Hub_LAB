@@ -198,3 +198,27 @@ class ADWStateData(BaseModel):
     branch_name: Optional[str] = None
     plan_file: Optional[str] = None
     issue_class: Optional[IssueClassSlashCommand] = None
+
+
+# Review severity levels
+ReviewSeverity = Literal["blocker", "tech_debt", "skippable"]
+
+
+class ReviewIssue(BaseModel):
+    """Individual issue found during review."""
+
+    review_issue_number: int
+    screenshot_path: str = ""
+    issue_description: str
+    issue_resolution: str
+    issue_severity: ReviewSeverity
+    screenshot_url: Optional[str] = None  # Populated after R2 upload
+
+
+class ReviewResult(BaseModel):
+    """Result of a code review against specification."""
+
+    success: bool
+    review_issues: List[ReviewIssue] = []
+    screenshots: List[str] = []  # File paths to screenshots
+    screenshot_urls: List[str] = []  # Populated after R2 upload
