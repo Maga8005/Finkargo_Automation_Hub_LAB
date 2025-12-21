@@ -29,3 +29,11 @@ This prompt helps you determine what documentation you should read based on the 
 - adws/README.md
   - Conditions:
     - When you're operating in the `adws/` directory
+
+- app_docs/feature-fefa5443-fraud-detection-risk-module.md
+  - Conditions:
+    - When working with fraud detection or risk assessment features
+    - When implementing or modifying the Risk department pages
+    - When working with risk_analyst or risk_manager roles
+    - When troubleshooting risk evaluation or scoring issues
+    - When modifying blacklist or alert functionality

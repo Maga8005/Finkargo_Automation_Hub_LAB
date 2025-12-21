@@ -222,3 +222,12 @@ class ReviewResult(BaseModel):
     review_issues: List[ReviewIssue] = []
     screenshots: List[str] = []  # File paths to screenshots
     screenshot_urls: List[str] = []  # Populated after R2 upload
+
+
+class DocumentationResult(BaseModel):
+    """Result of documentation generation."""
+
+    success: bool
+    documentation_created: bool
+    documentation_path: Optional[str] = None
+    error_message: Optional[str] = None

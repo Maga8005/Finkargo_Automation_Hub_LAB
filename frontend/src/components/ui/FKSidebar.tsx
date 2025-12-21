@@ -137,6 +137,9 @@ const FKSidebar: React.FC = () => {
 
     const userRole = userProfile.role;
 
+    // Debug: log role check
+    console.log('[FKSidebar] Checking access:', { userRole, departmentId, userProfile });
+
     // Admin has access to everything
     if (userRole === 'admin') return true;
 
@@ -155,6 +158,9 @@ const FKSidebar: React.FC = () => {
 
     // Risk department roles
     if ((userRole === 'risk_analyst' || userRole === 'risk_manager') && departmentId === 'risk') return true;
+
+    // Tesoreria role has access to tesoreria department
+    if (userRole === 'tesoreria' && departmentId === 'tesoreria') return true;
 
     // For other roles, deny access (can be extended later)
     return false;
