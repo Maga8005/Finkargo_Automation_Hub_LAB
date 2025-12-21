@@ -170,7 +170,7 @@ def get_plan_file(
         slash_command="/find_plan_file",
         args=[issue_number, adw_id, plan_output],
         adw_id=adw_id,
-        model="sonnet",
+        model="opus",
     )
 
     response = execute_template(request)

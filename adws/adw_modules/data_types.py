@@ -36,6 +36,10 @@ SlashCommand = Literal[
     "/resolve_failed_test",
     "/test_e2e",
     "/resolve_failed_e2e_test",
+    # Review and documentation commands
+    "/review",
+    "/patch",
+    "/document",
 ]
 
 
@@ -120,7 +124,7 @@ class AgentPromptRequest(BaseModel):
     prompt: str
     adw_id: str
     agent_name: str = "ops"
-    model: Literal["sonnet", "opus"] = "sonnet"
+    model: Literal["sonnet", "opus"] = "opus"
     dangerously_skip_permissions: bool = False
     output_file: str
 
@@ -140,7 +144,7 @@ class AgentTemplateRequest(BaseModel):
     slash_command: SlashCommand
     args: List[str]
     adw_id: str
-    model: Literal["sonnet", "opus"] = "sonnet"
+    model: Literal["sonnet", "opus"] = "opus"
 
 
 class ClaudeCodeResultMessage(BaseModel):
