@@ -506,7 +506,7 @@ class BlacklistRepository:
         Returns:
             bool: True if successful
         """
-        response = self.db.table('risk_blacklist') \
+        self.db.table('risk_blacklist') \
             .delete() \
             .eq('id', id) \
             .execute()

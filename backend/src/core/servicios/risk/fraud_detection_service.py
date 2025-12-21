@@ -4,7 +4,7 @@ Core fraud detection logic for evaluating client risk
 """
 import re
 import logging
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime
 
