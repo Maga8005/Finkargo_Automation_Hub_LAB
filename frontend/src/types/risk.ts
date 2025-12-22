@@ -273,10 +273,13 @@ export type ExtractionStatus = 'pending' | 'processing' | 'completed' | 'failed'
 export type ValidationType =
   | 'company_name'
   | 'nit'
+  | 'nit_check_digit'
   | 'legal_representative'
   | 'shareholders'
   | 'financial_continuity'
   | 'email_domain'
+  | 'typosquatting'
+  | 'provider_domain'
   | 'address';
 
 export type DiscrepancySeverity = 'low' | 'medium' | 'high' | 'critical';
@@ -436,9 +439,12 @@ export const DISCREPANCY_SEVERITY_CONFIG: Record<DiscrepancySeverity, { label: s
 export const VALIDATION_TYPE_LABELS: Record<ValidationType, string> = {
   company_name: 'Nombre de Empresa',
   nit: 'NIT',
+  nit_check_digit: 'Dígito de Verificación NIT',
   legal_representative: 'Representante Legal',
   shareholders: 'Accionistas',
   financial_continuity: 'Continuidad Financiera',
   email_domain: 'Dominio de Email',
+  typosquatting: 'Typosquatting de Dominio',
+  provider_domain: 'Proveedor de Email',
   address: 'Dirección',
 };

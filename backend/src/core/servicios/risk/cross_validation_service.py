@@ -10,9 +10,14 @@ Based on the Azelis fraud case analysis, validates:
 - Legal representative identity validation
 - Shareholder composition alignment
 - Financial statement continuity
-- Email domain verification
+- Email domain verification with typosquatting detection
+
+IMPROVEMENTS (Fraud Detection Cross-Validation):
+- Enhanced data normalization to eliminate false positives from formatting differences
+- Typosquatting detection using similarity algorithms
+- NIT check digit separate validation
+- City normalization with department/region removal
 """
-import re
 import logging
 from typing import Dict, List, Optional
 from decimal import Decimal
@@ -24,6 +29,8 @@ from src.interface.risk_dtos import (
     DiscrepancySeverity,
     CrossValidationResult,
 )
+from .normalization_service import NormalizationService
+from .typosquatting_service import TyposquattingService
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +46,10 @@ class CrossValidationService:
     - Shareholder falsification
     - Financial statement manipulation
     - Email typosquatting
-    """
 
-    # Known legitimate company domains for typosquatting detection
-    KNOWN_DOMAINS = [
-        'azelis.com', 'basf.com', 'dow.com', 'dupont.com',
-        'evonik.com', 'lanxess.com', 'brenntag.com', 'univar.com',
-    ]
+    Uses NormalizationService to eliminate false positives from formatting
+    differences and TyposquattingService for domain similarity detection.
+    """
 
     # Score impact by severity
     SCORE_IMPACT = {
@@ -55,9 +59,20 @@ class CrossValidationService:
         DiscrepancySeverity.LOW: Decimal('3'),
     }
 
-    def __init__(self):
-        """Initialize cross-validation service."""
-        pass
+    def __init__(
+        self,
+        normalization_service: Optional[NormalizationService] = None,
+        typosquatting_service: Optional[TyposquattingService] = None
+    ):
+        """
+        Initialize cross-validation service.
+
+        Args:
+            normalization_service: Service for data normalization (auto-created if None)
+            typosquatting_service: Service for typosquatting detection (auto-created if None)
+        """
+        self.normalizer = normalization_service or NormalizationService()
+        self.typosquatting = typosquatting_service or TyposquattingService()
 
     def validate_documents(
         self,
@@ -81,10 +96,9 @@ class CrossValidationService:
         if company_result:
             results.append(company_result)
 
-        # 2. NIT consistency validation
-        nit_result = self._validate_nit_consistency(extractions)
-        if nit_result:
-            results.append(nit_result)
+        # 2. NIT consistency validation (enhanced with check digit detection)
+        nit_results = self._validate_nit_consistency(extractions)
+        results.extend(nit_results)
 
         # 3. Legal representative validation
         legal_rep_results = self._validate_legal_representative(extractions)
@@ -99,12 +113,11 @@ class CrossValidationService:
         financial_results = self._validate_financial_statements(extractions)
         results.extend(financial_results)
 
-        # 6. Email domain validation
-        email_result = self._validate_email_domain(extractions)
-        if email_result:
-            results.append(email_result)
+        # 6. Email domain validation (enhanced with typosquatting detection)
+        email_results = self._validate_email_domain(extractions)
+        results.extend(email_results)
 
-        # 7. Address consistency validation
+        # 7. Address consistency validation (enhanced with normalization)
         address_result = self._validate_address_consistency(extractions)
         if address_result:
             results.append(address_result)
@@ -121,93 +134,156 @@ class CrossValidationService:
         """
         Check company name consistency across all documents.
 
-        This is a CRITICAL check - the Azelis case showed company names
-        like "ROCSA COLOMBIA S.A." vs "AZELIS COLOMBIA S.A.S."
+        Uses enhanced normalization to eliminate false positives from
+        formatting differences (e.g., "S.A.S." vs "SAS" vs "S A S").
+
+        Only flags as discrepancy when the NORMALIZED names differ,
+        indicating potentially different companies.
         """
         company_names = {}
+        normalized_names = {}
+
         for doc_type, data in extractions.items():
             if data and data.get('company_name'):
-                company_names[doc_type.value] = self._normalize_company_name(data['company_name'])
+                raw_name = data['company_name']
+                company_names[doc_type.value] = raw_name
+                normalized_names[doc_type.value] = self.normalizer.normalize_company_name(raw_name)
 
-        if len(company_names) < 2:
+        if len(normalized_names) < 2:
             return None
 
         # Find unique normalized names
-        unique_names = set(company_names.values())
-        documents_compared = list(company_names.keys())
+        unique_normalized = set(normalized_names.values())
+        documents_compared = list(normalized_names.keys())
 
-        if len(unique_names) == 1:
-            # All names match
+        if len(unique_normalized) == 1:
+            # All normalized names match - formatting difference only
             return CrossValidationResult(
                 validation_type=ValidationType.COMPANY_NAME,
                 documents_compared=documents_compared,
                 field_compared="company_name",
-                values_found={k: extractions[DocumentType(k)].get('company_name', '') for k in documents_compared if DocumentType(k) in extractions},
+                values_found={
+                    k: company_names.get(k, '') for k in documents_compared
+                },
                 is_discrepancy=False,
                 severity=None,
-                description="Nombre de empresa consistente en todos los documentos",
+                description="Nombre de empresa consistente en todos los documentos (diferencias de formato ignoradas)",
                 score_impact=Decimal('0')
             )
 
-        # Found discrepancy - CRITICAL severity
-        raw_names = {k: extractions[DocumentType(k)].get('company_name', '') for k in documents_compared if DocumentType(k) in extractions}
-
+        # Found real discrepancy - normalized names differ
         return CrossValidationResult(
             validation_type=ValidationType.COMPANY_NAME,
             documents_compared=documents_compared,
             field_compared="company_name",
-            values_found=raw_names,
+            values_found={
+                k: company_names.get(k, '') for k in documents_compared
+            },
             is_discrepancy=True,
             severity=DiscrepancySeverity.CRITICAL,
-            description=f"ALERTA: Nombres de empresa diferentes detectados: {', '.join(set(raw_names.values()))}",
+            description=f"ALERTA: Nombres de empresa diferentes detectados (después de normalización): "
+                       f"{', '.join(unique_normalized)}",
             score_impact=self.SCORE_IMPACT[DiscrepancySeverity.CRITICAL]
         )
 
     def _validate_nit_consistency(
         self,
         extractions: Dict[DocumentType, dict]
-    ) -> Optional[CrossValidationResult]:
+    ) -> List[CrossValidationResult]:
         """
         Check NIT consistency across all documents.
 
-        CRITICAL check - NIT should be identical across all documents.
+        Enhanced validation:
+        - Separates base NIT digits from check digit
+        - Ignores formatting differences (dots, dashes, spaces)
+        - Flags CRITICAL if base NIT differs
+        - Flags HIGH if only check digit differs (possible data entry error)
         """
-        nits = {}
+        results = []
+        nit_data = {}
+
         for doc_type, data in extractions.items():
             if data and data.get('nit'):
-                nits[doc_type.value] = self._normalize_nit(data['nit'])
+                raw_nit = data['nit']
+                base, check = self.normalizer.normalize_nit(raw_nit)
+                nit_data[doc_type.value] = {
+                    'raw': raw_nit,
+                    'base': base,
+                    'check': check
+                }
 
-        if len(nits) < 2:
-            return None
+        if len(nit_data) < 2:
+            return results
 
-        unique_nits = set(nits.values())
-        documents_compared = list(nits.keys())
+        documents_compared = list(nit_data.keys())
 
-        if len(unique_nits) == 1:
-            return CrossValidationResult(
+        # Check base NIT consistency
+        unique_bases = set(d['base'] for d in nit_data.values())
+        raw_nits = {k: nit_data[k]['raw'] for k in documents_compared}
+
+        if len(unique_bases) > 1:
+            # Base NITs differ - CRITICAL
+            results.append(CrossValidationResult(
                 validation_type=ValidationType.NIT,
                 documents_compared=documents_compared,
                 field_compared="nit",
-                values_found={k: extractions[DocumentType(k)].get('nit', '') for k in documents_compared if DocumentType(k) in extractions},
-                is_discrepancy=False,
-                severity=None,
-                description="NIT consistente en todos los documentos",
-                score_impact=Decimal('0')
-            )
+                values_found=raw_nits,
+                is_discrepancy=True,
+                severity=DiscrepancySeverity.CRITICAL,
+                description=f"ALERTA CRÍTICA: NITs base diferentes: {', '.join(unique_bases)}",
+                score_impact=self.SCORE_IMPACT[DiscrepancySeverity.CRITICAL]
+            ))
+        else:
+            # Base NITs match - check for check digit discrepancy
+            check_digits = {
+                k: v['check'] for k, v in nit_data.items()
+                if v['check'] is not None
+            }
 
-        # Found discrepancy - CRITICAL
-        raw_nits = {k: extractions[DocumentType(k)].get('nit', '') for k in documents_compared if DocumentType(k) in extractions}
+            if len(check_digits) >= 2:
+                unique_checks = set(check_digits.values())
 
-        return CrossValidationResult(
-            validation_type=ValidationType.NIT,
-            documents_compared=documents_compared,
-            field_compared="nit",
-            values_found=raw_nits,
-            is_discrepancy=True,
-            severity=DiscrepancySeverity.CRITICAL,
-            description=f"ALERTA CRÍTICA: NITs diferentes detectados en documentos: {', '.join(set(raw_nits.values()))}",
-            score_impact=self.SCORE_IMPACT[DiscrepancySeverity.CRITICAL]
-        )
+                if len(unique_checks) > 1:
+                    # Check digits differ - HIGH severity (data entry error)
+                    results.append(CrossValidationResult(
+                        validation_type=ValidationType.NIT_CHECK_DIGIT,
+                        documents_compared=list(check_digits.keys()),
+                        field_compared="nit_check_digit",
+                        values_found={
+                            k: f"DV: {check_digits[k]}" for k in check_digits
+                        },
+                        is_discrepancy=True,
+                        severity=DiscrepancySeverity.HIGH,
+                        description=f"Dígitos de verificación NIT diferentes: {', '.join(unique_checks)} "
+                                   "(posible error de digitación)",
+                        score_impact=self.SCORE_IMPACT[DiscrepancySeverity.HIGH]
+                    ))
+                else:
+                    # All match
+                    results.append(CrossValidationResult(
+                        validation_type=ValidationType.NIT,
+                        documents_compared=documents_compared,
+                        field_compared="nit",
+                        values_found=raw_nits,
+                        is_discrepancy=False,
+                        severity=None,
+                        description="NIT consistente en todos los documentos (diferencias de formato ignoradas)",
+                        score_impact=Decimal('0')
+                    ))
+            else:
+                # Not enough check digits to compare, but bases match
+                results.append(CrossValidationResult(
+                    validation_type=ValidationType.NIT,
+                    documents_compared=documents_compared,
+                    field_compared="nit",
+                    values_found=raw_nits,
+                    is_discrepancy=False,
+                    severity=None,
+                    description="NIT base consistente en todos los documentos",
+                    score_impact=Decimal('0')
+                ))
+
+        return results
 
     def _validate_legal_representative(
         self,
@@ -216,7 +292,7 @@ class CrossValidationService:
         """
         Validate legal representative identity across Cedula, RUT, and Certificado.
 
-        HIGH severity check - name and ID must match across documents.
+        Uses enhanced normalization for name comparison.
         """
         results = []
 
@@ -225,24 +301,25 @@ class CrossValidationService:
         rut_data = extractions.get(DocumentType.RUT, {}) or {}
         cert_data = extractions.get(DocumentType.CERTIFICADO_EXISTENCIA, {}) or {}
 
-        # Extract names
+        # Extract and normalize names
         names = {}
+        raw_names = {}
+
         if cedula_data.get('full_name'):
-            names['cedula'] = self._normalize_name(cedula_data['full_name'])
+            raw_names['cedula'] = cedula_data['full_name']
+            names['cedula'] = self.normalizer.normalize_person_name(cedula_data['full_name'])
         if rut_data.get('legal_representative_name'):
-            names['rut'] = self._normalize_name(rut_data['legal_representative_name'])
+            raw_names['rut'] = rut_data['legal_representative_name']
+            names['rut'] = self.normalizer.normalize_person_name(rut_data['legal_representative_name'])
         if cert_data.get('legal_representative_name'):
-            names['certificado_existencia'] = self._normalize_name(cert_data['legal_representative_name'])
+            raw_names['certificado_existencia'] = cert_data['legal_representative_name']
+            names['certificado_existencia'] = self.normalizer.normalize_person_name(
+                cert_data['legal_representative_name']
+            )
 
         # Check name consistency
         if len(names) >= 2:
             unique_names = set(names.values())
-            raw_names = {
-                'cedula': cedula_data.get('full_name', ''),
-                'rut': rut_data.get('legal_representative_name', ''),
-                'certificado_existencia': cert_data.get('legal_representative_name', '')
-            }
-            raw_names = {k: v for k, v in raw_names.items() if v}
 
             if len(unique_names) == 1:
                 results.append(CrossValidationResult(
@@ -267,24 +344,23 @@ class CrossValidationService:
                     score_impact=self.SCORE_IMPACT[DiscrepancySeverity.HIGH]
                 ))
 
-        # Extract IDs
+        # Extract and normalize IDs
         ids = {}
+        raw_ids = {}
+
         if cedula_data.get('document_number'):
+            raw_ids['cedula'] = cedula_data['document_number']
             ids['cedula'] = self._normalize_id(cedula_data['document_number'])
         if rut_data.get('legal_representative_id'):
+            raw_ids['rut'] = rut_data['legal_representative_id']
             ids['rut'] = self._normalize_id(rut_data['legal_representative_id'])
         if cert_data.get('legal_representative_id'):
+            raw_ids['certificado_existencia'] = cert_data['legal_representative_id']
             ids['certificado_existencia'] = self._normalize_id(cert_data['legal_representative_id'])
 
         # Check ID consistency
         if len(ids) >= 2:
             unique_ids = set(ids.values())
-            raw_ids = {
-                'cedula': cedula_data.get('document_number', ''),
-                'rut': rut_data.get('legal_representative_id', ''),
-                'certificado_existencia': cert_data.get('legal_representative_id', '')
-            }
-            raw_ids = {k: v for k, v in raw_ids.items() if v}
 
             if len(unique_ids) == 1:
                 results.append(CrossValidationResult(
@@ -317,8 +393,6 @@ class CrossValidationService:
     ) -> Optional[CrossValidationResult]:
         """
         Check if majority shareholder appears in board of directors.
-
-        MEDIUM severity - ghost shareholders may indicate fraud.
         """
         comp_data = extractions.get(DocumentType.COMPOSICION_ACCIONARIA, {}) or {}
         cert_data = extractions.get(DocumentType.CERTIFICADO_EXISTENCIA, {}) or {}
@@ -339,9 +413,12 @@ class CrossValidationService:
         if not majority_shareholder or not board_members:
             return None
 
-        # Check if majority shareholder is on board
-        board_names = [self._normalize_name(m.get('name', '')) for m in board_members if isinstance(m, dict)]
-        normalized_majority = self._normalize_name(majority_shareholder)
+        # Check if majority shareholder is on board using normalized names
+        board_names = [
+            self.normalizer.normalize_person_name(m.get('name', ''))
+            for m in board_members if isinstance(m, dict)
+        ]
+        normalized_majority = self.normalizer.normalize_person_name(majority_shareholder)
 
         found_on_board = any(
             self._names_match(normalized_majority, bn) for bn in board_names
@@ -368,8 +445,6 @@ class CrossValidationService:
     ) -> List[CrossValidationResult]:
         """
         Validate year-over-year financial continuity.
-
-        MEDIUM severity - extreme changes may indicate manipulation.
         """
         results = []
 
@@ -408,7 +483,11 @@ class CrossValidationService:
                     validation_type=ValidationType.FINANCIAL_CONTINUITY,
                     documents_compared=['financial_statement_current', 'financial_statement_prior'],
                     field_compared="revenue",
-                    values_found={'current': current_revenue, 'prior': prior_revenue, 'growth_pct': round(growth_rate, 1)},
+                    values_found={
+                        'current': current_revenue,
+                        'prior': prior_revenue,
+                        'growth_pct': round(growth_rate, 1)
+                    },
                     is_discrepancy=True,
                     severity=DiscrepancySeverity.MEDIUM,
                     description=f"Crecimiento de ingresos anómalo: {round(growth_rate, 1)}% año a año",
@@ -419,7 +498,11 @@ class CrossValidationService:
                     validation_type=ValidationType.FINANCIAL_CONTINUITY,
                     documents_compared=['financial_statement_current', 'financial_statement_prior'],
                     field_compared="revenue",
-                    values_found={'current': current_revenue, 'prior': prior_revenue, 'growth_pct': round(growth_rate, 1)},
+                    values_found={
+                        'current': current_revenue,
+                        'prior': prior_revenue,
+                        'growth_pct': round(growth_rate, 1)
+                    },
                     is_discrepancy=True,
                     severity=DiscrepancySeverity.MEDIUM,
                     description=f"Caída de ingresos anómala: {round(growth_rate, 1)}% año a año",
@@ -431,78 +514,121 @@ class CrossValidationService:
     def _validate_email_domain(
         self,
         extractions: Dict[DocumentType, dict]
-    ) -> Optional[CrossValidationResult]:
+    ) -> List[CrossValidationResult]:
         """
-        Check email domain for typosquatting against known companies.
+        Check email domain for typosquatting and validity.
 
-        HIGH severity - the Azelis case used acelis.com.co vs azelis.com
+        Enhanced validation using TyposquattingService:
+        - Detects domain similarity (e.g., acelis.com.co vs azelis.com)
+        - Detects TLD variations
+        - Flags free email providers for business use
+        - Validates against company name-derived expected domain
         """
+        results = []
+
         rut_data = extractions.get(DocumentType.RUT, {}) or {}
         email = rut_data.get('email', '')
 
         if not email or '@' not in email:
-            return None
+            return results
 
-        domain = email.split('@')[1].lower()
+        domain = self.normalizer.extract_email_domain(email)
+        if not domain:
+            return results
+
         company_name = rut_data.get('company_name', '')
 
-        # Check for typosquatting of known domains
-        for known_domain in self.KNOWN_DOMAINS:
-            known_base = known_domain.split('.')[0]
-            domain_base = domain.split('.')[0]
+        # Build known domains list including company-specific
+        known_domains = list(self.typosquatting.DEFAULT_KNOWN_DOMAINS)
 
-            # Skip if exact match
-            if known_base == domain_base:
-                continue
+        # Check for typosquatting
+        typo_result = self.typosquatting.check_domain_typosquatting(
+            domain,
+            known_domains=known_domains,
+            company_name=company_name
+        )
 
-            # Check for similar names (potential typosquatting)
-            similarity = SequenceMatcher(None, known_base, domain_base).ratio()
-            if similarity > 0.7 and similarity < 1.0:
-                return CrossValidationResult(
-                    validation_type=ValidationType.EMAIL_DOMAIN,
+        if typo_result.is_suspicious:
+            if typo_result.detection_type == 'typosquatting':
+                # High severity - likely fraud attempt
+                results.append(CrossValidationResult(
+                    validation_type=ValidationType.TYPOSQUATTING,
                     documents_compared=['rut'],
-                    field_compared="email",
+                    field_compared="email_domain",
                     values_found={
                         'email': email,
                         'domain': domain,
-                        'similar_to': known_domain,
-                        'similarity': round(similarity * 100, 1)
+                        'similar_to': typo_result.similar_domain,
+                        'similarity': f"{typo_result.similarity_score:.0%}",
+                        'levenshtein_distance': typo_result.levenshtein_distance
                     },
                     is_discrepancy=True,
-                    severity=DiscrepancySeverity.HIGH,
-                    description=f"POSIBLE TYPOSQUATTING: Dominio '{domain}' similar a '{known_domain}' ({round(similarity * 100)}% similitud)",
-                    score_impact=self.SCORE_IMPACT[DiscrepancySeverity.HIGH]
-                )
-
-        # Check if email domain matches company name pattern
-        if company_name:
-            company_base = self._extract_company_domain_base(company_name)
-            if company_base and company_base not in domain:
-                return CrossValidationResult(
+                    severity=DiscrepancySeverity.CRITICAL,
+                    description=typo_result.description,
+                    score_impact=self.SCORE_IMPACT[DiscrepancySeverity.CRITICAL]
+                ))
+            elif typo_result.detection_type == 'tld_variation':
+                # Medium severity - needs verification
+                results.append(CrossValidationResult(
                     validation_type=ValidationType.EMAIL_DOMAIN,
                     documents_compared=['rut'],
-                    field_compared="email",
+                    field_compared="email_domain",
                     values_found={
                         'email': email,
-                        'company_name': company_name,
-                        'expected_domain_contains': company_base
+                        'domain': domain,
+                        'expected_domain': typo_result.similar_domain
                     },
                     is_discrepancy=True,
                     severity=DiscrepancySeverity.MEDIUM,
-                    description=f"Dominio de email '{domain}' no parece corresponder a la empresa '{company_name}'",
+                    description=f"Variación de TLD detectada: {domain} vs {typo_result.similar_domain}",
                     score_impact=self.SCORE_IMPACT[DiscrepancySeverity.MEDIUM]
-                )
+                ))
+            elif typo_result.detection_type == 'suspicious_tld':
+                results.append(CrossValidationResult(
+                    validation_type=ValidationType.EMAIL_DOMAIN,
+                    documents_compared=['rut'],
+                    field_compared="email_domain",
+                    values_found={
+                        'email': email,
+                        'domain': domain
+                    },
+                    is_discrepancy=True,
+                    severity=DiscrepancySeverity.HIGH,
+                    description=typo_result.description,
+                    score_impact=self.SCORE_IMPACT[DiscrepancySeverity.HIGH]
+                ))
 
-        return CrossValidationResult(
-            validation_type=ValidationType.EMAIL_DOMAIN,
-            documents_compared=['rut'],
-            field_compared="email",
-            values_found={'email': email},
-            is_discrepancy=False,
-            severity=None,
-            description="Dominio de email verificado",
-            score_impact=Decimal('0')
-        )
+        # Check for free email provider used for business
+        if self.typosquatting.is_free_email_provider(domain):
+            results.append(CrossValidationResult(
+                validation_type=ValidationType.PROVIDER_DOMAIN,
+                documents_compared=['rut'],
+                field_compared="email_domain",
+                values_found={
+                    'email': email,
+                    'domain': domain,
+                    'provider_type': 'free_email'
+                },
+                is_discrepancy=True,
+                severity=DiscrepancySeverity.MEDIUM,
+                description=f"Uso de proveedor de email gratuito ({domain}) para cuenta empresarial",
+                score_impact=self.SCORE_IMPACT[DiscrepancySeverity.MEDIUM]
+            ))
+
+        # If no issues found, add success result
+        if not results:
+            results.append(CrossValidationResult(
+                validation_type=ValidationType.EMAIL_DOMAIN,
+                documents_compared=['rut'],
+                field_compared="email",
+                values_found={'email': email, 'domain': domain},
+                is_discrepancy=False,
+                severity=None,
+                description="Dominio de email verificado - sin indicadores de typosquatting",
+                score_impact=Decimal('0')
+            ))
+
+        return results
 
     def _validate_address_consistency(
         self,
@@ -511,7 +637,10 @@ class CrossValidationService:
         """
         Check address consistency between RUT and Certificate.
 
-        MEDIUM severity - different addresses may indicate fraud.
+        Uses enhanced city normalization to handle:
+        - Parenthetical department info (Tenjo (Cundinamarca) → TENJO)
+        - Accent variations (Medellín → MEDELLIN)
+        - Common city name variations (Bogotá D.C. → BOGOTA)
         """
         rut_data = extractions.get(DocumentType.RUT, {}) or {}
         cert_data = extractions.get(DocumentType.CERTIFICADO_EXISTENCIA, {}) or {}
@@ -522,8 +651,8 @@ class CrossValidationService:
         if not rut_city or not cert_city:
             return None
 
-        normalized_rut_city = self._normalize_city(rut_city)
-        normalized_cert_city = self._normalize_city(cert_city)
+        normalized_rut_city = self.normalizer.normalize_city(rut_city)
+        normalized_cert_city = self.normalizer.normalize_city(cert_city)
 
         if normalized_rut_city == normalized_cert_city:
             return CrossValidationResult(
@@ -533,15 +662,21 @@ class CrossValidationService:
                 values_found={'rut': rut_city, 'certificado': cert_city},
                 is_discrepancy=False,
                 severity=None,
-                description="Ciudad de registro consistente",
+                description="Ciudad de registro consistente (diferencias de formato ignoradas)",
                 score_impact=Decimal('0')
             )
 
+        # Real city difference
         return CrossValidationResult(
             validation_type=ValidationType.ADDRESS,
             documents_compared=['rut', 'certificado_existencia'],
             field_compared="city",
-            values_found={'rut': rut_city, 'certificado': cert_city},
+            values_found={
+                'rut': rut_city,
+                'certificado': cert_city,
+                'normalized_rut': normalized_rut_city,
+                'normalized_cert': normalized_cert_city
+            },
             is_discrepancy=True,
             severity=DiscrepancySeverity.MEDIUM,
             description=f"Ciudades diferentes: RUT indica '{rut_city}', Certificado indica '{cert_city}'",
@@ -561,59 +696,13 @@ class CrossValidationService:
 
     # ==================== Helper Methods ====================
 
-    def _normalize_company_name(self, name: str) -> str:
-        """Normalize company name for comparison."""
-        if not name:
-            return ''
-        # Remove common suffixes and normalize
-        normalized = name.upper().strip()
-        for suffix in ['S.A.S.', 'S.A.S', 'SAS', 'S.A.', 'S.A', 'SA', 'LTDA', 'LTDA.', 'E.U.', 'EU']:
-            normalized = normalized.replace(suffix, '')
-        # Remove punctuation and extra spaces
-        normalized = re.sub(r'[^\w\s]', '', normalized)
-        normalized = ' '.join(normalized.split())
-        return normalized
-
-    def _normalize_nit(self, nit: str) -> str:
-        """Normalize NIT for comparison."""
-        if not nit:
-            return ''
-        # Remove all non-digits
-        return re.sub(r'[^\d]', '', nit)
-
-    def _normalize_name(self, name: str) -> str:
-        """Normalize person name for comparison."""
-        if not name:
-            return ''
-        normalized = name.upper().strip()
-        # Remove accents
-        replacements = {'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ñ': 'N'}
-        for k, v in replacements.items():
-            normalized = normalized.replace(k, v)
-        # Remove extra spaces
-        normalized = ' '.join(normalized.split())
-        return normalized
-
     def _normalize_id(self, id_num: str) -> str:
         """Normalize ID number for comparison."""
         if not id_num:
             return ''
-        # Remove all non-alphanumeric
+        # Remove all non-alphanumeric, keep uppercase
+        import re
         return re.sub(r'[^\w]', '', id_num.upper())
-
-    def _normalize_city(self, city: str) -> str:
-        """Normalize city name for comparison."""
-        if not city:
-            return ''
-        normalized = city.upper().strip()
-        # Remove accents
-        replacements = {'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ñ': 'N'}
-        for k, v in replacements.items():
-            normalized = normalized.replace(k, v)
-        # Common abbreviations
-        normalized = normalized.replace('D.C.', '').replace('DC', '')
-        normalized = normalized.replace('BOGOTA', 'BOGOTA')
-        return normalized.strip()
 
     def _names_match(self, name1: str, name2: str, threshold: float = 0.85) -> bool:
         """Check if two names match with fuzzy matching."""
@@ -623,15 +712,3 @@ class CrossValidationService:
             return True
         similarity = SequenceMatcher(None, name1, name2).ratio()
         return similarity >= threshold
-
-    def _extract_company_domain_base(self, company_name: str) -> Optional[str]:
-        """Extract expected domain base from company name."""
-        if not company_name:
-            return None
-        # Remove legal suffixes
-        normalized = self._normalize_company_name(company_name)
-        # Take first word as base
-        words = normalized.split()
-        if words:
-            return words[0].lower()
-        return None
