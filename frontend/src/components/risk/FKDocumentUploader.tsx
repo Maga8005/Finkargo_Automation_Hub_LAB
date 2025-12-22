@@ -26,6 +26,7 @@ import {
   Refresh,
   ExpandMore,
   ExpandLess,
+  Info,
 } from '@mui/icons-material';
 import { riskService } from '../../services/riskService';
 import type {
@@ -40,6 +41,7 @@ import {
 
 interface FKDocumentUploaderProps {
   evaluationId: string;
+  evaluationStatus?: string;
   onExtractionComplete?: (extractions: DocumentExtraction[]) => void;
   onValidationReady?: (ready: boolean) => void;
 }
@@ -55,9 +57,12 @@ interface UploadState {
 
 const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
   evaluationId,
+  evaluationStatus,
   onExtractionComplete,
   onValidationReady,
 }) => {
+  // Check if score is preliminary (pending_documents status)
+  const isPendingDocuments = evaluationStatus === 'pending_documents';
   // State
   const [extractions, setExtractions] = useState<DocumentExtractionList | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>({});
@@ -228,6 +233,50 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
     setExpandedDoc(prev => (prev === docType ? null : docType));
   };
 
+  // Format value for display based on type
+  const formatValueForDisplay = (value: unknown): string => {
+    if (value === null || value === undefined) {
+      return 'N/A';
+    }
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        return 'N/A';
+      }
+      // Check if array of objects (like shareholders)
+      if (typeof value[0] === 'object' && value[0] !== null) {
+        const formatted = value.map((item, idx) => {
+          // Try to get a meaningful name/identifier from the object
+          const name = item.name || item.nombre || item.razon_social || `Item ${idx + 1}`;
+          const percentage = item.percentage || item.porcentaje;
+          if (percentage !== undefined && percentage !== null) {
+            return `${name} (${percentage}%)`;
+          }
+          return name;
+        });
+        // Truncate if too many items
+        if (formatted.length > 5) {
+          return `${formatted.slice(0, 5).join(', ')} ... y ${formatted.length - 5} más`;
+        }
+        return formatted.join(', ');
+      }
+      // Array of primitives
+      return value.join(', ');
+    }
+
+    if (typeof value === 'object') {
+      // Single object - extract key info
+      const obj = value as Record<string, unknown>;
+      const name = obj.name || obj.nombre || obj.razon_social;
+      if (name) {
+        return String(name);
+      }
+      return JSON.stringify(value);
+    }
+
+    return String(value);
+  };
+
   // Render extracted data preview
   const renderExtractedData = (data: Record<string, unknown>) => {
     const displayFields = Object.entries(data).slice(0, 6);
@@ -236,7 +285,7 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
       <Box sx={{ mt: 1, pl: 2 }}>
         {displayFields.map(([key, value]) => (
           <Typography key={key} variant="caption" display="block" color="text.secondary">
-            <strong>{key.replace(/_/g, ' ')}:</strong> {String(value) || 'N/A'}
+            <strong>{key.replace(/_/g, ' ')}:</strong> {formatValueForDisplay(value)}
           </Typography>
         ))}
         {Object.keys(data).length > 6 && (
@@ -269,6 +318,14 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
             Actualizar
           </Button>
         </Box>
+
+        {isPendingDocuments && (
+          <Alert severity="info" icon={<Info />} sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+              Suba documentos y ejecute la validación cruzada para calcular el puntaje final de riesgo
+            </Typography>
+          </Alert>
+        )}
 
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -375,7 +432,7 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
                       <Box>
                         <input
                           type="file"
-                          ref={el => (fileInputRefs.current[docType] = el)}
+                          ref={el => { fileInputRefs.current[docType] = el; }}
                           style={{ display: 'none' }}
                           accept={config.accepted_formats.map(f => `.${f}`).join(',')}
                           onChange={e => {

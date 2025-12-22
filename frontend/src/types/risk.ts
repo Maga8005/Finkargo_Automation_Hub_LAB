@@ -9,6 +9,7 @@ export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
 export type AssessmentStatus =
   | 'pending'
+  | 'pending_documents'
   | 'in_progress'
   | 'completed'
   | 'escalated'
@@ -234,6 +235,7 @@ export const RISK_LEVEL_CONFIG: Record<RiskLevel, RiskLevelConfig> = {
 
 export const ASSESSMENT_STATUS_CONFIG: Record<AssessmentStatus, { label: string; color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' }> = {
   pending: { label: 'Pendiente', color: 'warning' },
+  pending_documents: { label: 'Pendiente Documentos', color: 'info' },
   in_progress: { label: 'En Progreso', color: 'info' },
   completed: { label: 'Completado', color: 'success' },
   escalated: { label: 'Escalado', color: 'error' },

@@ -7,7 +7,7 @@ from various document types for cross-validation fraud detection.
 import httpx
 import json
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Any
 from decimal import Decimal
 
 from src.config.settings import get_settings

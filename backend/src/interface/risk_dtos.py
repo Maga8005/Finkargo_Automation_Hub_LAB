@@ -22,6 +22,7 @@ class RiskLevel(str, Enum):
 class AssessmentStatus(str, Enum):
     """Risk assessment status"""
     PENDING = "pending"
+    PENDING_DOCUMENTS = "pending_documents"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     ESCALATED = "escalated"

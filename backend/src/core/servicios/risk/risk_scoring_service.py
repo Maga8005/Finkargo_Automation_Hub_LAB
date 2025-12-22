@@ -268,3 +268,63 @@ class RiskScoringService:
             'breakdown': breakdown,
             'thresholds': self.get_thresholds(),
         }
+
+    async def calculate_final_score(
+        self,
+        preliminary_score: Decimal,
+        cross_validation_results: List[dict],
+        rules: List[dict] = None
+    ) -> Tuple[Decimal, RiskLevel]:
+        """
+        Calculate final risk score by combining preliminary score with cross-validation impacts.
+
+        This method is called after document cross-validation completes to produce
+        the final risk assessment score that incorporates discrepancies found
+        between documents.
+
+        Args:
+            preliminary_score: Initial risk score from fraud indicators
+            cross_validation_results: List of cross-validation results with score_impact
+            rules: Optional list of rule configurations (unused currently, for future expansion)
+
+        Returns:
+            Tuple[Decimal, RiskLevel]: (final_score, risk_level)
+        """
+        if not isinstance(preliminary_score, Decimal):
+            preliminary_score = Decimal(str(preliminary_score))
+
+        # Sum up score impacts from cross-validation discrepancies
+        cross_validation_impact = Decimal('0')
+
+        for result in cross_validation_results:
+            score_impact = result.get('score_impact', 0)
+            if not isinstance(score_impact, Decimal):
+                score_impact = Decimal(str(score_impact))
+
+            # Only add positive impacts (discrepancies increase risk)
+            if score_impact > 0:
+                cross_validation_impact += score_impact
+                logger.debug(
+                    f"Cross-validation impact: type={result.get('validation_type')}, "
+                    f"severity={result.get('severity')}, impact={score_impact}"
+                )
+
+        # Combine preliminary score with cross-validation impact
+        combined_score = preliminary_score + cross_validation_impact
+
+        # Cap at maximum score
+        final_score = min(combined_score, self.MAX_SCORE)
+
+        # Round to 2 decimal places
+        final_score = final_score.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        # Determine final risk level
+        risk_level = self._determine_risk_level(final_score)
+
+        logger.info(
+            f"Final score calculated: preliminary={preliminary_score}, "
+            f"cross_validation_impact={cross_validation_impact}, "
+            f"final={final_score} -> {risk_level.value}"
+        )
+
+        return final_score, risk_level

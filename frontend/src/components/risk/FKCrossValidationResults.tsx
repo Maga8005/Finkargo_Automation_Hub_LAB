@@ -32,35 +32,46 @@ import {
   ExpandLess,
   Refresh,
   Info,
+  PictureAsPdf,
 } from '@mui/icons-material';
 import { riskService } from '../../services/riskService';
 import type {
   CrossValidationResponse,
   CrossValidationResult,
   DiscrepancySeverity,
+  ClientInfo,
 } from '../../types/risk';
 import {
   DISCREPANCY_SEVERITY_CONFIG,
   VALIDATION_TYPE_LABELS,
   DOCUMENT_TYPE_CONFIG,
 } from '../../types/risk';
+import { exportCrossValidationToPDF } from '../../utils/crossValidationPdfExport';
 
 interface FKCrossValidationResultsProps {
   evaluationId: string;
   canValidate: boolean;
   onValidationComplete?: (response: CrossValidationResponse) => void;
+  assessmentId?: string;
+  clientNit?: string;
+  clientInfo?: ClientInfo;
 }
 
 const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
   evaluationId,
   canValidate,
   onValidationComplete,
+  assessmentId,
+  clientNit,
+  clientInfo,
 }) => {
   // State
   const [results, setResults] = useState<CrossValidationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
 
   // Load existing results
@@ -84,16 +95,44 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
     try {
       setValidating(true);
       setError(null);
+      setSuccess(null);
 
       const response = await riskService.triggerCrossValidation(evaluationId);
       setResults(response);
       onValidationComplete?.(response);
+
+      // Show success message
+      setSuccess('Validación cruzada completada. El puntaje de riesgo ha sido actualizado.');
     } catch (err) {
       console.error('Validation error:', err);
       const message = err instanceof Error ? err.message : 'Error en validación cruzada';
       setError(message);
     } finally {
       setValidating(false);
+    }
+  };
+
+  // Handle PDF export
+  const handleExportPDF = async () => {
+    if (!results) return;
+
+    try {
+      setExporting(true);
+
+      // Use assessment context from props or results
+      const exportAssessmentId = assessmentId || results.assessment_id;
+      const exportClientNit = clientNit || 'N/A';
+
+      exportCrossValidationToPDF(results, {
+        assessment_id: exportAssessmentId,
+        client_nit: exportClientNit,
+        client_info: clientInfo,
+      });
+    } catch (err) {
+      console.error('PDF export error:', err);
+      setError('Error al exportar PDF');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -132,6 +171,50 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
     return config?.label || docType;
   };
 
+  // Format value for display based on type
+  const formatValueForDisplay = (value: unknown): string => {
+    if (value === null || value === undefined) {
+      return 'N/A';
+    }
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        return 'N/A';
+      }
+      // Check if array of objects (like shareholders)
+      if (typeof value[0] === 'object' && value[0] !== null) {
+        const formatted = value.map((item, idx) => {
+          // Try to get a meaningful name/identifier from the object
+          const name = item.name || item.nombre || item.razon_social || `Item ${idx + 1}`;
+          const percentage = item.percentage || item.porcentaje;
+          if (percentage !== undefined && percentage !== null) {
+            return `${name} (${percentage}%)`;
+          }
+          return name;
+        });
+        // Truncate if too many items
+        if (formatted.length > 5) {
+          return `${formatted.slice(0, 5).join(', ')} ... y ${formatted.length - 5} más`;
+        }
+        return formatted.join(', ');
+      }
+      // Array of primitives
+      return value.join(', ');
+    }
+
+    if (typeof value === 'object') {
+      // Single object - extract key info
+      const obj = value as Record<string, unknown>;
+      const name = obj.name || obj.nombre || obj.razon_social;
+      if (name) {
+        return String(name);
+      }
+      return JSON.stringify(value);
+    }
+
+    return String(value);
+  };
+
   // Render values comparison
   const renderValuesComparison = (values: Record<string, unknown>) => {
     return (
@@ -154,7 +237,7 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
                     variant="body2"
                     sx={{ fontWeight: 500 }}
                   >
-                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                    {formatValueForDisplay(value)}
                   </Typography>
                 </TableCell>
               </TableRow>
@@ -224,10 +307,10 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
             />
           )}
 
-          {result.is_discrepancy && result.score_impact > 0 && (
+          {result.is_discrepancy && Number(result.score_impact) > 0 && (
             <Chip
               size="small"
-              label={`+${result.score_impact.toFixed(0)} pts`}
+              label={`+${Number(result.score_impact).toFixed(0)} pts`}
               color="error"
               variant="outlined"
             />
@@ -275,14 +358,26 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
             {results && (
-              <Button
-                size="small"
-                startIcon={<Refresh />}
-                onClick={loadResults}
-                disabled={loading}
-              >
-                Actualizar
-              </Button>
+              <>
+                <Button
+                  size="small"
+                  startIcon={<Refresh />}
+                  onClick={loadResults}
+                  disabled={loading}
+                >
+                  Actualizar
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="primary"
+                  startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <PictureAsPdf />}
+                  onClick={handleExportPDF}
+                  disabled={exporting || !results}
+                >
+                  {exporting ? 'Exportando...' : 'Exportar PDF'}
+                </Button>
+              </>
             )}
             <Button
               variant="contained"
@@ -299,6 +394,12 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}
+          </Alert>
+        )}
+
+        {success && (
+          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
+            {success}
           </Alert>
         )}
 
@@ -362,10 +463,10 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
             </Grid>
 
             {/* Score impact */}
-            {results.total_score_impact > 0 && (
+            {Number(results.total_score_impact) > 0 && (
               <Alert severity="warning" sx={{ mb: 2 }}>
                 <Typography variant="subtitle2">
-                  Impacto total en puntuación de riesgo: +{results.total_score_impact.toFixed(0)} puntos
+                  Impacto total en puntuación de riesgo: +{Number(results.total_score_impact).toFixed(0)} puntos
                 </Typography>
               </Alert>
             )}

@@ -46,7 +46,6 @@ from src.interface.risk_dtos import (
     CrossValidationResult,
     CrossValidationResponse,
     TriggerExtractionResponse,
-    TriggerValidationResponse,
     DiscrepancySeverity,
     ValidationType,
 )
@@ -944,6 +943,16 @@ async def trigger_cross_validation(
     await risk_repo.update(id, {
         'document_validation_status': 'completed'
     })
+
+    # Finalize evaluation with cross-validation results
+    # This calculates the final risk score incorporating discrepancy impacts
+    fraud_service = get_fraud_service()
+    await fraud_service.finalize_evaluation(
+        assessment_id=id,
+        cross_validation_results=result_records
+    )
+
+    logger.info(f"Cross-validation complete for assessment {id}. Discrepancies: {len(discrepancies)}, Score impact: {total_impact}")
 
     return CrossValidationResponse(
         assessment_id=id,

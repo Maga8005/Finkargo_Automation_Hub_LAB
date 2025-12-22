@@ -130,16 +130,17 @@ class FraudDetectionService:
         # 4. Run all validation checks
         indicators = await self._run_all_checks(client_data, rules)
 
-        # 5. Calculate risk score and level
+        # 5. Calculate preliminary risk score and level
         risk_score, risk_level = await self.scoring_service.calculate_score(indicators, rules)
 
-        # 6. Create assessment record
+        # 6. Create assessment record with pending_documents status
+        # Final score will be calculated after cross-validation
         assessment_data = {
             'client_nit': client_nit,
             'risk_level': risk_level.value,
             'risk_score': float(risk_score),
             'fraud_indicators': [self._indicator_to_dict(ind) for ind in indicators],
-            'status': self._determine_initial_status(risk_level),
+            'status': AssessmentStatus.PENDING_DOCUMENTS.value,  # Start with pending_documents
             'assessment_type': assessment_type,
             'assessed_by': user_id,
             'assessed_at': datetime.utcnow().isoformat(),
@@ -148,11 +149,10 @@ class FraudDetectionService:
 
         assessment = await self.risk_repo.create(assessment_data)
 
-        # 7. Create alerts for high/critical risk
-        if risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
-            await self._create_risk_alerts(assessment, risk_level, indicators)
+        # Note: Alerts are NOT created here - they will be created after finalize_evaluation()
+        # This ensures alerts reflect the final score including cross-validation results
 
-        logger.info(f"Completed evaluation for NIT: {client_nit}, Score: {risk_score}, Level: {risk_level.value}")
+        logger.info(f"Preliminary evaluation for NIT: {client_nit}, Score: {risk_score}, Level: {risk_level.value}, Status: pending_documents")
 
         return assessment
 
@@ -634,3 +634,91 @@ class FraudDetectionService:
             'evidence': indicator.evidence,
             'score_impact': float(indicator.score_impact),
         }
+
+    async def finalize_evaluation(
+        self,
+        assessment_id: str,
+        cross_validation_results: List[dict]
+    ) -> dict:
+        """
+        Finalize risk evaluation after cross-validation completes.
+
+        This method calculates the final risk score by combining the preliminary
+        score from fraud indicators with the score impacts from document
+        cross-validation discrepancies.
+
+        Args:
+            assessment_id: UUID of the assessment to finalize
+            cross_validation_results: List of cross-validation results with score_impact
+
+        Returns:
+            dict: Updated assessment with final score, level, and status
+        """
+        logger.info(f"Finalizing evaluation for assessment: {assessment_id}")
+
+        # 1. Get existing assessment
+        assessment = await self.risk_repo.get_by_id(assessment_id)
+        if not assessment:
+            logger.error(f"Assessment not found: {assessment_id}")
+            raise ValueError(f"Assessment not found: {assessment_id}")
+
+        # 2. Get preliminary score
+        preliminary_score = Decimal(str(assessment.get('risk_score', 0)))
+
+        # 3. Calculate final score including cross-validation impacts
+        final_score, final_level = await self.scoring_service.calculate_final_score(
+            preliminary_score=preliminary_score,
+            cross_validation_results=cross_validation_results
+        )
+
+        # 4. Determine final status based on combined risk level
+        final_status = self._determine_final_status(final_level)
+
+        # 5. Update assessment with final values
+        update_data = {
+            'risk_score': float(final_score),
+            'risk_level': final_level.value,
+            'status': final_status,
+            'updated_at': datetime.utcnow().isoformat(),
+        }
+
+        updated_assessment = await self.risk_repo.update(assessment_id, update_data)
+
+        # 6. Create alerts for high/critical risk (only after final scoring)
+        if final_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+            # Build indicators from existing fraud_indicators
+            indicators = []
+            for ind in assessment.get('fraud_indicators', []):
+                indicators.append(FraudIndicator(
+                    indicator_name=ind.get('indicator_name', 'unknown'),
+                    indicator_value=ind.get('indicator_value', False),
+                    severity=RiskLevel(ind.get('severity', 'low')),
+                    evidence=ind.get('evidence', ''),
+                    score_impact=Decimal(str(ind.get('score_impact', 0))),
+                ))
+            await self._create_risk_alerts(updated_assessment, final_level, indicators)
+
+        logger.info(
+            f"Finalized evaluation for assessment: {assessment_id}, "
+            f"Preliminary score: {preliminary_score}, Final score: {final_score}, "
+            f"Level: {final_level.value}, Status: {final_status}"
+        )
+
+        return updated_assessment
+
+    def _determine_final_status(self, risk_level: RiskLevel) -> str:
+        """
+        Determine final assessment status based on risk level after cross-validation.
+
+        Args:
+            risk_level: Final risk level after combining all factors
+
+        Returns:
+            str: Final status value
+        """
+        if risk_level == RiskLevel.LOW:
+            return AssessmentStatus.COMPLETED.value  # Auto-complete low risk
+        elif risk_level == RiskLevel.CRITICAL:
+            return AssessmentStatus.ESCALATED.value  # Auto-escalate critical
+        else:
+            return AssessmentStatus.PENDING.value  # Manual review for medium/high

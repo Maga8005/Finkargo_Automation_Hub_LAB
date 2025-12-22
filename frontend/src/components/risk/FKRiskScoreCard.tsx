@@ -14,12 +14,14 @@ import {
   ListItemText,
   CircularProgress,
   Divider,
+  Tooltip,
 } from '@mui/material';
 import {
   CheckCircle,
   Warning,
   Error,
   Cancel,
+  HourglassEmpty,
 } from '@mui/icons-material';
 import type { RiskLevel, FraudIndicator } from '../../types/risk';
 import { RISK_LEVEL_CONFIG } from '../../types/risk';
@@ -28,12 +30,14 @@ interface FKRiskScoreCardProps {
   score: number;
   level: RiskLevel;
   indicators: FraudIndicator[];
+  isPreliminary?: boolean;
 }
 
 const FKRiskScoreCard: React.FC<FKRiskScoreCardProps> = ({
   score,
   level,
   indicators,
+  isPreliminary = false,
 }) => {
   const config = RISK_LEVEL_CONFIG[level];
 
@@ -125,6 +129,30 @@ const FKRiskScoreCard: React.FC<FKRiskScoreCardProps> = ({
               px: 2,
             }}
           />
+
+          {isPreliminary && (
+            <Tooltip
+              title="El puntaje final se calculará después de la validación cruzada de documentos"
+              arrow
+              placement="top"
+            >
+              <Chip
+                icon={<HourglassEmpty sx={{ fontSize: 16 }} />}
+                label="Puntaje Preliminar"
+                size="small"
+                sx={{
+                  mt: 1,
+                  backgroundColor: '#E3F2FD',
+                  color: '#1976D2',
+                  fontWeight: 500,
+                  fontSize: '0.75rem',
+                  '& .MuiChip-icon': {
+                    color: '#1976D2',
+                  },
+                }}
+              />
+            </Tooltip>
+          )}
         </Box>
 
         <Divider sx={{ my: 2 }} />

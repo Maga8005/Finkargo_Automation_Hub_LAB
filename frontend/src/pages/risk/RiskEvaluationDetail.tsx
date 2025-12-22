@@ -32,6 +32,7 @@ import {
   Description,
   CompareArrows,
   Assessment,
+  Info,
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
 import { riskService } from '../../services/riskService';
@@ -62,6 +63,7 @@ const RiskEvaluationDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [validationReady, setValidationReady] = useState(false);
   const [validationResults, setValidationResults] = useState<CrossValidationResponse | null>(null);
+  const [scoreUpdatedMessage, setScoreUpdatedMessage] = useState<string | null>(null);
 
   // Check if user is risk manager
   const isRiskManager = userProfile?.role === 'risk_manager' || userProfile?.role === 'admin';
@@ -70,6 +72,9 @@ const RiskEvaluationDetail: React.FC = () => {
   const canMakeDecision = isRiskManager &&
     assessment &&
     ['pending', 'in_progress', 'escalated'].includes(assessment.status);
+
+  // Check if score is preliminary (pending_documents status)
+  const isPreliminaryScore = assessment?.status === 'pending_documents';
 
   // Load assessment
   const loadAssessment = useCallback(async () => {
@@ -91,6 +96,17 @@ const RiskEvaluationDetail: React.FC = () => {
 
   useEffect(() => {
     loadAssessment();
+  }, [loadAssessment]);
+
+  // Handle validation complete - refresh assessment and show success message
+  const handleValidationComplete = useCallback(async (results: CrossValidationResponse) => {
+    setValidationResults(results);
+    // Refresh assessment to get updated score
+    await loadAssessment();
+    // Show success message
+    setScoreUpdatedMessage('Puntaje de riesgo actualizado con resultados de validación cruzada');
+    // Auto-hide message after 5 seconds
+    setTimeout(() => setScoreUpdatedMessage(null), 5000);
   }, [loadAssessment]);
 
   // Handle decision submission
@@ -199,6 +215,27 @@ const RiskEvaluationDetail: React.FC = () => {
       {submitError && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setSubmitError(null)}>
           {submitError}
+        </Alert>
+      )}
+
+      {scoreUpdatedMessage && (
+        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setScoreUpdatedMessage(null)}>
+          {scoreUpdatedMessage}
+        </Alert>
+      )}
+
+      {isPreliminaryScore && (
+        <Alert
+          severity="info"
+          icon={<Info />}
+          sx={{ mb: 3 }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            Suba y valide documentos para calcular el puntaje final de riesgo
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            El puntaje actual es preliminar y se actualizará después de la validación cruzada de documentos.
+          </Typography>
         </Alert>
       )}
 
@@ -340,6 +377,7 @@ const RiskEvaluationDetail: React.FC = () => {
               score={Number(assessment.risk_score)}
               level={assessment.risk_level}
               indicators={assessment.fraud_indicators}
+              isPreliminary={isPreliminaryScore}
             />
           </Grid>
 
@@ -434,6 +472,7 @@ const RiskEvaluationDetail: React.FC = () => {
       {activeTab === 1 && id && (
         <FKDocumentUploader
           evaluationId={id}
+          evaluationStatus={assessment?.status}
           onValidationReady={setValidationReady}
         />
       )}
@@ -443,7 +482,10 @@ const RiskEvaluationDetail: React.FC = () => {
         <FKCrossValidationResults
           evaluationId={id}
           canValidate={validationReady}
-          onValidationComplete={setValidationResults}
+          onValidationComplete={handleValidationComplete}
+          assessmentId={assessment?.assessment_id}
+          clientNit={assessment?.client_nit}
+          clientInfo={assessment?.client_info}
         />
       )}
     </Box>
