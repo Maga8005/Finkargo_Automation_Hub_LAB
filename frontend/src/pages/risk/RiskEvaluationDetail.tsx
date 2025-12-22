@@ -20,6 +20,8 @@ import {
   Alert,
   CircularProgress,
   IconButton,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -27,13 +29,19 @@ import {
   Person,
   LocationCity,
   AccountBalance,
+  Description,
+  CompareArrows,
+  Assessment,
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
 import { riskService } from '../../services/riskService';
 import FKRiskScoreCard from '../../components/risk/FKRiskScoreCard';
+import FKDocumentUploader from '../../components/risk/FKDocumentUploader';
+import FKCrossValidationResults from '../../components/risk/FKCrossValidationResults';
 import type {
   RiskAssessmentDetail,
   RiskDecisionRequest,
+  CrossValidationResponse,
 } from '../../types/risk';
 import { ASSESSMENT_STATUS_CONFIG } from '../../types/risk';
 
@@ -51,6 +59,9 @@ const RiskEvaluationDetail: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
+  const [validationReady, setValidationReady] = useState(false);
+  const [validationResults, setValidationResults] = useState<CrossValidationResponse | null>(null);
 
   // Check if user is risk manager
   const isRiskManager = userProfile?.role === 'risk_manager' || userProfile?.role === 'admin';
@@ -191,209 +202,250 @@ const RiskEvaluationDetail: React.FC = () => {
         </Alert>
       )}
 
-      <Grid container spacing={3}>
-        {/* Left Column - Client Info */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          {/* Client Info Card */}
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Información del Cliente
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
+      {/* Tabs Navigation */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
+          <Tab
+            icon={<Assessment />}
+            iconPosition="start"
+            label="Evaluación"
+          />
+          <Tab
+            icon={<Description />}
+            iconPosition="start"
+            label="Documentos"
+          />
+          <Tab
+            icon={<CompareArrows />}
+            iconPosition="start"
+            label={`Validación Cruzada${validationResults ? ` (${validationResults.total_discrepancies})` : ''}`}
+          />
+        </Tabs>
+      </Box>
 
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Business color="action" />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">NIT</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {assessment.client_nit}
-                    </Typography>
+      {/* Tab Content */}
+      {activeTab === 0 && (
+        <Grid container spacing={3}>
+          {/* Left Column - Client Info */}
+          <Grid size={{ xs: 12, md: 4 }}>
+            {/* Client Info Card */}
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Información del Cliente
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Business color="action" />
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">NIT</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {assessment.client_nit}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Business color="action" />
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Empresa</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {assessment.client_info?.nombre_importador || 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Person color="action" />
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Representante Legal</Typography>
+                      <Typography variant="body2">
+                        {assessment.client_info?.representante_legal || 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <LocationCity color="action" />
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Ciudad</Typography>
+                      <Typography variant="body2">
+                        {assessment.client_info?.ciudad_domicilio || 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <AccountBalance color="action" />
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Cupo</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {formatCurrency(assessment.client_info?.cupo_plataforma)}
+                      </Typography>
+                    </Box>
                   </Box>
                 </Box>
+              </CardContent>
+            </Card>
 
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Business color="action" />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Empresa</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {assessment.client_info?.nombre_importador || 'N/A'}
-                    </Typography>
-                  </Box>
-                </Box>
+            {/* Audit Info */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Historial
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
 
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Person color="action" />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Representante Legal</Typography>
+                    <Typography variant="caption" color="text.secondary">Evaluado por</Typography>
                     <Typography variant="body2">
-                      {assessment.client_info?.representante_legal || 'N/A'}
-                    </Typography>
-                  </Box>
-                </Box>
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <LocationCity color="action" />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Ciudad</Typography>
-                    <Typography variant="body2">
-                      {assessment.client_info?.ciudad_domicilio || 'N/A'}
-                    </Typography>
-                  </Box>
-                </Box>
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AccountBalance color="action" />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Cupo</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {formatCurrency(assessment.client_info?.cupo_plataforma)}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-
-          {/* Audit Info */}
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Historial
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">Evaluado por</Typography>
-                  <Typography variant="body2">
-                    {assessment.assessed_by || 'Sistema'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {formatDate(assessment.assessed_at)}
-                  </Typography>
-                </Box>
-
-                {assessment.reviewed_by && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Revisado por</Typography>
-                    <Typography variant="body2">
-                      {assessment.reviewed_by}
+                      {assessment.assessed_by || 'Sistema'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {formatDate(assessment.reviewed_at)}
+                      {formatDate(assessment.assessed_at)}
                     </Typography>
                   </Box>
-                )}
 
-                {assessment.review_notes && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">Notas de revisión</Typography>
-                    <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
-                      "{assessment.review_notes}"
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Center Column - Risk Score */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <FKRiskScoreCard
-            score={Number(assessment.risk_score)}
-            level={assessment.risk_level}
-            indicators={assessment.fraud_indicators}
-          />
-        </Grid>
-
-        {/* Right Column - Decision */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Decisión
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-
-              {canMakeDecision ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <FormControl fullWidth>
-                    <InputLabel>Acción</InputLabel>
-                    <Select
-                      value={decisionStatus}
-                      label="Acción"
-                      onChange={(e) => setDecisionStatus(e.target.value as typeof decisionStatus)}
-                      disabled={submitting}
-                    >
-                      <MenuItem value="approved">
-                        Aprobar - Cliente aprobado
-                      </MenuItem>
-                      <MenuItem value="rejected">
-                        Rechazar - Cliente rechazado
-                      </MenuItem>
-                      <MenuItem value="escalated">
-                        Escalar - Requiere revisión adicional
-                      </MenuItem>
-                    </Select>
-                  </FormControl>
-
-                  <TextField
-                    label="Notas (opcional)"
-                    multiline
-                    rows={4}
-                    value={decisionNotes}
-                    onChange={(e) => setDecisionNotes(e.target.value)}
-                    disabled={submitting}
-                    placeholder="Agregue notas o comentarios sobre su decisión..."
-                  />
-
-                  <Button
-                    variant="contained"
-                    color={
-                      decisionStatus === 'approved' ? 'success' :
-                      decisionStatus === 'rejected' ? 'error' : 'warning'
-                    }
-                    onClick={handleSubmitDecision}
-                    disabled={submitting}
-                    fullWidth
-                  >
-                    {submitting ? (
-                      <CircularProgress size={24} color="inherit" />
-                    ) : (
-                      `Confirmar ${
-                        decisionStatus === 'approved' ? 'Aprobación' :
-                        decisionStatus === 'rejected' ? 'Rechazo' : 'Escalamiento'
-                      }`
-                    )}
-                  </Button>
-                </Box>
-              ) : (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  {['approved', 'rejected'].includes(assessment.status) ? (
-                    <>
-                      <Chip
-                        label={statusConfig.label}
-                        color={statusConfig.color}
-                        sx={{ fontSize: '1rem', py: 2, px: 3 }}
-                      />
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                        Esta evaluación ya fue procesada
+                  {assessment.reviewed_by && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Revisado por</Typography>
+                      <Typography variant="body2">
+                        {assessment.reviewed_by}
                       </Typography>
-                    </>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Solo los Risk Managers pueden tomar decisiones
-                    </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {formatDate(assessment.reviewed_at)}
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {assessment.review_notes && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Notas de revisión</Typography>
+                      <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                        "{assessment.review_notes}"
+                      </Typography>
+                    </Box>
                   )}
                 </Box>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Center Column - Risk Score */}
+          <Grid size={{ xs: 12, md: 4 }}>
+            <FKRiskScoreCard
+              score={Number(assessment.risk_score)}
+              level={assessment.risk_level}
+              indicators={assessment.fraud_indicators}
+            />
+          </Grid>
+
+          {/* Right Column - Decision */}
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Decisión
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+
+                {canMakeDecision ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <FormControl fullWidth>
+                      <InputLabel>Acción</InputLabel>
+                      <Select
+                        value={decisionStatus}
+                        label="Acción"
+                        onChange={(e) => setDecisionStatus(e.target.value as typeof decisionStatus)}
+                        disabled={submitting}
+                      >
+                        <MenuItem value="approved">
+                          Aprobar - Cliente aprobado
+                        </MenuItem>
+                        <MenuItem value="rejected">
+                          Rechazar - Cliente rechazado
+                        </MenuItem>
+                        <MenuItem value="escalated">
+                          Escalar - Requiere revisión adicional
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    <TextField
+                      label="Notas (opcional)"
+                      multiline
+                      rows={4}
+                      value={decisionNotes}
+                      onChange={(e) => setDecisionNotes(e.target.value)}
+                      disabled={submitting}
+                      placeholder="Agregue notas o comentarios sobre su decisión..."
+                    />
+
+                    <Button
+                      variant="contained"
+                      color={
+                        decisionStatus === 'approved' ? 'success' :
+                        decisionStatus === 'rejected' ? 'error' : 'warning'
+                      }
+                      onClick={handleSubmitDecision}
+                      disabled={submitting}
+                      fullWidth
+                    >
+                      {submitting ? (
+                        <CircularProgress size={24} color="inherit" />
+                      ) : (
+                        `Confirmar ${
+                          decisionStatus === 'approved' ? 'Aprobación' :
+                          decisionStatus === 'rejected' ? 'Rechazo' : 'Escalamiento'
+                        }`
+                      )}
+                    </Button>
+                  </Box>
+                ) : (
+                  <Box sx={{ textAlign: 'center', py: 4 }}>
+                    {['approved', 'rejected'].includes(assessment.status) ? (
+                      <>
+                        <Chip
+                          label={statusConfig.label}
+                          color={statusConfig.color}
+                          sx={{ fontSize: '1rem', py: 2, px: 3 }}
+                        />
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                          Esta evaluación ya fue procesada
+                        </Typography>
+                      </>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Solo los Risk Managers pueden tomar decisiones
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
-      </Grid>
+      )}
+
+      {/* Documents Tab */}
+      {activeTab === 1 && id && (
+        <FKDocumentUploader
+          evaluationId={id}
+          onValidationReady={setValidationReady}
+        />
+      )}
+
+      {/* Cross-Validation Tab */}
+      {activeTab === 2 && id && (
+        <FKCrossValidationResults
+          evaluationId={id}
+          canValidate={validationReady}
+          onValidationComplete={setValidationResults}
+        />
+      )}
     </Box>
   );
 };

@@ -15,6 +15,12 @@ import type {
   BlacklistEntryRequest,
   BlacklistFilter,
   RiskAlert,
+  DocumentType,
+  DocumentExtraction,
+  DocumentExtractionList,
+  DocumentUploadResponse,
+  TriggerExtractionResponse,
+  CrossValidationResponse,
 } from '../types/risk';
 
 export const riskService = {
@@ -146,5 +152,97 @@ export const riskService = {
    */
   markAlertRead: async (id: string): Promise<void> => {
     await apiClient.put(`/risk/alerts/${id}/read`);
+  },
+
+  // ==================== Document Extraction ====================
+
+  /**
+   * Upload a document for extraction
+   */
+  uploadDocument: async (
+    evaluationId: string,
+    documentType: DocumentType,
+    file: File
+  ): Promise<DocumentUploadResponse> => {
+    const formData = new FormData();
+    formData.append('document_type', documentType);
+    formData.append('file', file);
+
+    const response = await apiClient.post<DocumentUploadResponse>(
+      `/risk/evaluations/${evaluationId}/documents`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  /**
+   * Get all extractions for an evaluation
+   */
+  getExtractions: async (evaluationId: string): Promise<DocumentExtractionList> => {
+    const response = await apiClient.get<DocumentExtractionList>(
+      `/risk/evaluations/${evaluationId}/extractions`
+    );
+    return response.data;
+  },
+
+  /**
+   * Trigger extraction for all pending documents
+   */
+  triggerExtraction: async (evaluationId: string): Promise<TriggerExtractionResponse> => {
+    const response = await apiClient.post<TriggerExtractionResponse>(
+      `/risk/evaluations/${evaluationId}/extract`
+    );
+    return response.data;
+  },
+
+  /**
+   * Process single document extraction with file upload
+   */
+  processExtraction: async (
+    evaluationId: string,
+    extractionId: string,
+    file: File
+  ): Promise<DocumentExtraction> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<DocumentExtraction>(
+      `/risk/evaluations/${evaluationId}/extract-document/${extractionId}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 180000, // 3 minutes for AI extraction
+      }
+    );
+    return response.data;
+  },
+
+  // ==================== Cross-Validation ====================
+
+  /**
+   * Run cross-validation on extracted documents
+   */
+  triggerCrossValidation: async (evaluationId: string): Promise<CrossValidationResponse> => {
+    const response = await apiClient.post<CrossValidationResponse>(
+      `/risk/evaluations/${evaluationId}/cross-validate`
+    );
+    return response.data;
+  },
+
+  /**
+   * Get cross-validation results/discrepancies
+   */
+  getDiscrepancies: async (evaluationId: string): Promise<CrossValidationResponse> => {
+    const response = await apiClient.get<CrossValidationResponse>(
+      `/risk/evaluations/${evaluationId}/discrepancies`
+    );
+    return response.data;
   },
 };

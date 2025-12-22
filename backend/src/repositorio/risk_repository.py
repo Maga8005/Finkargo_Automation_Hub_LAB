@@ -514,6 +514,283 @@ class BlacklistRepository:
         return True
 
 
+class DocumentExtractionRepository:
+    """Repository for document extraction operations"""
+
+    def __init__(self, supabase_client: Client):
+        """Initialize repository with Supabase client"""
+        self.db = supabase_client
+
+    async def create(self, data: dict) -> dict:
+        """
+        Create new document extraction record
+
+        Args:
+            data: Extraction data
+
+        Returns:
+            dict: Created extraction record
+        """
+        logger.info(f"Creating document extraction for assessment: {data.get('assessment_id')}")
+
+        response = self.db.table('risk_document_extractions') \
+            .insert(data) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_id(self, id: str) -> Optional[dict]:
+        """
+        Get document extraction by UUID
+
+        Args:
+            id: Extraction UUID
+
+        Returns:
+            Optional[dict]: Extraction record
+        """
+        response = self.db.table('risk_document_extractions') \
+            .select('*') \
+            .eq('id', id) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_assessment(self, assessment_id: str) -> List[dict]:
+        """
+        Get all document extractions for an assessment
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            List[dict]: Extraction records
+        """
+        response = self.db.table('risk_document_extractions') \
+            .select('*') \
+            .eq('assessment_id', assessment_id) \
+            .order('created_at', desc=False) \
+            .execute()
+
+        return response.data if response.data else []
+
+    async def get_by_assessment_and_type(
+        self,
+        assessment_id: str,
+        document_type: str
+    ) -> Optional[dict]:
+        """
+        Get document extraction by assessment and type
+
+        Args:
+            assessment_id: Assessment UUID
+            document_type: Document type
+
+        Returns:
+            Optional[dict]: Extraction record
+        """
+        response = self.db.table('risk_document_extractions') \
+            .select('*') \
+            .eq('assessment_id', assessment_id) \
+            .eq('document_type', document_type) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def update(self, id: str, updates: dict) -> Optional[dict]:
+        """
+        Update document extraction
+
+        Args:
+            id: Extraction UUID
+            updates: Fields to update
+
+        Returns:
+            Optional[dict]: Updated extraction record
+        """
+        from datetime import datetime
+        updates['updated_at'] = datetime.utcnow().isoformat()
+
+        response = self.db.table('risk_document_extractions') \
+            .update(updates) \
+            .eq('id', id) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def update_status(
+        self,
+        id: str,
+        status: str,
+        extracted_data: Optional[dict] = None,
+        errors: Optional[List[str]] = None,
+        confidence: Optional[float] = None
+    ) -> Optional[dict]:
+        """
+        Update extraction status and data
+
+        Args:
+            id: Extraction UUID
+            status: New status
+            extracted_data: Extracted data (if completed)
+            errors: Error messages (if failed)
+            confidence: Extraction confidence score
+
+        Returns:
+            Optional[dict]: Updated extraction record
+        """
+        from datetime import datetime
+        updates = {
+            'extraction_status': status,
+            'updated_at': datetime.utcnow().isoformat()
+        }
+
+        if extracted_data is not None:
+            updates['extracted_data'] = extracted_data
+        if errors is not None:
+            updates['extraction_errors'] = errors
+        if confidence is not None:
+            updates['extraction_confidence'] = float(confidence)
+
+        response = self.db.table('risk_document_extractions') \
+            .update(updates) \
+            .eq('id', id) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def delete(self, id: str) -> bool:
+        """
+        Delete document extraction
+
+        Args:
+            id: Extraction UUID
+
+        Returns:
+            bool: True if deleted
+        """
+        self.db.table('risk_document_extractions') \
+            .delete() \
+            .eq('id', id) \
+            .execute()
+
+        return True
+
+    async def delete_by_assessment(self, assessment_id: str) -> bool:
+        """
+        Delete all extractions for an assessment
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            bool: True if deleted
+        """
+        self.db.table('risk_document_extractions') \
+            .delete() \
+            .eq('assessment_id', assessment_id) \
+            .execute()
+
+        return True
+
+
+class CrossValidationRepository:
+    """Repository for cross-validation result operations"""
+
+    def __init__(self, supabase_client: Client):
+        """Initialize repository with Supabase client"""
+        self.db = supabase_client
+
+    async def create(self, data: dict) -> dict:
+        """
+        Create new cross-validation result
+
+        Args:
+            data: Validation result data
+
+        Returns:
+            dict: Created result record
+        """
+        response = self.db.table('risk_cross_validation_results') \
+            .insert(data) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def create_batch(self, results: List[dict]) -> List[dict]:
+        """
+        Create multiple cross-validation results
+
+        Args:
+            results: List of validation result data
+
+        Returns:
+            List[dict]: Created result records
+        """
+        if not results:
+            return []
+
+        response = self.db.table('risk_cross_validation_results') \
+            .insert(results) \
+            .execute()
+
+        return response.data if response.data else []
+
+    async def get_by_assessment(self, assessment_id: str) -> List[dict]:
+        """
+        Get all cross-validation results for an assessment
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            List[dict]: Validation result records
+        """
+        response = self.db.table('risk_cross_validation_results') \
+            .select('*') \
+            .eq('assessment_id', assessment_id) \
+            .order('created_at', desc=False) \
+            .execute()
+
+        return response.data if response.data else []
+
+    async def get_discrepancies(self, assessment_id: str) -> List[dict]:
+        """
+        Get only discrepancy results for an assessment
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            List[dict]: Discrepancy records
+        """
+        response = self.db.table('risk_cross_validation_results') \
+            .select('*') \
+            .eq('assessment_id', assessment_id) \
+            .eq('is_discrepancy', True) \
+            .order('severity', desc=True) \
+            .execute()
+
+        return response.data if response.data else []
+
+    async def delete_by_assessment(self, assessment_id: str) -> bool:
+        """
+        Delete all validation results for an assessment
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            bool: True if deleted
+        """
+        self.db.table('risk_cross_validation_results') \
+            .delete() \
+            .eq('assessment_id', assessment_id) \
+            .execute()
+
+        return True
+
+
 class AlertRepository:
     """Repository for risk alert operations"""
 

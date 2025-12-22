@@ -255,3 +255,188 @@ export const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
   address: 'Dirección',
   phone: 'Teléfono',
 };
+
+// ==================== Document Extraction Types ====================
+
+export type DocumentType =
+  | 'financial_statement_current'
+  | 'financial_statement_prior'
+  | 'cedula'
+  | 'composicion_accionaria'
+  | 'rut'
+  | 'certificado_existencia';
+
+export type ExtractionStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export type ValidationType =
+  | 'company_name'
+  | 'nit'
+  | 'legal_representative'
+  | 'shareholders'
+  | 'financial_continuity'
+  | 'email_domain'
+  | 'address';
+
+export type DiscrepancySeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface DocumentExtraction {
+  id: string;
+  assessment_id: string;
+  document_type: DocumentType;
+  document_filename: string;
+  extraction_status: ExtractionStatus;
+  extraction_method: string;
+  extraction_confidence?: number;
+  extracted_data?: Record<string, unknown>;
+  extraction_errors?: string[];
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface DocumentExtractionList {
+  assessment_id: string;
+  total_documents: number;
+  pending_count: number;
+  processing_count: number;
+  completed_count: number;
+  failed_count: number;
+  extractions: DocumentExtraction[];
+}
+
+export interface CrossValidationResult {
+  id?: string;
+  validation_type: ValidationType;
+  documents_compared: string[];
+  field_compared?: string;
+  values_found: Record<string, unknown>;
+  is_discrepancy: boolean;
+  severity?: DiscrepancySeverity;
+  description?: string;
+  score_impact: number;
+}
+
+export interface CrossValidationResponse {
+  assessment_id: string;
+  total_discrepancies: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+  total_score_impact: number;
+  results: CrossValidationResult[];
+  validated_at?: string;
+}
+
+export interface DocumentUploadResponse {
+  id: string;
+  assessment_id: string;
+  document_type: DocumentType;
+  document_filename: string;
+  extraction_status: ExtractionStatus;
+  created_at: string;
+}
+
+export interface TriggerExtractionResponse {
+  assessment_id: string;
+  documents_queued: number;
+  message: string;
+}
+
+export interface TriggerValidationResponse {
+  assessment_id: string;
+  validation_status: string;
+  discrepancies_found: number;
+  message: string;
+}
+
+// ==================== Document Type Configuration ====================
+
+export interface DocumentTypeConfig {
+  label: string;
+  accepted_formats: string[];
+  max_size_mb: number;
+  required: boolean;
+}
+
+export const DOCUMENT_TYPE_CONFIG: Record<DocumentType, DocumentTypeConfig> = {
+  financial_statement_current: {
+    label: 'Estados Financieros (Año Actual)',
+    accepted_formats: ['pdf'],
+    max_size_mb: 50,
+    required: true,
+  },
+  financial_statement_prior: {
+    label: 'Estados Financieros (Año Anterior)',
+    accepted_formats: ['pdf'],
+    max_size_mb: 50,
+    required: true,
+  },
+  cedula: {
+    label: 'Cédula del Representante Legal',
+    accepted_formats: ['pdf', 'png', 'jpg', 'jpeg'],
+    max_size_mb: 5,
+    required: true,
+  },
+  composicion_accionaria: {
+    label: 'Composición Accionaria',
+    accepted_formats: ['pdf'],
+    max_size_mb: 10,
+    required: true,
+  },
+  rut: {
+    label: 'RUT',
+    accepted_formats: ['pdf', 'png'],
+    max_size_mb: 5,
+    required: true,
+  },
+  certificado_existencia: {
+    label: 'Certificado de Existencia',
+    accepted_formats: ['pdf'],
+    max_size_mb: 10,
+    required: false,
+  },
+};
+
+export const EXTRACTION_STATUS_CONFIG: Record<ExtractionStatus, { label: string; color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' }> = {
+  pending: { label: 'Pendiente', color: 'warning' },
+  processing: { label: 'Procesando', color: 'info' },
+  completed: { label: 'Completado', color: 'success' },
+  failed: { label: 'Fallido', color: 'error' },
+};
+
+export const DISCREPANCY_SEVERITY_CONFIG: Record<DiscrepancySeverity, { label: string; color: 'success' | 'warning' | 'error' | 'default'; bgColor: string; textColor: string }> = {
+  low: {
+    label: 'Bajo',
+    color: 'success',
+    bgColor: '#E0F7E6',
+    textColor: '#2CA14D',
+  },
+  medium: {
+    label: 'Medio',
+    color: 'warning',
+    bgColor: '#FFF4E5',
+    textColor: '#B86E00',
+  },
+  high: {
+    label: 'Alto',
+    color: 'error',
+    bgColor: '#FFE4E4',
+    textColor: '#CC071E',
+  },
+  critical: {
+    label: 'Crítico',
+    color: 'error',
+    bgColor: '#CC071E',
+    textColor: '#FFFFFF',
+  },
+};
+
+export const VALIDATION_TYPE_LABELS: Record<ValidationType, string> = {
+  company_name: 'Nombre de Empresa',
+  nit: 'NIT',
+  legal_representative: 'Representante Legal',
+  shareholders: 'Accionistas',
+  financial_continuity: 'Continuidad Financiera',
+  email_domain: 'Dominio de Email',
+  address: 'Dirección',
+};

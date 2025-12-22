@@ -109,7 +109,7 @@ const FKRiskScoreCard: React.FC<FKRiskScoreCardProps> = ({
                 component="div"
                 sx={{ fontWeight: 700 }}
               >
-                {score.toFixed(0)}
+                {Number(score).toFixed(0)}
               </Typography>
             </Box>
           </Box>
@@ -173,7 +173,7 @@ const FKRiskScoreCard: React.FC<FKRiskScoreCardProps> = ({
                   color="error"
                   sx={{ fontWeight: 600 }}
                 >
-                  +{indicator.score_impact.toFixed(0)}
+                  +{Number(indicator.score_impact).toFixed(0)}
                 </Typography>
               )}
             </ListItem>

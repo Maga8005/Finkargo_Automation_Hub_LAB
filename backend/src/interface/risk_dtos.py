@@ -345,3 +345,158 @@ class BlacklistFilter(BaseModel):
     is_active: Optional[bool] = True
     limit: int = Field(default=50, le=100, ge=1)
     offset: int = Field(default=0, ge=0)
+
+
+# ==================== Document Extraction DTOs ====================
+
+class DocumentType(str, Enum):
+    """Document types for fraud detection cross-validation"""
+    FINANCIAL_STATEMENT_CURRENT = "financial_statement_current"
+    FINANCIAL_STATEMENT_PRIOR = "financial_statement_prior"
+    CEDULA = "cedula"
+    COMPOSICION_ACCIONARIA = "composicion_accionaria"
+    RUT = "rut"
+    CERTIFICADO_EXISTENCIA = "certificado_existencia"
+
+
+class ExtractionStatus(str, Enum):
+    """Status of document extraction"""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class DiscrepancySeverity(str, Enum):
+    """Severity level of cross-validation discrepancy"""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class ValidationType(str, Enum):
+    """Type of cross-validation check"""
+    COMPANY_NAME = "company_name"
+    NIT = "nit"
+    LEGAL_REPRESENTATIVE = "legal_representative"
+    SHAREHOLDERS = "shareholders"
+    FINANCIAL_CONTINUITY = "financial_continuity"
+    EMAIL_DOMAIN = "email_domain"
+    ADDRESS = "address"
+
+
+class DocumentUploadResponse(BaseModel):
+    """Response after uploading a document"""
+    id: str
+    assessment_id: str
+    document_type: DocumentType
+    document_filename: str
+    extraction_status: ExtractionStatus
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DocumentExtractionResponse(BaseModel):
+    """Response containing extracted document data"""
+    id: str
+    assessment_id: str
+    document_type: DocumentType
+    document_filename: str
+    extraction_status: ExtractionStatus
+    extraction_method: str = "landingai"
+    extraction_confidence: Optional[Decimal] = None
+    extracted_data: Optional[Dict[str, Any]] = None
+    extraction_errors: Optional[List[str]] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+    @validator('extraction_confidence', pre=True)
+    def coerce_confidence(cls, v):
+        """Convert to Decimal"""
+        if v is None:
+            return None
+        if isinstance(v, Decimal):
+            return v
+        return Decimal(str(v))
+
+
+class CrossValidationResult(BaseModel):
+    """Individual cross-validation result"""
+    id: Optional[str] = None
+    validation_type: ValidationType
+    documents_compared: List[str]
+    field_compared: Optional[str] = None
+    values_found: Dict[str, Any]
+    is_discrepancy: bool = False
+    severity: Optional[DiscrepancySeverity] = None
+    description: Optional[str] = None
+    score_impact: Decimal = Field(default=Decimal('0'), ge=0, le=100)
+
+    class Config:
+        from_attributes = True
+
+    @validator('score_impact', pre=True)
+    def coerce_score_impact(cls, v):
+        """Convert to Decimal"""
+        if v is None:
+            return Decimal('0')
+        if isinstance(v, Decimal):
+            return v
+        return Decimal(str(v))
+
+
+class CrossValidationResponse(BaseModel):
+    """Response containing all cross-validation results for an assessment"""
+    assessment_id: str
+    total_discrepancies: int = 0
+    critical_count: int = 0
+    high_count: int = 0
+    medium_count: int = 0
+    low_count: int = 0
+    total_score_impact: Decimal = Field(default=Decimal('0'))
+    results: List[CrossValidationResult] = []
+    validated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+    @validator('total_score_impact', pre=True)
+    def coerce_total_score_impact(cls, v):
+        """Convert to Decimal"""
+        if v is None:
+            return Decimal('0')
+        if isinstance(v, Decimal):
+            return v
+        return Decimal(str(v))
+
+
+class DocumentExtractionListResponse(BaseModel):
+    """Response containing all document extractions for an assessment"""
+    assessment_id: str
+    total_documents: int = 0
+    pending_count: int = 0
+    processing_count: int = 0
+    completed_count: int = 0
+    failed_count: int = 0
+    extractions: List[DocumentExtractionResponse] = []
+
+
+class TriggerExtractionResponse(BaseModel):
+    """Response after triggering extraction for all documents"""
+    assessment_id: str
+    documents_queued: int
+    message: str
+
+
+class TriggerValidationResponse(BaseModel):
+    """Response after triggering cross-validation"""
+    assessment_id: str
+    validation_status: str
+    discrepancies_found: int
+    message: str
