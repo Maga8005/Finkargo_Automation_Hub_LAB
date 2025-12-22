@@ -380,10 +380,13 @@ class ValidationType(str, Enum):
     """Type of cross-validation check"""
     COMPANY_NAME = "company_name"
     NIT = "nit"
+    NIT_CHECK_DIGIT = "nit_check_digit"  # Separate validation for check digit mismatches
     LEGAL_REPRESENTATIVE = "legal_representative"
     SHAREHOLDERS = "shareholders"
     FINANCIAL_CONTINUITY = "financial_continuity"
     EMAIL_DOMAIN = "email_domain"
+    TYPOSQUATTING = "typosquatting"  # Domain typosquatting detection
+    PROVIDER_DOMAIN = "provider_domain"  # Free email provider detection
     ADDRESS = "address"
 
 
