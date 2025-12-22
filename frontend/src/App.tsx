@@ -26,6 +26,9 @@ import PagosHistorial from './pages/alianzas/PagosHistorial';
 import BrokerIncentivesPage from './pages/alianzas/BrokerIncentivesPage';
 import HistorialMatchingPage from './pages/treasury/HistorialMatchingPage';
 import DirectoryScannerPage from './pages/treasury/DirectoryScannerPage';
+import RiskDashboard from './pages/risk/RiskDashboard';
+import RiskEvaluationDetail from './pages/risk/RiskEvaluationDetail';
+import RiskConfiguration from './pages/risk/RiskConfiguration';
 import { UserRole } from './types';
 
 function App() {
@@ -176,6 +179,38 @@ function App() {
                 path="department/alianzas"
                 element={<Navigate to="/alianzas/brokers" replace />}
               />
+
+              {/* Risk Routes - Fraud detection and risk management */}
+              <Route
+                path="risk/dashboard"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.RISK_ANALYST, UserRole.RISK_MANAGER, UserRole.ADMIN]}>
+                    <RiskDashboard />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="risk/evaluations/:id"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.RISK_ANALYST, UserRole.RISK_MANAGER, UserRole.ADMIN]}>
+                    <RiskEvaluationDetail />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="risk/configuration"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.RISK_MANAGER, UserRole.ADMIN]}>
+                    <RiskConfiguration />
+                  </RoleProtectedRoute>
+                }
+              />
+              {/* Risk department route - Redirect to risk dashboard */}
+              <Route
+                path="department/risk"
+                element={<Navigate to="/risk/dashboard" replace />}
+              />
+
               <Route path="department/:departmentId" element={<DepartmentPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

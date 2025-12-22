@@ -24,6 +24,7 @@ import {
   Code,
   Support,
   Gavel,
+  Shield,
   ErrorOutline,
   Refresh,
 } from '@mui/icons-material';
@@ -75,6 +76,7 @@ const iconMap: Record<string, React.ReactElement> = {
   Code: <Code />,
   Support: <Support />,
   Gavel: <Gavel />,
+  Shield: <Shield />,
 };
 
 const FKSidebar: React.FC = () => {
@@ -135,6 +137,9 @@ const FKSidebar: React.FC = () => {
 
     const userRole = userProfile.role;
 
+    // Debug: log role check
+    console.log('[FKSidebar] Checking access:', { userRole, departmentId, userProfile });
+
     // Admin has access to everything
     if (userRole === 'admin') return true;
 
@@ -150,6 +155,12 @@ const FKSidebar: React.FC = () => {
     // comercial_paga_local role has limited access to operations department
     // (route-level protection will further restrict access to only Paga Local)
     if (userRole === 'comercial_paga_local' && departmentId === 'operations') return true;
+
+    // Risk department roles
+    if ((userRole === 'risk_analyst' || userRole === 'risk_manager') && departmentId === 'risk') return true;
+
+    // Tesoreria role has access to tesoreria department
+    if (userRole === 'tesoreria' && departmentId === 'tesoreria') return true;
 
     // For other roles, deny access (can be extended later)
     return false;

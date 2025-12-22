@@ -36,6 +36,10 @@ SlashCommand = Literal[
     "/resolve_failed_test",
     "/test_e2e",
     "/resolve_failed_e2e_test",
+    # Review and documentation commands
+    "/review",
+    "/patch",
+    "/document",
 ]
 
 
@@ -120,7 +124,7 @@ class AgentPromptRequest(BaseModel):
     prompt: str
     adw_id: str
     agent_name: str = "ops"
-    model: Literal["sonnet", "opus"] = "sonnet"
+    model: Literal["sonnet", "opus"] = "opus"
     dangerously_skip_permissions: bool = False
     output_file: str
 
@@ -140,7 +144,7 @@ class AgentTemplateRequest(BaseModel):
     slash_command: SlashCommand
     args: List[str]
     adw_id: str
-    model: Literal["sonnet", "opus"] = "sonnet"
+    model: Literal["sonnet", "opus"] = "opus"
 
 
 class ClaudeCodeResultMessage(BaseModel):
@@ -194,3 +198,36 @@ class ADWStateData(BaseModel):
     branch_name: Optional[str] = None
     plan_file: Optional[str] = None
     issue_class: Optional[IssueClassSlashCommand] = None
+
+
+# Review severity levels
+ReviewSeverity = Literal["blocker", "tech_debt", "skippable"]
+
+
+class ReviewIssue(BaseModel):
+    """Individual issue found during review."""
+
+    review_issue_number: int
+    screenshot_path: str = ""
+    issue_description: str
+    issue_resolution: str
+    issue_severity: ReviewSeverity
+    screenshot_url: Optional[str] = None  # Populated after R2 upload
+
+
+class ReviewResult(BaseModel):
+    """Result of a code review against specification."""
+
+    success: bool
+    review_issues: List[ReviewIssue] = []
+    screenshots: List[str] = []  # File paths to screenshots
+    screenshot_urls: List[str] = []  # Populated after R2 upload
+
+
+class DocumentationResult(BaseModel):
+    """Result of documentation generation."""
+
+    success: bool
+    documentation_created: bool
+    documentation_path: Optional[str] = None
+    error_message: Optional[str] = None

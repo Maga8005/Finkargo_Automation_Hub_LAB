@@ -38,10 +38,16 @@ from adw_modules.data_types import GitHubIssue
 
 
 def check_env_vars(logger: Optional[logging.Logger] = None) -> None:
-    """Check that all required environment variables are set."""
+    """Check that all required environment variables are set.
+
+    Note: ANTHROPIC_API_KEY is optional if using Claude Max subscription via OAuth.
+    Run 'claude login' to authenticate with your Max subscription.
+    """
     required_vars = [
-        "ANTHROPIC_API_KEY",
         "CLAUDE_CODE_PATH",
+    ]
+    optional_vars = [
+        "ANTHROPIC_API_KEY",  # Optional if using Claude Max via OAuth
     ]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
@@ -56,6 +62,14 @@ def check_env_vars(logger: Optional[logging.Logger] = None) -> None:
             for var in missing_vars:
                 print(f"  - {var}", file=sys.stderr)
         sys.exit(1)
+
+    # Warn about optional vars that could improve functionality
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        warn_msg = "Note: ANTHROPIC_API_KEY not set. Using Claude Max subscription via OAuth."
+        if logger:
+            logger.info(warn_msg)
+        else:
+            print(warn_msg)
 
 
 def main():
