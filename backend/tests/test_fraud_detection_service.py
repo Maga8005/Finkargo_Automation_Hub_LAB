@@ -210,8 +210,9 @@ class TestRiskScoring:
         """Test that critical indicators produce critical score"""
         # Multiple max indicators to exceed 80 threshold
         # identity_consistency (0.35) + email_domain_validation (0.25) +
-        # financial_document_issues (0.20) + company_history (0.10) = 0.90
+        # financial_document_issues (0.20) + nit_format_validation (0.10) = 0.90
         # 0.90 * 100 = 90 -> CRITICAL
+        # NOTE: company_history no longer contributes to score per business requirements
         indicators = [
             FraudIndicator(
                 indicator_name="identity_consistency",
@@ -235,10 +236,10 @@ class TestRiskScoring:
                 score_impact=Decimal('100'),
             ),
             FraudIndicator(
-                indicator_name="company_history",
+                indicator_name="nit_format_validation",
                 indicator_value=True,
                 severity=RiskLevel.CRITICAL,
-                evidence="Bad history",
+                evidence="Invalid NIT format",
                 score_impact=Decimal('100'),
             ),
         ]
@@ -319,6 +320,82 @@ class TestBlacklistChecking:
         result = await fraud_service._check_blacklist(client_data)
         assert result is not None  # Blacklisted
         assert result['entity_type'] == 'nit'
+
+
+class TestCompanyHistoryCheck:
+    """Test company history check - should never contribute to risk score"""
+
+    @pytest.fixture
+    def fraud_service(self):
+        """Create FraudDetectionService with mocked dependencies"""
+        risk_repo = MagicMock()
+        risk_repo.get_recent_by_client = AsyncMock(return_value=[])
+
+        service = FraudDetectionService(
+            risk_repo=risk_repo,
+            rules_repo=MagicMock(),
+            blacklist_repo=MagicMock(),
+            client_repo=MagicMock(),
+            scoring_service=MagicMock(),
+            alert_service=MagicMock(),
+        )
+        return service
+
+    @pytest.mark.asyncio
+    async def test_company_history_no_previous_assessments_no_score_impact(self, fraud_service):
+        """Test that first-time customers do NOT get score impact"""
+        # Set up mock to return empty list (no previous assessments)
+        fraud_service.risk_repo.get_recent_by_client = AsyncMock(return_value=[])
+
+        client_data = {'nit': '900123456-7', 'cupo_plataforma': 1000000000}
+        rule = {'weight': 0.10, 'rule_type': 'history'}
+
+        indicator = await fraud_service._check_company_history(client_data, rule)
+
+        # Per business requirements: company_history should NEVER trigger score
+        assert indicator.indicator_name == "company_history"
+        assert indicator.indicator_value is False  # Never triggers
+        assert indicator.score_impact == Decimal('0')  # Zero impact
+        assert indicator.severity.value == "low"
+        assert "Primera evaluación" in indicator.evidence
+
+    @pytest.mark.asyncio
+    async def test_company_history_with_previous_assessments_no_score_impact(self, fraud_service):
+        """Test that returning customers also have no score impact"""
+        # Set up mock to return some previous assessments
+        fraud_service.risk_repo.get_recent_by_client = AsyncMock(return_value=[
+            {'id': '1', 'risk_score': 25},
+            {'id': '2', 'risk_score': 30},
+        ])
+
+        client_data = {'nit': '900123456-7'}
+        rule = {'weight': 0.10, 'rule_type': 'history'}
+
+        indicator = await fraud_service._check_company_history(client_data, rule)
+
+        # History indicator should be informational only
+        assert indicator.indicator_name == "company_history"
+        assert indicator.indicator_value is False  # Never triggers
+        assert indicator.score_impact == Decimal('0')  # Zero impact
+        assert "2 evaluaciones previas" in indicator.evidence
+
+    @pytest.mark.asyncio
+    async def test_company_history_high_credit_no_history_no_score_impact(self, fraud_service):
+        """Test that high credit limit for new clients does NOT add score impact"""
+        # This was previously a risk factor but should no longer be
+        fraud_service.risk_repo.get_recent_by_client = AsyncMock(return_value=[])
+
+        client_data = {
+            'nit': '900123456-7',
+            'cupo_plataforma': 600000000  # > 500M COP
+        }
+        rule = {'weight': 0.10, 'rule_type': 'history'}
+
+        indicator = await fraud_service._check_company_history(client_data, rule)
+
+        # Even with high credit and no history, should NOT trigger score
+        assert indicator.indicator_value is False
+        assert indicator.score_impact == Decimal('0')
 
 
 class TestEdgeCases:
