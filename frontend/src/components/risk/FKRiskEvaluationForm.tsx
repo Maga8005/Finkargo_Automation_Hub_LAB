@@ -1,5 +1,6 @@
 /**
  * FKRiskEvaluationForm - Trigger evaluation form component
+ * NOTE: Evaluation type selection removed - only comprehensive workflow exists
  */
 import React from 'react';
 import { useForm, Controller } from 'react-hook-form';
@@ -7,15 +8,11 @@ import {
   Box,
   TextField,
   Button,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Alert,
   CircularProgress,
 } from '@mui/material';
 import { Assessment } from '@mui/icons-material';
-import type { RiskAssessmentRequest, AssessmentType } from '../../types/risk';
+import type { RiskAssessmentRequest } from '../../types/risk';
 
 interface FKRiskEvaluationFormProps {
   onEvaluate: (request: RiskAssessmentRequest) => Promise<void>;
@@ -25,7 +22,6 @@ interface FKRiskEvaluationFormProps {
 
 interface FormData {
   client_nit: string;
-  assessment_type: AssessmentType;
 }
 
 const FKRiskEvaluationForm: React.FC<FKRiskEvaluationFormProps> = ({
@@ -41,14 +37,12 @@ const FKRiskEvaluationForm: React.FC<FKRiskEvaluationFormProps> = ({
   } = useForm<FormData>({
     defaultValues: {
       client_nit: '',
-      assessment_type: 'comprehensive',
     },
   });
 
   const onSubmit = async (data: FormData) => {
     await onEvaluate({
       client_nit: data.client_nit.trim(),
-      assessment_type: data.assessment_type,
     });
     reset();
   };
@@ -97,30 +91,6 @@ const FKRiskEvaluationForm: React.FC<FKRiskEvaluationFormProps> = ({
               sx: { borderRadius: 2 },
             }}
           />
-        )}
-      />
-
-      <Controller
-        name="assessment_type"
-        control={control}
-        render={({ field }) => (
-          <FormControl fullWidth>
-            <InputLabel id="assessment-type-label">Tipo de Evaluación</InputLabel>
-            <Select
-              {...field}
-              labelId="assessment-type-label"
-              label="Tipo de Evaluación"
-              disabled={loading}
-              sx={{ borderRadius: 2 }}
-            >
-              <MenuItem value="comprehensive">
-                Completa - Todas las verificaciones
-              </MenuItem>
-              <MenuItem value="quick">
-                Rápida - Verificaciones básicas
-              </MenuItem>
-            </Select>
-          </FormControl>
         )}
       />
 

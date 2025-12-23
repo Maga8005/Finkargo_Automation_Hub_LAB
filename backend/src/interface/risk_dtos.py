@@ -67,10 +67,8 @@ class RuleType(str, Enum):
     HISTORY = "history"
 
 
-class AssessmentType(str, Enum):
-    """Type of risk assessment"""
-    COMPREHENSIVE = "comprehensive"
-    QUICK = "quick"
+# NOTE: AssessmentType enum removed as per bug fix - only one evaluation workflow exists
+# Existing database records may have assessment_type values; handled via response model defaults
 
 
 # ==================== Fraud Indicator Models ====================
@@ -98,10 +96,7 @@ class FraudIndicator(BaseModel):
 class RiskAssessmentRequest(BaseModel):
     """Request to create a new risk evaluation"""
     client_nit: str = Field(..., min_length=5, max_length=50, description="Client NIT to evaluate")
-    assessment_type: AssessmentType = Field(
-        default=AssessmentType.COMPREHENSIVE,
-        description="Type of assessment (comprehensive or quick)"
-    )
+    # NOTE: assessment_type removed - only comprehensive evaluation workflow exists
 
     @validator('client_nit')
     def validate_nit(cls, v):
