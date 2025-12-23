@@ -228,14 +228,22 @@ async def create_evaluation(
 
     user_id = current_user.get('id')
 
-    fraud_service = get_fraud_service()
-    assessment = await fraud_service.evaluate_client(
-        client_nit=request.client_nit,
-        user_id=user_id,
-        # NOTE: assessment_type removed - all evaluations use comprehensive workflow
-    )
+    try:
+        fraud_service = get_fraud_service()
+        assessment = await fraud_service.evaluate_client(
+            client_nit=request.client_nit,
+            user_id=user_id,
+            # NOTE: assessment_type removed - all evaluations use comprehensive workflow
+        )
 
-    return _map_to_response(assessment)
+        return _map_to_response(assessment)
+    except Exception as e:
+        logger.error(f"Error creating evaluation for NIT {request.client_nit}: {e}", exc_info=True)
+        # Re-raise as HTTPException to ensure proper error response with CORS headers
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating evaluation: {str(e)}"
+        )
 
 
 @router.put("/evaluations/{id}/decision", response_model=RiskAssessmentDetail)
