@@ -58,7 +58,7 @@ Daniel demonstrated the current Riesgos module functionality:
 
 ## 2. New Feature Requirements
 
-### 2.1 CRITICAL: Binary Pass/Fail System (Replace Scoring)
+### 2.1 CRITICAL: Binary Pass/Fail System (Replace Scoring) - DONE
 
 **Stakeholder Request (Andrés Ferrer):**
 > "Yo no le metería puntaje, yo le diría todo o nada, entonces o todo concuerda o no, o si hay un error yo así está rojo, verificación manual. OK, sí, sí, aquí no hay, aquí mejor dicho, yo no quiero que le diga qué tan, porque después alguien dice, no, pero eso dio 90 puntos y yo lo pasé. No, no, esto si da rojos, hay alguna información que no coincida, hay que ir a mirar y verificar manualmente."
@@ -80,7 +80,7 @@ Daniel demonstrated the current Riesgos module functionality:
 - Replace score display with simple pass/fail indicator
 - Red flag requires acknowledgment before proceeding
 
-### 2.2 HIGH: Email/Contact Information Correlation Tab
+### 2.2 HIGH: Email/Contact Information Correlation Tab - WIP
 
 **Stakeholder Request (Daniel Restrepo):**
 > "Lo otro es como otra información de, no sé cómo llamarle, el tab, otra información de contacto para correlacionar."
@@ -99,7 +99,7 @@ Add a new tab in the evaluation detail page where users can input the email addr
 **Example (from Azelis fraud case):**
 - Documents show company: AZELIS COLOMBIA S.A.S.
 - Expected email domain: `azelis.com`
-- Actual email received from: `acelis.com.co`
+- Actual email received from: `azelis.com.co`
 - **Result:** ❌ REQUIRES MANUAL VERIFICATION - domain mismatch detected
 
 **UI Mockup:**
@@ -117,7 +117,7 @@ Contacto Externo Tab:
 │                                                              │
 │ [Validar Dominio]                                           │
 │                                                              │
-│ ⚠️ ALERTA: Dominio 'acelis.com.co' es 85% similar a         │
+│ ⚠️ ALERTA: Dominio 'azelis.com.co' es 85% similar a         │
 │    'azelis.com' (dominio legítimo conocido)                 │
 │    POSIBLE TYPOSQUATTING DETECTADO                          │
 └─────────────────────────────────────────────────────────────┘
