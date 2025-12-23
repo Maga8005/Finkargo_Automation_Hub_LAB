@@ -1,5 +1,9 @@
 /**
  * FKRiskMetrics - Dashboard metrics cards component
+ *
+ * NOTE: Updated to show binary pass/fail verification counts instead of
+ * risk level counts (HIGH/CRITICAL). The stakeholder requirement is to
+ * hide numeric scoring and show only binary verification status.
  */
 import React from 'react';
 import {
@@ -13,7 +17,6 @@ import {
   Assessment,
   PendingActions,
   Warning,
-  Error,
   CheckCircle,
   Cancel,
 } from '@mui/icons-material';
@@ -99,48 +102,50 @@ const FKRiskMetrics: React.FC<FKRiskMetricsProps> = ({ stats }) => {
           value={stats.pending_review}
           icon={<PendingActions />}
           color="#B86E00"
-          subtitle="Requieren revisión"
+          subtitle="Requieren decisión"
         />
       </Grid>
 
-      {/* High Risk */}
-      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
-        <MetricCard
-          title="Alto Riesgo"
-          value={stats.high_risk_count}
-          icon={<Warning />}
-          color="#E65100"
-        />
-      </Grid>
-
-      {/* Critical Risk */}
-      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
-        <MetricCard
-          title="Críticos"
-          value={stats.critical_risk_count}
-          icon={<Error />}
-          color="#CC071E"
-        />
-      </Grid>
-
-      {/* Approved */}
+      {/* Binary Pass Count - Replaces High Risk */}
       <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
         <MetricCard
           title="Aprobados"
-          value={stats.approved}
+          value={stats.pass_count}
           icon={<CheckCircle />}
           color="#2CA14D"
+          subtitle="Sin discrepancias"
+        />
+      </Grid>
+
+      {/* Binary Requires Verification Count - Replaces Critical */}
+      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
+        <MetricCard
+          title="Requieren Verificación"
+          value={stats.requires_verification_count}
+          icon={<Warning />}
+          color="#CC071E"
+          subtitle="Con discrepancias"
+        />
+      </Grid>
+
+      {/* Final Decision: Approved */}
+      <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
+        <MetricCard
+          title="Decisión: Aprobados"
+          value={stats.approved}
+          icon={<CheckCircle />}
+          color="#0288D1"
           subtitle={formatPercentage(stats.approval_rate)}
         />
       </Grid>
 
-      {/* Rejected */}
+      {/* Final Decision: Rejected */}
       <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
         <MetricCard
-          title="Rechazados"
+          title="Decisión: Rechazados"
           value={stats.rejected}
           icon={<Cancel />}
-          color="#CC071E"
+          color="#E65100"
           subtitle={formatPercentage(stats.rejection_rate)}
         />
       </Grid>

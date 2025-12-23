@@ -6,7 +6,7 @@ import logging
 from typing import List, Tuple, Dict, Any
 from decimal import Decimal, ROUND_HALF_UP
 
-from src.interface.risk_dtos import FraudIndicator, RiskLevel
+from src.interface.risk_dtos import FraudIndicator, RiskLevel, VerificationStatus
 from src.repositorio.risk_repository import FraudRulesRepository
 
 logger = logging.getLogger(__name__)
@@ -328,3 +328,81 @@ class RiskScoringService:
         )
 
         return final_score, risk_level
+
+    def determine_verification_status(
+        self,
+        cross_validation_results: List[dict]
+    ) -> VerificationStatus:
+        """
+        Determine binary verification status based on cross-validation results.
+
+        The stakeholder requirement is clear: ANY discrepancy (regardless of severity)
+        must result in REQUIRES_MANUAL_VERIFICATION. There is no threshold or scoring
+        logic - it's a simple binary decision.
+
+        Args:
+            cross_validation_results: List of cross-validation results from validation
+
+        Returns:
+            VerificationStatus: PASS if no discrepancies, REQUIRES_MANUAL_VERIFICATION otherwise
+        """
+        if not cross_validation_results:
+            return VerificationStatus.PASS
+
+        # Check if ANY result has is_discrepancy=True
+        has_any_discrepancy = any(
+            result.get('is_discrepancy', False)
+            for result in cross_validation_results
+        )
+
+        if has_any_discrepancy:
+            logger.info("Verification status: REQUIRES_MANUAL_VERIFICATION (discrepancy found)")
+            return VerificationStatus.REQUIRES_MANUAL_VERIFICATION
+
+        logger.info("Verification status: PASS (no discrepancies)")
+        return VerificationStatus.PASS
+
+    def count_discrepancies(self, cross_validation_results: List[dict]) -> int:
+        """
+        Count the number of discrepancies in cross-validation results.
+
+        Args:
+            cross_validation_results: List of cross-validation results
+
+        Returns:
+            int: Count of results where is_discrepancy=True
+        """
+        if not cross_validation_results:
+            return 0
+
+        return sum(
+            1 for result in cross_validation_results
+            if result.get('is_discrepancy', False)
+        )
+
+    def get_verification_info(
+        self,
+        cross_validation_results: List[dict]
+    ) -> Dict[str, Any]:
+        """
+        Get complete verification information from cross-validation results.
+
+        Args:
+            cross_validation_results: List of cross-validation results
+
+        Returns:
+            Dict with verification_status, has_discrepancies, and discrepancy_count
+        """
+        discrepancy_count = self.count_discrepancies(cross_validation_results)
+        has_discrepancies = discrepancy_count > 0
+        verification_status = (
+            VerificationStatus.REQUIRES_MANUAL_VERIFICATION
+            if has_discrepancies
+            else VerificationStatus.PASS
+        )
+
+        return {
+            'verification_status': verification_status,
+            'has_discrepancies': has_discrepancies,
+            'discrepancy_count': discrepancy_count,
+        }

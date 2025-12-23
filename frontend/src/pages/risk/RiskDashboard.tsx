@@ -33,7 +33,7 @@ import type {
   RiskAssessmentRequest,
   BlacklistEntryRequest,
 } from '../../types/risk';
-import { RISK_LEVEL_CONFIG, ASSESSMENT_STATUS_CONFIG } from '../../types/risk';
+import { VERIFICATION_STATUS_CONFIG, ASSESSMENT_STATUS_CONFIG } from '../../types/risk';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -150,7 +150,7 @@ const RiskDashboard: React.FC = () => {
     setBlacklist((prev) => prev.filter((e) => e.id !== id));
   };
 
-  // Table columns
+  // Table columns - Updated to show verification status instead of risk level/score
   const columns: GridColDef[] = [
     {
       field: 'assessment_id',
@@ -173,12 +173,14 @@ const RiskDashboard: React.FC = () => {
       width: 200,
       valueGetter: (value: Record<string, string> | null | undefined) => value?.nombre_importador || 'N/A',
     },
+    // Binary verification status replaces risk_level and risk_score columns
     {
-      field: 'risk_level',
-      headerName: 'Nivel',
-      width: 100,
+      field: 'verification_status',
+      headerName: 'Verificación',
+      width: 200,
       renderCell: (params) => {
-        const config = RISK_LEVEL_CONFIG[params.value as keyof typeof RISK_LEVEL_CONFIG];
+        const status = params.value || 'pass';
+        const config = VERIFICATION_STATUS_CONFIG[status as keyof typeof VERIFICATION_STATUS_CONFIG];
         return (
           <Chip
             label={config.label}
@@ -187,24 +189,34 @@ const RiskDashboard: React.FC = () => {
               backgroundColor: config.bgColor,
               color: config.textColor,
               fontWeight: 600,
+              fontSize: '0.7rem',
             }}
           />
         );
       },
     },
     {
-      field: 'risk_score',
-      headerName: 'Puntaje',
-      width: 90,
-      renderCell: (params) => (
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {Number(params.value).toFixed(0)}
-        </Typography>
-      ),
+      field: 'discrepancy_count',
+      headerName: 'Discrepancias',
+      width: 100,
+      renderCell: (params) => {
+        const count = params.value || 0;
+        return (
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              color: count > 0 ? '#CC071E' : '#2CA14D',
+            }}
+          >
+            {count}
+          </Typography>
+        );
+      },
     },
     {
       field: 'status',
-      headerName: 'Estado',
+      headerName: 'Decisión',
       width: 120,
       renderCell: (params) => {
         const config = ASSESSMENT_STATUS_CONFIG[params.value as keyof typeof ASSESSMENT_STATUS_CONFIG];

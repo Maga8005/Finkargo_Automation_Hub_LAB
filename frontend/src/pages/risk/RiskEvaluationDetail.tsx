@@ -36,9 +36,9 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
 import { riskService } from '../../services/riskService';
-import FKRiskScoreCard from '../../components/risk/FKRiskScoreCard';
 import FKDocumentUploader from '../../components/risk/FKDocumentUploader';
 import FKCrossValidationResults from '../../components/risk/FKCrossValidationResults';
+import FKVerificationStatusCard from '../../components/risk/FKVerificationStatusCard';
 import type {
   RiskAssessmentDetail,
   RiskDecisionRequest,
@@ -75,6 +75,15 @@ const RiskEvaluationDetail: React.FC = () => {
 
   // Check if score is preliminary (pending_documents status)
   const isPreliminaryScore = assessment?.status === 'pending_documents';
+
+  // Acknowledgment state for manual verification
+  const [isAcknowledged, setIsAcknowledged] = useState(false);
+
+  // Check if requires acknowledgment before decision
+  const requiresAcknowledgment = assessment?.verification_status === 'requires_manual_verification';
+
+  // Decision is blocked until acknowledgment for flagged evaluations
+  const decisionBlocked = requiresAcknowledgment && !isAcknowledged;
 
   // Load assessment
   const loadAssessment = useCallback(async () => {
@@ -371,13 +380,15 @@ const RiskEvaluationDetail: React.FC = () => {
             </Card>
           </Grid>
 
-          {/* Center Column - Risk Score */}
+          {/* Center Column - Verification Status (replaces numeric score) */}
           <Grid size={{ xs: 12, md: 4 }}>
-            <FKRiskScoreCard
-              score={Number(assessment.risk_score)}
-              level={assessment.risk_level}
-              indicators={assessment.fraud_indicators}
+            <FKVerificationStatusCard
+              verificationStatus={assessment.verification_status || 'pass'}
+              discrepancyCount={assessment.discrepancy_count || 0}
+              onAcknowledge={requiresAcknowledgment ? setIsAcknowledged : undefined}
+              isAcknowledged={isAcknowledged}
               isPreliminary={isPreliminaryScore}
+              indicators={assessment.fraud_indicators}
             />
           </Grid>
 
@@ -392,13 +403,22 @@ const RiskEvaluationDetail: React.FC = () => {
 
                 {canMakeDecision ? (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {/* Warning if acknowledgment required */}
+                    {decisionBlocked && (
+                      <Alert severity="warning" sx={{ mb: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          Debe confirmar que ha revisado las discrepancias antes de tomar una decisión.
+                        </Typography>
+                      </Alert>
+                    )}
+
                     <FormControl fullWidth>
                       <InputLabel>Acción</InputLabel>
                       <Select
                         value={decisionStatus}
                         label="Acción"
                         onChange={(e) => setDecisionStatus(e.target.value as typeof decisionStatus)}
-                        disabled={submitting}
+                        disabled={submitting || decisionBlocked}
                       >
                         <MenuItem value="approved">
                           Aprobar - Cliente aprobado
@@ -418,7 +438,7 @@ const RiskEvaluationDetail: React.FC = () => {
                       rows={4}
                       value={decisionNotes}
                       onChange={(e) => setDecisionNotes(e.target.value)}
-                      disabled={submitting}
+                      disabled={submitting || decisionBlocked}
                       placeholder="Agregue notas o comentarios sobre su decisión..."
                     />
 
@@ -429,11 +449,13 @@ const RiskEvaluationDetail: React.FC = () => {
                         decisionStatus === 'rejected' ? 'error' : 'warning'
                       }
                       onClick={handleSubmitDecision}
-                      disabled={submitting}
+                      disabled={submitting || decisionBlocked}
                       fullWidth
                     >
                       {submitting ? (
                         <CircularProgress size={24} color="inherit" />
+                      ) : decisionBlocked ? (
+                        'Confirme revisión de discrepancias'
                       ) : (
                         `Confirmar ${
                           decisionStatus === 'approved' ? 'Aprobación' :

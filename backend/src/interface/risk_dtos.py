@@ -67,6 +67,12 @@ class RuleType(str, Enum):
     HISTORY = "history"
 
 
+class VerificationStatus(str, Enum):
+    """Binary verification status for risk assessments"""
+    PASS = "pass"
+    REQUIRES_MANUAL_VERIFICATION = "requires_manual_verification"
+
+
 # NOTE: AssessmentType enum removed as per bug fix - only one evaluation workflow exists
 # Existing database records may have assessment_type values; handled via response model defaults
 
@@ -117,6 +123,19 @@ class RiskAssessmentResponse(BaseModel):
     status: AssessmentStatus
     assessment_type: str
     created_at: datetime
+    # Binary verification status fields
+    verification_status: VerificationStatus = Field(
+        default=VerificationStatus.PASS,
+        description="Binary pass/fail status based on discrepancies"
+    )
+    has_discrepancies: bool = Field(
+        default=False,
+        description="Whether any cross-validation discrepancies were found"
+    )
+    discrepancy_count: int = Field(
+        default=0,
+        description="Count of discrepancies found in cross-validation"
+    )
 
     class Config:
         from_attributes = True
@@ -195,6 +214,9 @@ class RiskStatsResponse(BaseModel):
     assessed_this_week: int = Field(default=0)
     approval_rate: Optional[Decimal] = Field(default=None, description="Percentage of approved assessments")
     rejection_rate: Optional[Decimal] = Field(default=None, description="Percentage of rejected assessments")
+    # Binary verification status counts
+    pass_count: int = Field(default=0, description="Count of assessments with PASS verification status")
+    requires_verification_count: int = Field(default=0, description="Count of assessments requiring manual verification")
 
 
 # ==================== Fraud Detection Rules DTOs ====================

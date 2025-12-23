@@ -42,6 +42,9 @@ export type RuleType =
   | 'financial'
   | 'history';
 
+// Binary verification status for risk assessments
+export type VerificationStatus = 'pass' | 'requires_manual_verification';
+
 // NOTE: AssessmentType removed - only one evaluation workflow exists (comprehensive)
 // Kept as comment for backward compatibility awareness with existing database records
 
@@ -67,6 +70,10 @@ export interface RiskAssessment {
   status: AssessmentStatus;
   assessment_type: string;
   created_at: string;
+  // Binary verification status fields
+  verification_status: VerificationStatus;
+  has_discrepancies: boolean;
+  discrepancy_count: number;
 }
 
 export interface ClientInfo {
@@ -118,6 +125,9 @@ export interface RiskStats {
   assessed_this_week: number;
   approval_rate?: number;
   rejection_rate?: number;
+  // Binary verification status counts
+  pass_count: number;
+  requires_verification_count: number;
 }
 
 // ==================== Fraud Detection Rules ====================
@@ -248,6 +258,33 @@ export const ALERT_SEVERITY_CONFIG: Record<AlertSeverity, { label: string; color
   info: { label: 'Información', color: 'info' },
   warning: { label: 'Advertencia', color: 'warning' },
   critical: { label: 'Crítico', color: 'error' },
+};
+
+// ==================== Verification Status UI Config ====================
+
+export interface VerificationStatusConfig {
+  label: string;
+  color: 'success' | 'error';
+  bgColor: string;
+  textColor: string;
+  icon: 'CheckCircle' | 'Warning';
+}
+
+export const VERIFICATION_STATUS_CONFIG: Record<VerificationStatus, VerificationStatusConfig> = {
+  pass: {
+    label: 'APROBADO',
+    color: 'success',
+    bgColor: '#E0F7E6',
+    textColor: '#2CA14D',
+    icon: 'CheckCircle',
+  },
+  requires_manual_verification: {
+    label: 'REQUIERE VERIFICACIÓN MANUAL',
+    color: 'error',
+    bgColor: '#FFE4E4',
+    textColor: '#CC071E',
+    icon: 'Warning',
+  },
 };
 
 export const ENTITY_TYPE_LABELS: Record<EntityType, string> = {

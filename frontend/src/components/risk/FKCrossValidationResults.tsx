@@ -45,6 +45,7 @@ import {
   DISCREPANCY_SEVERITY_CONFIG,
   VALIDATION_TYPE_LABELS,
   DOCUMENT_TYPE_CONFIG,
+  VERIFICATION_STATUS_CONFIG,
 } from '../../types/risk';
 import { exportCrossValidationToPDF } from '../../utils/crossValidationPdfExport';
 
@@ -307,14 +308,7 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
             />
           )}
 
-          {result.is_discrepancy && Number(result.score_impact) > 0 && (
-            <Chip
-              size="small"
-              label={`+${Number(result.score_impact).toFixed(0)} pts`}
-              color="error"
-              variant="outlined"
-            />
-          )}
+          {/* NOTE: Score impact chip removed - numeric scores hidden per stakeholder requirement */}
 
           <IconButton size="small">
             {isExpanded ? <ExpandLess /> : <ExpandMore />}
@@ -462,14 +456,62 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
               </Grid>
             </Grid>
 
-            {/* Score impact */}
-            {Number(results.total_score_impact) > 0 && (
-              <Alert severity="warning" sx={{ mb: 2 }}>
-                <Typography variant="subtitle2">
-                  Impacto total en puntuación de riesgo: +{Number(results.total_score_impact).toFixed(0)} puntos
-                </Typography>
-              </Alert>
+            {/* Binary verification status banner - replaces numeric score display */}
+            {results.total_discrepancies > 0 ? (
+              <Box
+                sx={{
+                  p: 3,
+                  mb: 2,
+                  borderRadius: 2,
+                  backgroundColor: VERIFICATION_STATUS_CONFIG.requires_manual_verification.bgColor,
+                  border: `2px solid ${VERIFICATION_STATUS_CONFIG.requires_manual_verification.textColor}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                }}
+              >
+                <Warning sx={{ fontSize: 40, color: VERIFICATION_STATUS_CONFIG.requires_manual_verification.textColor }} />
+                <Box>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 700, color: VERIFICATION_STATUS_CONFIG.requires_manual_verification.textColor }}
+                  >
+                    {VERIFICATION_STATUS_CONFIG.requires_manual_verification.label}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Se encontraron {results.total_discrepancies} discrepancia{results.total_discrepancies !== 1 ? 's' : ''} que requieren verificación manual.
+                  </Typography>
+                </Box>
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  p: 3,
+                  mb: 2,
+                  borderRadius: 2,
+                  backgroundColor: VERIFICATION_STATUS_CONFIG.pass.bgColor,
+                  border: `2px solid ${VERIFICATION_STATUS_CONFIG.pass.textColor}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                }}
+              >
+                <CheckCircle sx={{ fontSize: 40, color: VERIFICATION_STATUS_CONFIG.pass.textColor }} />
+                <Box>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 700, color: VERIFICATION_STATUS_CONFIG.pass.textColor }}
+                  >
+                    {VERIFICATION_STATUS_CONFIG.pass.label} - Todos los datos son consistentes
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    No se encontraron discrepancias en la validación cruzada de documentos.
+                  </Typography>
+                </Box>
+              </Box>
             )}
+
+            {/* NOTE: Numeric score impact is intentionally hidden from UI per stakeholder requirement */}
 
             <Divider sx={{ my: 2 }} />
 

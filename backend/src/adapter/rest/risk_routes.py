@@ -48,6 +48,7 @@ from src.interface.risk_dtos import (
     TriggerExtractionResponse,
     DiscrepancySeverity,
     ValidationType,
+    VerificationStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -151,6 +152,25 @@ async def get_dashboard_stats(
     repo = get_risk_repo()
     stats = await repo.get_stats()
 
+    # Compute pass/fail counts by checking each assessment's cross-validation results
+    validation_repo = get_validation_repo()
+    all_assessments = await repo.search({'limit': 1000})  # Get all assessments
+
+    pass_count = 0
+    requires_verification_count = 0
+
+    for assessment in all_assessments:
+        results = await validation_repo.get_by_assessment(assessment['id'])
+        has_discrepancy = any(r.get('is_discrepancy', False) for r in results)
+
+        if has_discrepancy:
+            requires_verification_count += 1
+        else:
+            pass_count += 1
+
+    stats['pass_count'] = pass_count
+    stats['requires_verification_count'] = requires_verification_count
+
     return RiskStatsResponse(**stats)
 
 
@@ -160,6 +180,7 @@ async def get_dashboard_stats(
 async def list_evaluations(
     status: Optional[str] = Query(None, description="Filter by status"),
     risk_level: Optional[str] = Query(None, description="Filter by risk level"),
+    verification_status: Optional[str] = Query(None, description="Filter by verification status (pass, requires_manual_verification)"),
     client_nit: Optional[str] = Query(None, description="Filter by client NIT"),
     date_from: Optional[str] = Query(None, description="Filter from date (ISO format)"),
     date_to: Optional[str] = Query(None, description="Filter to date (ISO format)"),
@@ -171,7 +192,7 @@ async def list_evaluations(
     List risk evaluations with optional filters.
     Requires risk_analyst or risk_manager role.
     """
-    logger.info(f"Listing evaluations with filters: status={status}, risk_level={risk_level}")
+    logger.info(f"Listing evaluations with filters: status={status}, risk_level={risk_level}, verification_status={verification_status}")
 
     filters = {
         'status': status,
@@ -189,7 +210,19 @@ async def list_evaluations(
     repo = get_risk_repo()
     evaluations = await repo.search(filters)
 
-    return [_map_to_detail(eval_data) for eval_data in evaluations]
+    # Compute verification info for each evaluation
+    results = []
+    for eval_data in evaluations:
+        verification_info = await _compute_verification_info_async(eval_data['id'])
+
+        # Apply verification_status filter if specified
+        if verification_status:
+            if verification_info['verification_status'].value != verification_status:
+                continue
+
+        results.append(_map_to_detail(eval_data, verification_info))
+
+    return results
 
 
 @router.get("/evaluations/{id}", response_model=RiskAssessmentDetail)
@@ -212,7 +245,10 @@ async def get_evaluation(
             detail=f"Evaluation {id} not found"
         )
 
-    return _map_to_detail(evaluation)
+    # Compute verification info
+    verification_info = await _compute_verification_info_async(id)
+
+    return _map_to_detail(evaluation, verification_info)
 
 
 @router.post("/evaluate", response_model=RiskAssessmentResponse)
@@ -292,7 +328,10 @@ async def submit_decision(
             notes=request.notes
         )
 
-    return _map_to_detail(updated)
+    # Compute verification info
+    verification_info = await _compute_verification_info_async(id)
+
+    return _map_to_detail(updated, verification_info)
 
 
 # ==================== Rules Endpoints ====================
@@ -487,11 +526,93 @@ async def mark_alert_read(
 
 # ==================== Helper Functions ====================
 
-def _map_to_response(data: dict) -> RiskAssessmentResponse:
+def _compute_verification_info(assessment_id: str) -> dict:
+    """
+    Compute verification status from cross-validation results.
+    This is called synchronously as helper for mapping functions.
+
+    Args:
+        assessment_id: The assessment ID to look up
+
+    Returns:
+        Dict with verification_status, has_discrepancies, discrepancy_count
+    """
+    import asyncio
+
+    async def _get_verification_info():
+        validation_repo = get_validation_repo()
+        results = await validation_repo.get_by_assessment(assessment_id)
+
+        discrepancy_count = sum(1 for r in results if r.get('is_discrepancy', False))
+        has_discrepancies = discrepancy_count > 0
+        verification_status = (
+            VerificationStatus.REQUIRES_MANUAL_VERIFICATION
+            if has_discrepancies
+            else VerificationStatus.PASS
+        )
+
+        return {
+            'verification_status': verification_status,
+            'has_discrepancies': has_discrepancies,
+            'discrepancy_count': discrepancy_count,
+        }
+
+    # Try to run in existing event loop, or create new one
+    try:
+        asyncio.get_running_loop()
+        # If there's a running loop, we can't use run_until_complete
+        # Return default values for now - the async endpoint will handle this
+        return {
+            'verification_status': VerificationStatus.PASS,
+            'has_discrepancies': False,
+            'discrepancy_count': 0,
+        }
+    except RuntimeError:
+        # No running loop, safe to create one
+        return asyncio.run(_get_verification_info())
+
+
+async def _compute_verification_info_async(assessment_id: str) -> dict:
+    """
+    Compute verification status from cross-validation results asynchronously.
+
+    Args:
+        assessment_id: The assessment ID to look up
+
+    Returns:
+        Dict with verification_status, has_discrepancies, discrepancy_count
+    """
+    validation_repo = get_validation_repo()
+    results = await validation_repo.get_by_assessment(assessment_id)
+
+    discrepancy_count = sum(1 for r in results if r.get('is_discrepancy', False))
+    has_discrepancies = discrepancy_count > 0
+    verification_status = (
+        VerificationStatus.REQUIRES_MANUAL_VERIFICATION
+        if has_discrepancies
+        else VerificationStatus.PASS
+    )
+
+    return {
+        'verification_status': verification_status,
+        'has_discrepancies': has_discrepancies,
+        'discrepancy_count': discrepancy_count,
+    }
+
+
+def _map_to_response(data: dict, verification_info: dict = None) -> RiskAssessmentResponse:
     """Map database record to response model"""
     indicators = data.get('fraud_indicators', [])
     if isinstance(indicators, list):
         indicators = [_map_indicator(ind) for ind in indicators]
+
+    # Use provided verification info or defaults
+    if verification_info is None:
+        verification_info = {
+            'verification_status': VerificationStatus.PASS,
+            'has_discrepancies': False,
+            'discrepancy_count': 0,
+        }
 
     return RiskAssessmentResponse(
         id=data['id'],
@@ -503,10 +624,13 @@ def _map_to_response(data: dict) -> RiskAssessmentResponse:
         status=AssessmentStatus(data['status']),
         assessment_type=data.get('assessment_type', 'comprehensive'),
         created_at=_parse_datetime(data.get('created_at')),
+        verification_status=verification_info['verification_status'],
+        has_discrepancies=verification_info['has_discrepancies'],
+        discrepancy_count=verification_info['discrepancy_count'],
     )
 
 
-def _map_to_detail(data: dict) -> RiskAssessmentDetail:
+def _map_to_detail(data: dict, verification_info: dict = None) -> RiskAssessmentDetail:
     """Map database record to detail model"""
     indicators = data.get('fraud_indicators', [])
     if isinstance(indicators, list):
@@ -523,6 +647,14 @@ def _map_to_detail(data: dict) -> RiskAssessmentDetail:
             ciudad_domicilio=snapshot.get('ciudad_domicilio'),
             cupo_plataforma=snapshot.get('cupo_plataforma'),
         )
+
+    # Use provided verification info or defaults
+    if verification_info is None:
+        verification_info = {
+            'verification_status': VerificationStatus.PASS,
+            'has_discrepancies': False,
+            'discrepancy_count': 0,
+        }
 
     return RiskAssessmentDetail(
         id=data['id'],
@@ -542,6 +674,9 @@ def _map_to_detail(data: dict) -> RiskAssessmentDetail:
         client_info=client_info,
         client_data_snapshot=snapshot,
         updated_at=_parse_datetime(data.get('updated_at')),
+        verification_status=verification_info['verification_status'],
+        has_discrepancies=verification_info['has_discrepancies'],
+        discrepancy_count=verification_info['discrepancy_count'],
     )
 
 
