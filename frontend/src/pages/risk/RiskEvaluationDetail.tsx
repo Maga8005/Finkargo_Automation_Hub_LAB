@@ -33,12 +33,14 @@ import {
   CompareArrows,
   Assessment,
   Info,
+  Email,
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
 import { riskService } from '../../services/riskService';
 import FKDocumentUploader from '../../components/risk/FKDocumentUploader';
 import FKCrossValidationResults from '../../components/risk/FKCrossValidationResults';
 import FKVerificationStatusCard from '../../components/risk/FKVerificationStatusCard';
+import FKExternalContactTab from '../../components/risk/FKExternalContactTab';
 import type {
   RiskAssessmentDetail,
   RiskDecisionRequest,
@@ -265,6 +267,11 @@ const RiskEvaluationDetail: React.FC = () => {
             icon={<CompareArrows />}
             iconPosition="start"
             label={`Validación Cruzada${validationResults ? ` (${validationResults.total_discrepancies})` : ''}`}
+          />
+          <Tab
+            icon={<Email />}
+            iconPosition="start"
+            label="Contacto Externo"
           />
         </Tabs>
       </Box>
@@ -507,6 +514,15 @@ const RiskEvaluationDetail: React.FC = () => {
           onValidationComplete={handleValidationComplete}
           assessmentId={assessment?.assessment_id}
           clientNit={assessment?.client_nit}
+          clientInfo={assessment?.client_info}
+        />
+      )}
+
+      {/* External Contact Tab */}
+      {activeTab === 3 && id && (
+        <FKExternalContactTab
+          evaluationId={id}
+          assessmentId={assessment?.assessment_id}
           clientInfo={assessment?.client_info}
         />
       )}

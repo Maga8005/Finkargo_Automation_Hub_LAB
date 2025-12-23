@@ -3,10 +3,14 @@
 # Colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}Starting Finkargo Automation Hub...${NC}"
+echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}  Finkargo Automation Hub - Local Dev  ${NC}"
+echo -e "${BLUE}========================================${NC}"
+echo ""
 
 # Get the script's directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -24,13 +28,13 @@ fi
 
 # Function to cleanup on exit
 cleanup() {
-    echo -e "\n${BLUE}Shutting down services...${NC}"
+    echo -e "\n${YELLOW}Shutting down services...${NC}"
 
     # Kill all child processes
     jobs -p | xargs -r kill 2>/dev/null
 
     # Wait for processes to terminate
-    wait
+    wait 2>/dev/null
 
     echo -e "${GREEN}Services stopped successfully.${NC}"
     exit 0
@@ -39,22 +43,16 @@ cleanup() {
 # Trap EXIT, INT, and TERM signals
 trap cleanup EXIT INT TERM
 
-# Start backend
-echo -e "${GREEN}Starting backend server...${NC}"
+# Kill existing processes on ports
+echo -e "${YELLOW}Clearing ports 5173 and 8000...${NC}"
+lsof -ti:5173 | xargs -r kill -9 2>/dev/null || true
+lsof -ti:8000 | xargs -r kill -9 2>/dev/null || true
+sleep 1
+
+# Start backend using uv (handles dependencies automatically)
+echo -e "${GREEN}Starting backend server (uv)...${NC}"
 cd "$PROJECT_ROOT/backend"
-
-# Check if virtual environment exists, if not create it
-if [ ! -d "venv" ]; then
-    echo -e "${BLUE}Creating virtual environment...${NC}"
-    python3 -m venv venv
-fi
-
-# Activate virtual environment and install dependencies
-source venv/bin/activate 2>/dev/null || source venv/Scripts/activate 2>/dev/null
-pip install -r requirements.txt -q
-
-# Start the FastAPI backend
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 
 # Wait for backend to start

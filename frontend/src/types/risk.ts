@@ -486,3 +486,95 @@ export const VALIDATION_TYPE_LABELS: Record<ValidationType, string> = {
   provider_domain: 'Proveedor de Email',
   address: 'Dirección',
 };
+
+// ==================== External Contact Types ====================
+
+export type ExternalContactValidationStatus = 'pending' | 'validated' | 'suspicious' | 'critical';
+
+export type ExternalContactSource = 'comercial_team' | 'whatsapp' | 'email' | 'phone' | 'other';
+
+export interface EmailValidationResult {
+  is_suspicious: boolean;
+  similar_domain: string | null;
+  similarity_score: number;
+  levenshtein_distance: number;
+  detection_type: string; // 'typosquatting', 'tld_variation', 'provider_domain', 'exact_match', 'no_match'
+  description: string;
+  is_free_provider: boolean;
+}
+
+export interface ExternalContact {
+  id: string;
+  assessment_id: string;
+  email: string;
+  sender_name?: string;
+  source: string;
+  validation_status: ExternalContactValidationStatus;
+  validation_result?: EmailValidationResult;
+  validated_at?: string;
+  created_at: string;
+  created_by?: string;
+  notes?: string;
+  is_active: boolean;
+}
+
+export interface ExternalContactRequest {
+  email: string;
+  sender_name?: string;
+  source: string;
+  notes?: string;
+}
+
+export interface ExternalContactListResponse {
+  assessment_id: string;
+  total_contacts: number;
+  pending_count: number;
+  validated_count: number;
+  suspicious_count: number;
+  critical_count: number;
+  contacts: ExternalContact[];
+}
+
+// ==================== External Contact UI Config ====================
+
+export interface ExternalContactValidationStatusConfig {
+  label: string;
+  color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
+  bgColor: string;
+  textColor: string;
+}
+
+export const EXTERNAL_CONTACT_VALIDATION_STATUS_CONFIG: Record<ExternalContactValidationStatus, ExternalContactValidationStatusConfig> = {
+  pending: {
+    label: 'Pendiente',
+    color: 'warning',
+    bgColor: '#FFF4E5',
+    textColor: '#B86E00',
+  },
+  validated: {
+    label: 'Validado',
+    color: 'success',
+    bgColor: '#E0F7E6',
+    textColor: '#2CA14D',
+  },
+  suspicious: {
+    label: 'Sospechoso',
+    color: 'warning',
+    bgColor: '#FFF4E5',
+    textColor: '#B86E00',
+  },
+  critical: {
+    label: 'Crítico',
+    color: 'error',
+    bgColor: '#FFE4E4',
+    textColor: '#CC071E',
+  },
+};
+
+export const EXTERNAL_CONTACT_SOURCE_LABELS: Record<ExternalContactSource, string> = {
+  comercial_team: 'Equipo Comercial',
+  whatsapp: 'WhatsApp',
+  email: 'Correo Electrónico',
+  phone: 'Teléfono',
+  other: 'Otro',
+};

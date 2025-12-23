@@ -15,6 +15,7 @@ from src.repositorio.risk_repository import (
     AlertRepository,
     DocumentExtractionRepository,
     CrossValidationRepository,
+    ExternalContactRepository,
 )
 from src.repositorio.client_repository import ClientRepository
 from src.core.servicios.risk.fraud_detection_service import FraudDetectionService
@@ -22,6 +23,7 @@ from src.core.servicios.risk.risk_scoring_service import RiskScoringService
 from src.core.servicios.risk.alert_service import AlertService
 from src.core.servicios.risk.document_extraction_service import DocumentExtractionService
 from src.core.servicios.risk.cross_validation_service import CrossValidationService
+from src.core.servicios.risk.external_contact_service import ExternalContactService
 from src.interface.risk_dtos import (
     RiskAssessmentRequest,
     RiskAssessmentResponse,
@@ -49,6 +51,11 @@ from src.interface.risk_dtos import (
     DiscrepancySeverity,
     ValidationType,
     VerificationStatus,
+    ExternalContactRequest,
+    ExternalContactResponse,
+    ExternalContactListResponse,
+    ExternalContactValidationStatus,
+    EmailValidationResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -135,6 +142,17 @@ def get_fraud_service():
         scoring_service=get_scoring_service(),
         alert_service=get_alert_service(),
     )
+
+
+def get_external_contact_repo():
+    """Get external contact repository"""
+    supabase = get_supabase()
+    return ExternalContactRepository(supabase.admin_client)
+
+
+def get_external_contact_service():
+    """Get external contact service"""
+    return ExternalContactService(get_external_contact_repo())
 
 
 # ==================== Dashboard Endpoints ====================
@@ -636,8 +654,8 @@ def _map_to_detail(data: dict, verification_info: dict = None) -> RiskAssessment
     if isinstance(indicators, list):
         indicators = [_map_indicator(ind) for ind in indicators]
 
-    # Extract client info from snapshot
-    snapshot = data.get('client_data_snapshot', {})
+    # Extract client info from snapshot (handle None case)
+    snapshot = data.get('client_data_snapshot') or {}
     client_info = None
     if snapshot:
         client_info = ClientInfo(
@@ -1180,4 +1198,179 @@ def _map_db_to_validation_result(data: dict) -> CrossValidationResult:
         severity=DiscrepancySeverity(data['severity']) if data.get('severity') else None,
         description=data.get('description'),
         score_impact=data.get('score_impact', 0)
+    )
+
+
+# ==================== External Contact Endpoints ====================
+
+@router.get("/evaluations/{id}/external-contacts", response_model=ExternalContactListResponse)
+async def get_external_contacts(
+    id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Get all external contacts for an evaluation.
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Getting external contacts for evaluation {id}")
+
+    # Verify assessment exists
+    risk_repo = get_risk_repo()
+    assessment = await risk_repo.get_by_id(id)
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Evaluation {id} not found"
+        )
+
+    service = get_external_contact_service()
+    contacts = await service.get_contacts(id)
+
+    # Count by status
+    pending_count = sum(1 for c in contacts if c.get('validation_status') == 'pending')
+    validated_count = sum(1 for c in contacts if c.get('validation_status') == 'validated')
+    suspicious_count = sum(1 for c in contacts if c.get('validation_status') == 'suspicious')
+    critical_count = sum(1 for c in contacts if c.get('validation_status') == 'critical')
+
+    return ExternalContactListResponse(
+        assessment_id=id,
+        total_contacts=len(contacts),
+        pending_count=pending_count,
+        validated_count=validated_count,
+        suspicious_count=suspicious_count,
+        critical_count=critical_count,
+        contacts=[_map_to_external_contact_response(c) for c in contacts]
+    )
+
+
+@router.post("/evaluations/{id}/external-contacts", response_model=ExternalContactResponse)
+async def create_external_contact(
+    id: str,
+    request: ExternalContactRequest,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Create a new external contact for an evaluation.
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Creating external contact for evaluation {id}: {request.email}")
+
+    # Verify assessment exists
+    risk_repo = get_risk_repo()
+    assessment = await risk_repo.get_by_id(id)
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Evaluation {id} not found"
+        )
+
+    user_id = current_user.get('id')
+
+    try:
+        service = get_external_contact_service()
+        contact = await service.create_contact(id, request, user_id)
+        return _map_to_external_contact_response(contact)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/evaluations/{id}/external-contacts/{contact_id}/validate", response_model=ExternalContactResponse)
+async def validate_external_contact(
+    id: str,
+    contact_id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Validate an external contact's email domain for typosquatting.
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Validating external contact {contact_id} for evaluation {id}")
+
+    # Verify assessment exists and get client info
+    risk_repo = get_risk_repo()
+    assessment = await risk_repo.get_by_id(id)
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Evaluation {id} not found"
+        )
+
+    # Get company name from client info (handle None case)
+    client_snapshot = assessment.get('client_data_snapshot') or {}
+    company_name = client_snapshot.get('nombre_importador')
+
+    try:
+        service = get_external_contact_service()
+        contact = await service.validate_email(contact_id, company_name)
+        return _map_to_external_contact_response(contact)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error validating contact {contact_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error validating email: {str(e)}"
+        )
+
+
+@router.delete("/evaluations/{id}/external-contacts/{contact_id}")
+async def delete_external_contact(
+    id: str,
+    contact_id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Delete an external contact (soft delete).
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Deleting external contact {contact_id}")
+
+    service = get_external_contact_service()
+    success = await service.delete_contact(contact_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"External contact {contact_id} not found"
+        )
+
+    return {"message": "Contact deleted successfully"}
+
+
+# ==================== External Contact Helper Functions ====================
+
+def _map_to_external_contact_response(data: dict) -> ExternalContactResponse:
+    """Map database record to external contact response model"""
+    validation_result = None
+    if data.get('validation_result'):
+        vr = data['validation_result']
+        validation_result = EmailValidationResult(
+            is_suspicious=vr.get('is_suspicious', False),
+            similar_domain=vr.get('similar_domain'),
+            similarity_score=vr.get('similarity_score', 0.0),
+            levenshtein_distance=vr.get('levenshtein_distance', 0),
+            detection_type=vr.get('detection_type', 'no_match'),
+            description=vr.get('description', ''),
+            is_free_provider=vr.get('is_free_provider', False),
+        )
+
+    return ExternalContactResponse(
+        id=data['id'],
+        assessment_id=data['assessment_id'],
+        email=data['email'],
+        sender_name=data.get('sender_name'),
+        source=data.get('source', 'comercial_team'),
+        validation_status=ExternalContactValidationStatus(data.get('validation_status', 'pending')),
+        validation_result=validation_result,
+        validated_at=_parse_datetime(data.get('validated_at')),
+        created_at=_parse_datetime(data.get('created_at')) or datetime.utcnow(),
+        created_by=data.get('created_by'),
+        notes=data.get('notes'),
+        is_active=data.get('is_active', True),
     )

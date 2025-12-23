@@ -21,6 +21,9 @@ import type {
   DocumentUploadResponse,
   TriggerExtractionResponse,
   CrossValidationResponse,
+  ExternalContact,
+  ExternalContactRequest,
+  ExternalContactListResponse,
 } from '../types/risk';
 
 export const riskService = {
@@ -244,5 +247,51 @@ export const riskService = {
       `/risk/evaluations/${evaluationId}/discrepancies`
     );
     return response.data;
+  },
+
+  // ==================== External Contacts ====================
+
+  /**
+   * Get all external contacts for an evaluation
+   */
+  getExternalContacts: async (evaluationId: string): Promise<ExternalContactListResponse> => {
+    const response = await apiClient.get<ExternalContactListResponse>(
+      `/risk/evaluations/${evaluationId}/external-contacts`
+    );
+    return response.data;
+  },
+
+  /**
+   * Create a new external contact for an evaluation
+   */
+  createExternalContact: async (
+    evaluationId: string,
+    request: ExternalContactRequest
+  ): Promise<ExternalContact> => {
+    const response = await apiClient.post<ExternalContact>(
+      `/risk/evaluations/${evaluationId}/external-contacts`,
+      request
+    );
+    return response.data;
+  },
+
+  /**
+   * Validate an external contact's email domain for typosquatting
+   */
+  validateExternalContact: async (
+    evaluationId: string,
+    contactId: string
+  ): Promise<ExternalContact> => {
+    const response = await apiClient.post<ExternalContact>(
+      `/risk/evaluations/${evaluationId}/external-contacts/${contactId}/validate`
+    );
+    return response.data;
+  },
+
+  /**
+   * Delete an external contact (soft delete)
+   */
+  deleteExternalContact: async (evaluationId: string, contactId: string): Promise<void> => {
+    await apiClient.delete(`/risk/evaluations/${evaluationId}/external-contacts/${contactId}`);
   },
 };
