@@ -896,3 +896,120 @@ class AlertRepository:
             .execute()
 
         return response.data if response.data else []
+
+
+class ExternalContactRepository:
+    """Repository for external contact operations (email validation)"""
+
+    def __init__(self, supabase_client: Client):
+        """Initialize repository with Supabase client"""
+        self.db = supabase_client
+
+    async def create(self, data: dict) -> dict:
+        """
+        Create new external contact record
+
+        Args:
+            data: External contact data
+
+        Returns:
+            dict: Created contact record
+        """
+        logger.info(f"Creating external contact for assessment: {data.get('assessment_id')}")
+
+        response = self.db.table('risk_external_contacts') \
+            .insert(data) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_id(self, id: str) -> Optional[dict]:
+        """
+        Get external contact by UUID
+
+        Args:
+            id: Contact UUID
+
+        Returns:
+            Optional[dict]: Contact record
+        """
+        response = self.db.table('risk_external_contacts') \
+            .select('*') \
+            .eq('id', id) \
+            .eq('is_active', True) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_assessment(self, assessment_id: str) -> List[dict]:
+        """
+        Get all external contacts for an assessment
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            List[dict]: Contact records
+        """
+        response = self.db.table('risk_external_contacts') \
+            .select('*') \
+            .eq('assessment_id', assessment_id) \
+            .eq('is_active', True) \
+            .order('created_at', desc=False) \
+            .execute()
+
+        return response.data if response.data else []
+
+    async def update(self, id: str, updates: dict) -> Optional[dict]:
+        """
+        Update external contact
+
+        Args:
+            id: Contact UUID
+            updates: Fields to update
+
+        Returns:
+            Optional[dict]: Updated contact record
+        """
+        response = self.db.table('risk_external_contacts') \
+            .update(updates) \
+            .eq('id', id) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def delete(self, id: str) -> bool:
+        """
+        Soft delete external contact (set is_active to False)
+
+        Args:
+            id: Contact UUID
+
+        Returns:
+            bool: True if successful
+        """
+        response = self.db.table('risk_external_contacts') \
+            .update({'is_active': False}) \
+            .eq('id', id) \
+            .execute()
+
+        return len(response.data) > 0 if response.data else False
+
+    async def get_suspicious_count(self, assessment_id: str) -> int:
+        """
+        Get count of suspicious or critical contacts for an assessment
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            int: Count of suspicious/critical contacts
+        """
+        response = self.db.table('risk_external_contacts') \
+            .select('id', count='exact') \
+            .eq('assessment_id', assessment_id) \
+            .eq('is_active', True) \
+            .in_('validation_status', ['suspicious', 'critical']) \
+            .execute()
+
+        return response.count or 0

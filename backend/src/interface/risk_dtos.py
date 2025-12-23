@@ -521,3 +521,72 @@ class TriggerValidationResponse(BaseModel):
     validation_status: str
     discrepancies_found: int
     message: str
+
+
+# ==================== External Contact DTOs ====================
+
+class ExternalContactValidationStatus(str, Enum):
+    """Status of external contact email validation"""
+    PENDING = "pending"
+    VALIDATED = "validated"
+    SUSPICIOUS = "suspicious"
+    CRITICAL = "critical"
+
+
+class ExternalContactRequest(BaseModel):
+    """Request to create a new external contact"""
+    email: str = Field(..., min_length=5, max_length=255, description="Email address to validate")
+    sender_name: Optional[str] = Field(None, max_length=255, description="Name of the sender")
+    source: str = Field(default="comercial_team", max_length=100, description="Source of the email")
+    notes: Optional[str] = Field(None, max_length=2000, description="Additional notes")
+
+    @validator('email')
+    def validate_email(cls, v):
+        """Validate email format"""
+        if not v or not v.strip():
+            raise ValueError('Email cannot be empty')
+        v = v.strip().lower()
+        if '@' not in v or '.' not in v.split('@')[-1]:
+            raise ValueError('Invalid email format')
+        return v
+
+
+class EmailValidationResult(BaseModel):
+    """Result of email domain typosquatting validation"""
+    is_suspicious: bool = Field(..., description="Whether the domain appears suspicious")
+    similar_domain: Optional[str] = Field(None, description="The legitimate domain it's similar to")
+    similarity_score: float = Field(..., ge=0, le=1, description="Similarity score (0-1)")
+    levenshtein_distance: int = Field(..., ge=0, description="Edit distance from similar domain")
+    detection_type: str = Field(..., description="Type of detection: typosquatting, tld_variation, provider_domain, exact_match, no_match")
+    description: str = Field(..., description="Human-readable description")
+    is_free_provider: bool = Field(default=False, description="Whether using a free email provider")
+
+
+class ExternalContactResponse(BaseModel):
+    """Response for an external contact record"""
+    id: str
+    assessment_id: str
+    email: str
+    sender_name: Optional[str] = None
+    source: str
+    validation_status: ExternalContactValidationStatus
+    validation_result: Optional[EmailValidationResult] = None
+    validated_at: Optional[datetime] = None
+    created_at: datetime
+    created_by: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: bool = True
+
+    class Config:
+        from_attributes = True
+
+
+class ExternalContactListResponse(BaseModel):
+    """Response containing all external contacts for an assessment"""
+    assessment_id: str
+    total_contacts: int = 0
+    pending_count: int = 0
+    validated_count: int = 0
+    suspicious_count: int = 0
+    critical_count: int = 0
+    contacts: List[ExternalContactResponse] = []
