@@ -42,7 +42,8 @@ export type RuleType =
   | 'financial'
   | 'history';
 
-export type AssessmentType = 'comprehensive' | 'quick';
+// NOTE: AssessmentType removed - only one evaluation workflow exists (comprehensive)
+// Kept as comment for backward compatibility awareness with existing database records
 
 // ==================== Fraud Indicator ====================
 
@@ -91,7 +92,7 @@ export interface RiskAssessmentDetail extends RiskAssessment {
 
 export interface RiskAssessmentRequest {
   client_nit: string;
-  assessment_type?: AssessmentType;
+  // NOTE: assessment_type removed - only comprehensive evaluation workflow exists
 }
 
 export interface RiskDecisionRequest {

@@ -232,7 +232,7 @@ async def create_evaluation(
     assessment = await fraud_service.evaluate_client(
         client_nit=request.client_nit,
         user_id=user_id,
-        assessment_type=request.assessment_type.value
+        # NOTE: assessment_type removed - all evaluations use comprehensive workflow
     )
 
     return _map_to_response(assessment)

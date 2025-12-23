@@ -86,7 +86,6 @@ class FraudDetectionService:
         self,
         client_nit: str,
         user_id: str,
-        assessment_type: str = 'comprehensive'
     ) -> dict:
         """
         Evaluate client fraud risk
@@ -94,26 +93,23 @@ class FraudDetectionService:
         Args:
             client_nit: Client NIT to evaluate
             user_id: ID of user performing evaluation
-            assessment_type: Type of assessment (comprehensive or quick)
 
         Returns:
             dict: Assessment result with risk score and indicators
         """
         logger.info(f"Starting fraud evaluation for client NIT: {client_nit}")
 
-        # 1. Fetch client data
+        # 1. Fetch client data (may be None for new clients not yet in database)
         client_data = await self._get_client_data(client_nit)
-        if not client_data:
-            logger.warning(f"Client not found for NIT: {client_nit}")
-            # Create assessment with error state
-            return await self._create_error_assessment(
-                client_nit,
-                user_id,
-                assessment_type,
-                "Cliente no encontrado en el sistema"
-            )
 
-        # 2. Check blacklist first (immediate critical if found)
+        # 2. If client not found, create assessment with pending_documents status
+        # This allows new clients to proceed with document upload for cross-validation
+        # Risk score starts at 0 and will be calculated after document cross-validation
+        if not client_data:
+            logger.info(f"New client (NIT not in database): {client_nit}. Creating assessment for document upload.")
+            return await self._create_new_client_assessment(client_nit, user_id)
+
+        # 3. Check blacklist first (immediate critical if found)
         blacklist_match = await self._check_blacklist(client_data)
         if blacklist_match:
             logger.warning(f"Blacklist match found for NIT: {client_nit}")
@@ -124,16 +120,16 @@ class FraudDetectionService:
                 blacklist_match
             )
 
-        # 3. Get active detection rules
+        # 4. Get active detection rules
         rules = await self.rules_repo.list_active()
 
-        # 4. Run all validation checks
+        # 5. Run all validation checks
         indicators = await self._run_all_checks(client_data, rules)
 
-        # 5. Calculate preliminary risk score and level
+        # 6. Calculate preliminary risk score and level
         risk_score, risk_level = await self.scoring_service.calculate_score(indicators, rules)
 
-        # 6. Create assessment record with pending_documents status
+        # 7. Create assessment record with pending_documents status
         # Final score will be calculated after cross-validation
         assessment_data = {
             'client_nit': client_nit,
@@ -141,7 +137,7 @@ class FraudDetectionService:
             'risk_score': float(risk_score),
             'fraud_indicators': [self._indicator_to_dict(ind) for ind in indicators],
             'status': AssessmentStatus.PENDING_DOCUMENTS.value,  # Start with pending_documents
-            'assessment_type': assessment_type,
+            'assessment_type': 'comprehensive',  # Always comprehensive
             'assessed_by': user_id,
             'assessed_at': datetime.utcnow().isoformat(),
             'client_data_snapshot': client_data,
@@ -482,31 +478,49 @@ class FraudDetectionService:
                         f"Requiere revisión manual."
             )
 
-    async def _create_error_assessment(
+    async def _create_new_client_assessment(
         self,
         client_nit: str,
         user_id: str,
-        assessment_type: str,
-        error_message: str
     ) -> dict:
-        """Create an assessment record for error cases"""
+        """
+        Create an assessment for a new client (not yet in database).
+
+        Per business requirements, new clients should NOT be penalized with
+        a high risk score just because they're not in the database. Instead,
+        we create an assessment with zero preliminary risk score and
+        pending_documents status, allowing the user to proceed with document
+        upload for cross-validation.
+
+        The final risk score will be calculated based only on document
+        cross-validation results.
+
+        Args:
+            client_nit: Client NIT being evaluated
+            user_id: ID of user performing evaluation
+
+        Returns:
+            dict: New assessment record with pending_documents status
+        """
         assessment_data = {
             'client_nit': client_nit,
-            'risk_level': RiskLevel.HIGH.value,
-            'risk_score': 75.0,  # High score due to inability to verify
+            'risk_level': RiskLevel.LOW.value,  # Start with low risk
+            'risk_score': 0.0,  # Zero preliminary score for new clients
             'fraud_indicators': [{
-                'indicator_name': 'system_error',
-                'indicator_value': True,
-                'severity': RiskLevel.HIGH.value,
-                'evidence': error_message,
-                'score_impact': 75.0,
+                'indicator_name': 'new_client',
+                'indicator_value': False,  # Not a risk trigger
+                'severity': RiskLevel.LOW.value,
+                'evidence': 'Nuevo cliente - pendiente validación de documentos',
+                'score_impact': 0.0,  # No score impact
             }],
-            'status': AssessmentStatus.PENDING.value,
-            'assessment_type': assessment_type,
+            'status': AssessmentStatus.PENDING_DOCUMENTS.value,  # Ready for document upload
+            'assessment_type': 'comprehensive',  # Always comprehensive
             'assessed_by': user_id,
             'assessed_at': datetime.utcnow().isoformat(),
+            'client_data_snapshot': None,  # No client data yet
         }
 
+        logger.info(f"Created new client assessment for NIT: {client_nit}, Score: 0, Status: pending_documents")
         return await self.risk_repo.create(assessment_data)
 
     async def _create_blacklist_assessment(
