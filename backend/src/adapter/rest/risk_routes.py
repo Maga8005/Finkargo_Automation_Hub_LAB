@@ -1285,6 +1285,7 @@ async def validate_external_contact(
 ):
     """
     Validate an external contact's email domain for typosquatting.
+    Compares against email domains extracted from uploaded documents (RUT, etc.).
     Requires risk_analyst, risk_manager, admin, or mesa_control role.
     """
     logger.info(f"Validating external contact {contact_id} for evaluation {id}")
@@ -1302,9 +1303,45 @@ async def validate_external_contact(
     client_snapshot = assessment.get('client_data_snapshot') or {}
     company_name = client_snapshot.get('nombre_importador')
 
+    # Extract email domains from uploaded documents for comparison
+    known_domains = []
+    try:
+        extraction_repo = get_extraction_repo()
+        extractions = await extraction_repo.get_by_assessment(id)
+
+        for extraction in extractions:
+            extracted_data = extraction.get('extracted_data') or {}
+
+            # Extract email from RUT document
+            if extraction.get('document_type') == 'rut':
+                rut_email = extracted_data.get('email', '')
+                if rut_email and '@' in rut_email:
+                    domain = rut_email.split('@')[1].lower().strip()
+                    if domain and domain not in known_domains:
+                        known_domains.append(domain)
+                        logger.info(f"Added RUT email domain for comparison: {domain}")
+
+            # Extract email from other documents if available
+            for email_field in ['email', 'contact_email', 'empresa_email']:
+                email_value = extracted_data.get(email_field, '')
+                if email_value and '@' in email_value:
+                    domain = email_value.split('@')[1].lower().strip()
+                    if domain and domain not in known_domains:
+                        known_domains.append(domain)
+
+        logger.info(f"Found {len(known_domains)} known domains from documents: {known_domains}")
+
+    except Exception as e:
+        logger.warning(f"Could not extract domains from documents: {e}")
+        # Continue without document domains - still use company name
+
     try:
         service = get_external_contact_service()
-        contact = await service.validate_email(contact_id, company_name)
+        contact = await service.validate_email(
+            contact_id,
+            company_name,
+            known_domains=known_domains if known_domains else None
+        )
         return _map_to_external_contact_response(contact)
     except ValueError as e:
         raise HTTPException(
