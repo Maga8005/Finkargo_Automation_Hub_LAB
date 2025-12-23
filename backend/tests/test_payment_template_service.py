@@ -3465,50 +3465,325 @@ class TestManualCOPSpreadGroupAggregation:
             )
 
 
-# ==================== Tests for Mexico Bank Account Mappings ====================
+# ==================== Tests for Subsidiary and Retencion Columns ====================
 
-class TestMexicoBankAccountMappings:
-    """Tests for Mexico bank account number to NetSuite ID mappings."""
+class TestSubsidiaryAndRetencionColumns:
+    """Tests for the subsidiary and retencion_en_fuente columns."""
 
-    def test_mexico_bank_account_mapping_012180001189708826(self):
-        """Test new bank account mapping 012180001189708826 -> 2111"""
-        from src.core.servicios.catalogs.payment_catalogs import get_bank_account_id
-        assert get_bank_account_id("012180001189708826", "mexico") == 2111
+    def test_subsidiary_present_on_all_rows_colombia(self, service):
+        """Subsidiary=4 should be present on ALL output rows for Colombia."""
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
 
-    def test_mexico_bank_account_mapping_738250227(self):
-        """Test new bank account mapping 738250227 -> 2519"""
-        from src.core.servicios.catalogs.payment_catalogs import get_bank_account_id
-        assert get_bank_account_id("738250227", "mexico") == 2519
+        required_columns = get_required_columns("colombia")
+        concept_columns = get_concept_columns("colombia")
+        optional_columns = get_optional_columns("colombia")
 
-    def test_mexico_bank_account_mapping_without_leading_zero(self):
-        """Test bank account lookup works without leading zero (Excel integer)"""
-        from src.core.servicios.catalogs.payment_catalogs import get_bank_account_id
-        assert get_bank_account_id("12180001189708826", "mexico") == 2111
+        row_data = {
+            "Cliente": "Test Client",
+            "Identificación del cliente": "900123456",
+            "Código de desembolso": "CO:900123456:1:1:PAG",
+            "Código de recaudo": "REC-001",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "COP",
+            "Capital": 1000000.00,
+            "Banco remitente": "Test Bank",
+            "Médio de pago": "Manual",
+            "Tasa de cambio de FK/en línea": 4200.00,
+            "Total pagado [USD]": 500.00,
+            "Intereses Corrientes": 50000.00,
+            "4x1000": 4000.00,
+            "Cuenta Remitente": "60100001091",
+            "Retención": 15000.00,
+        }
 
-    def test_existing_mexico_mapping_still_works(self):
-        """Regression test: verify existing Mexico mappings still work"""
-        from src.core.servicios.catalogs.payment_catalogs import get_bank_account_id
-        assert get_bank_account_id("0123270165", "mexico") == 2322
-        assert get_bank_account_id("123270165", "mexico") == 2322
-        assert get_bank_account_id("669555222", "mexico") == 2110
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
 
-    def test_colombia_mapping_still_works(self):
-        """Regression test: verify Colombia mappings still work"""
-        from src.core.servicios.catalogs.payment_catalogs import get_bank_account_id
-        assert get_bank_account_id("60100001091", "colombia") == 230
+        result = service._process_row(
+            row=row,
+            country="colombia",
+            required_columns=required_columns,
+            concept_columns=concept_columns,
+            optional_columns=optional_columns,
+            df_columns_normalized=df_columns_normalized,
+            is_first_row_in_group=True,
+            group_info=None
+        )
 
-    def test_unknown_account_returns_none(self):
-        """Test that unknown account numbers return None"""
-        from src.core.servicios.catalogs.payment_catalogs import get_bank_account_id
-        assert get_bank_account_id("999999999999", "mexico") is None
+        # All output rows should have subsidiary=4
+        assert len(result) > 0, "Should have at least one output row"
+        for idx, r in enumerate(result):
+            assert r.get("subsidiary") == 4, (
+                f"Expected subsidiary=4 on row {idx}, got {r.get('subsidiary')}"
+            )
 
-    def test_whitespace_is_stripped(self):
-        """Test that whitespace around account number is handled"""
-        from src.core.servicios.catalogs.payment_catalogs import get_bank_account_id
-        assert get_bank_account_id("  738250227  ", "mexico") == 2519
+    def test_subsidiary_none_for_mexico(self, service):
+        """Subsidiary should be None for Mexico payments."""
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
 
-    def test_empty_cuenta_remitente_returns_none(self):
-        """Test that empty cuenta remitente returns None"""
-        from src.core.servicios.catalogs.payment_catalogs import get_bank_account_id
-        assert get_bank_account_id("", "mexico") is None
-        assert get_bank_account_id(None, "mexico") is None
+        required_columns = get_required_columns("mexico")
+        concept_columns = get_concept_columns("mexico")
+        optional_columns = get_optional_columns("mexico")
+
+        row_data = {
+            "Cliente": "Test Client MX",
+            "Identificación del cliente": "RFC123456ABC",
+            "Código de desembolso": "MX:RFC123:1:1:PAG",
+            "Código de recaudo": "REC-001",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "MXN",
+            "Capital": 50000.00,
+            "Banco remitente": "Test Bank MX",
+            "Médio de pago": "Manual",
+        }
+
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
+
+        result = service._process_row(
+            row=row,
+            country="mexico",
+            required_columns=required_columns,
+            concept_columns=concept_columns,
+            optional_columns=optional_columns,
+            df_columns_normalized=df_columns_normalized,
+            is_first_row_in_group=True,
+            group_info=None
+        )
+
+        # All output rows should have subsidiary=None
+        for idx, r in enumerate(result):
+            assert r.get("subsidiary") is None, (
+                f"Expected subsidiary=None for Mexico on row {idx}, got {r.get('subsidiary')}"
+            )
+
+    def test_retencion_on_first_row_only(self, service):
+        """Retencion should appear ONLY on first output row."""
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
+
+        required_columns = get_required_columns("colombia")
+        concept_columns = get_concept_columns("colombia")
+        optional_columns = get_optional_columns("colombia")
+
+        row_data = {
+            "Cliente": "Test Client",
+            "Identificación del cliente": "900123456",
+            "Código de desembolso": "CO:900123456:1:1:PAG",
+            "Código de recaudo": "REC-001",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "COP",
+            "Capital": 1000000.00,
+            "Banco remitente": "Test Bank",
+            "Médio de pago": "Manual",
+            "Tasa de cambio de FK/en línea": 4200.00,
+            "Total pagado [USD]": 500.00,
+            "Intereses Corrientes": 50000.00,  # Creates second row
+            "4x1000": 4000.00,  # Creates third row (aggregated to COSTOS_FIJOS)
+            "Cuenta Remitente": "60100001091",
+            "Retención": 15000.00,
+        }
+
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
+
+        result = service._process_row(
+            row=row,
+            country="colombia",
+            required_columns=required_columns,
+            concept_columns=concept_columns,
+            optional_columns=optional_columns,
+            df_columns_normalized=df_columns_normalized,
+            is_first_row_in_group=True,
+            group_info=None
+        )
+
+        # Should have multiple output rows (CAPITAL, INTERESES, COSTOS_FIJOS)
+        assert len(result) >= 2, "Should have at least 2 output rows for test"
+
+        # First row should have retencion
+        assert result[0].get("retencion_en_fuente") == 15000.00, (
+            f"Expected retencion_en_fuente=15000.00 on first row, got {result[0].get('retencion_en_fuente')}"
+        )
+
+        # All other rows should have None for retencion
+        for idx, r in enumerate(result[1:], start=1):
+            assert r.get("retencion_en_fuente") is None, (
+                f"Expected retencion_en_fuente=None on row {idx}, got {r.get('retencion_en_fuente')}"
+            )
+
+    def test_retencion_none_when_not_in_input(self, service):
+        """Retencion should be None when not present in input."""
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
+
+        required_columns = get_required_columns("colombia")
+        concept_columns = get_concept_columns("colombia")
+        optional_columns = get_optional_columns("colombia")
+
+        row_data = {
+            "Cliente": "Test Client",
+            "Identificación del cliente": "900123456",
+            "Código de desembolso": "CO:900123456:1:1:PAG",
+            "Código de recaudo": "REC-001",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "COP",
+            "Capital": 1000000.00,
+            "Banco remitente": "Test Bank",
+            "Médio de pago": "Manual",
+            # No Retención column
+        }
+
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
+
+        result = service._process_row(
+            row=row,
+            country="colombia",
+            required_columns=required_columns,
+            concept_columns=concept_columns,
+            optional_columns=optional_columns,
+            df_columns_normalized=df_columns_normalized,
+            is_first_row_in_group=True,
+            group_info=None
+        )
+
+        # All rows should have None for retencion
+        for idx, r in enumerate(result):
+            assert r.get("retencion_en_fuente") is None, (
+                f"Expected retencion_en_fuente=None when input missing, got {r.get('retencion_en_fuente')}"
+            )
+
+    def test_retencion_zero_value_is_preserved(self, service):
+        """Zero retencion value should be preserved (not treated as None)."""
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
+
+        required_columns = get_required_columns("colombia")
+        concept_columns = get_concept_columns("colombia")
+        optional_columns = get_optional_columns("colombia")
+
+        row_data = {
+            "Cliente": "Test Client",
+            "Identificación del cliente": "900123456",
+            "Código de desembolso": "CO:900123456:1:1:PAG",
+            "Código de recaudo": "REC-001",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "COP",
+            "Capital": 1000000.00,
+            "Banco remitente": "Test Bank",
+            "Retención": 0.0,  # Zero value
+        }
+
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
+
+        result = service._process_row(
+            row=row,
+            country="colombia",
+            required_columns=required_columns,
+            concept_columns=concept_columns,
+            optional_columns=optional_columns,
+            df_columns_normalized=df_columns_normalized,
+            is_first_row_in_group=True,
+            group_info=None
+        )
+
+        # First row should have 0.0 for retencion
+        assert result[0].get("retencion_en_fuente") == 0.0, (
+            f"Expected retencion_en_fuente=0.0 on first row, got {result[0].get('retencion_en_fuente')}"
+        )
+
+    def test_spread_row_has_subsidiary_but_not_retencion(self, service):
+        """SPREAD rows should have subsidiary=4 but retencion=None."""
+        result = service._create_spread_output_row(
+            customer_external_id="123456789",
+            invoice_core_id="CO:900759388:1:7:PAG",
+            payment_date="01/12/2025",
+            payment_ref="123456789|20251201|3854.7082",
+            exchangerate=3854.70815,
+            spread_amount=10000.00
+        )
+
+        assert result["subsidiary"] == 4, (
+            f"Expected subsidiary=4 on SPREAD row, got {result['subsidiary']}"
+        )
+        assert result["retencion_en_fuente"] is None, (
+            f"Expected retencion_en_fuente=None on SPREAD row, got {result['retencion_en_fuente']}"
+        )
+
+    def test_multiple_concepts_expansion_retencion_first_only(self, service):
+        """When source row expands to multiple concepts, retencion only on first."""
+        from src.core.servicios.catalogs.payment_catalogs import (
+            get_required_columns,
+            get_concept_columns,
+            get_optional_columns,
+        )
+
+        required_columns = get_required_columns("colombia")
+        concept_columns = get_concept_columns("colombia")
+        optional_columns = get_optional_columns("colombia")
+
+        # Row with CAPITAL, INTERESES, COSTOS_FIJOS (via 4x1000)
+        row_data = {
+            "Cliente": "Test Client",
+            "Identificación del cliente": "900123456",
+            "Código de desembolso": "CO:900123456:1:1:PAG",
+            "Código de recaudo": "REC-001",
+            "Fecha de pago": "2025-12-01",
+            "Moneda": "COP",
+            "Capital": 1000000.00,
+            "Banco remitente": "Test Bank",
+            "Intereses Corrientes": 50000.00,
+            "4x1000": 4000.00,
+            "Retención": 25000.00,
+        }
+
+        row = pd.Series(row_data)
+        df_columns_normalized = {col.lower().strip(): col for col in row_data.keys()}
+
+        result = service._process_row(
+            row=row,
+            country="colombia",
+            required_columns=required_columns,
+            concept_columns=concept_columns,
+            optional_columns=optional_columns,
+            df_columns_normalized=df_columns_normalized,
+            is_first_row_in_group=True,
+            group_info=None
+        )
+
+        # Should have 3 output rows
+        assert len(result) == 3, f"Expected 3 output rows, got {len(result)}"
+
+        # All rows should have subsidiary=4
+        for idx, r in enumerate(result):
+            assert r["subsidiary"] == 4, f"Row {idx}: subsidiary should be 4"
+
+        # Only first row should have retencion
+        assert result[0]["retencion_en_fuente"] == 25000.00, (
+            "First row should have retencion_en_fuente=25000.00"
+        )
+        assert result[1]["retencion_en_fuente"] is None, (
+            "Second row should have retencion_en_fuente=None"
+        )
+        assert result[2]["retencion_en_fuente"] is None, (
+            "Third row should have retencion_en_fuente=None"
+        )

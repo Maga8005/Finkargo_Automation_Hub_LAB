@@ -543,6 +543,16 @@ class PaymentTemplateService:
             except (ValueError, TypeError):
                 pass
 
+        # Extract Retención (withholding tax) for Colombia output
+        retencion_value = None
+        if country.lower() == "colombia":
+            retencion_raw = get_value("retencion", optional_columns)
+            if retencion_raw:
+                try:
+                    retencion_value = float(retencion_raw)
+                except (ValueError, TypeError):
+                    pass
+
         # Extract NT flag value for spread routing (column "NT")
         nt_value_for_spread = get_value("nt_flag", optional_columns)
 
@@ -780,6 +790,12 @@ class PaymentTemplateService:
                         row_spread_fk = None
                 row_spread_supra = spread_supra if is_spread_target else None
 
+                # subsidiary: always 4 for Colombia, None for other countries
+                row_subsidiary = 4 if country.lower() == "colombia" else None
+
+                # retencion_en_fuente: only on first output row (idx == 0), Colombia only
+                row_retencion = retencion_value if idx == 0 and country.lower() == "colombia" else None
+
                 output_rows.append({
                     "customer_external_id": customer_external_id,
                     "invoice_core_id": invoice_core_id,
@@ -795,6 +811,8 @@ class PaymentTemplateService:
                     "Spread PA": row_spread_pa,
                     "Spread FK": row_spread_fk,
                     "Spread Supra": row_spread_supra,
+                    "subsidiary": row_subsidiary,
+                    "retencion_en_fuente": row_retencion,
                 })
 
         # Add separate SPREAD row for capital-only Pago en Linea
@@ -1312,6 +1330,8 @@ class PaymentTemplateService:
             "Spread PA": None,
             "Spread FK": None,
             "Spread Supra": None,
+            "subsidiary": 4,  # Always 4 for Colombia (SPREAD rows are Colombia-only)
+            "retencion_en_fuente": None,  # SPREAD rows never get retencion
         }
 
     def _collect_payment_group_info(

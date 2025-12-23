@@ -100,15 +100,12 @@ MEXICO_BANK_ACCOUNT_MAPPING: Dict[str, int] = {
     "0123270165": 2322,
     "0123375153": 2320,
     "0118970882": 2111,
-    "012180001189708826": 2111,
     # Without leading zeros (as Excel stores integers)
     "123270165": 2322,
     "123375153": 2320,
     "118970882": 2111,
-    "12180001189708826": 2111,
     # No leading zero variant
     "669555222": 2110,
-    "738250227": 2519,
 }
 
 
@@ -140,6 +137,7 @@ COLOMBIA_OPTIONAL_COLUMNS: Dict[str, str] = {
     "referencia_bancaria": "Referencia bancaria",  # Bank reference (for comision_banco)
     "short_code": "Short Code",  # Payment provider identifier (SUPRA vs PA)
     "cuenta_remitente": "Cuenta Remitente",  # Sender account (for account lookup)
+    "retencion": "Retención",  # Withholding tax (goes to first output row only)
 }
 
 # Concept columns for Colombia (maps concept type -> source column name)
@@ -220,7 +218,7 @@ MEXICO_CONCEPT_COLUMNS: Dict[str, str] = {
 # OUTPUT TEMPLATE COLUMNS
 # =============================================================================
 
-# Column names for the NetSuite output template (14 columns in exact order)
+# Column names for the NetSuite output template (16 columns in exact order)
 OUTPUT_TEMPLATE_COLUMNS = [
     "customer_external_id",
     "invoice_core_id",
@@ -236,6 +234,8 @@ OUTPUT_TEMPLATE_COLUMNS = [
     "Spread PA",
     "Spread FK",
     "Spread Supra",
+    "subsidiary",
+    "retencion_en_fuente",
 ]
 
 
