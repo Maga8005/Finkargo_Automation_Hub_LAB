@@ -115,9 +115,24 @@ EXTRACTION_SCHEMAS = {
             "email": {"type": ["string", "null"], "description": "Contact email (field 42)"},
             "phone": {"type": ["string", "null"], "description": "Contact phone"},
             "economic_activity": {"type": ["string", "null"], "description": "Economic activity code"},
-            "legal_representative_name": {"type": "string", "description": "Legal rep full name (fields 104-107)"},
-            "legal_representative_id": {"type": "string", "description": "Legal rep ID number (field 101)"},
+            "legal_representative_name": {"type": "string", "description": "Legal rep full name (fields 104-107) - Principal representative"},
+            "legal_representative_id": {"type": "string", "description": "Legal rep ID number (field 101) - Principal representative"},
             "legal_representative_id_type": {"type": ["string", "null"], "description": "Legal rep ID type (field 100)"},
+            "legal_representatives": {
+                "type": "array",
+                "description": "ALL legal representatives from the Representación section. Colombian RUTs can have multiple representatives: REPRS LEGAL PRIN (principal) and REPRS LEGAL SUPL (suplente/alternate). Extract ALL of them.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Full name of the representative (fields 104-107)"},
+                        "id_number": {"type": "string", "description": "Cedula/ID number of the representative (field 101)"},
+                        "id_type": {"type": ["string", "null"], "description": "Document type (CC, CE, Pasaporte) - field 100"},
+                        "role": {"type": "string", "description": "Role: 'principal' for REPRS LEGAL PRIN, 'suplente' for REPRS LEGAL SUPL"},
+                        "representation_type": {"type": ["string", "null"], "description": "Raw representation type code from RUT (e.g., REPRS LEGAL PRIN, REPRS LEGAL SUPL)"}
+                    },
+                    "required": ["name", "id_number", "role"]
+                }
+            },
             "registration_date": {"type": ["string", "null"], "description": "RUT registration date"},
             "last_update_date": {"type": ["string", "null"], "description": "Last RUT update date"}
         },
@@ -133,10 +148,25 @@ EXTRACTION_SCHEMAS = {
             "registration_number": {"type": ["string", "null"], "description": "Chamber of commerce registration"},
             "constitution_date": {"type": ["string", "null"], "description": "Date company was constituted"},
             "registered_capital": {"type": ["number", "null"], "description": "Registered capital"},
-            "legal_representative_name": {"type": "string", "description": "Legal representative name"},
-            "legal_representative_id": {"type": "string", "description": "Legal representative ID number"},
+            "legal_representative_name": {"type": "string", "description": "Legal representative name - Principal representative"},
+            "legal_representative_id": {"type": "string", "description": "Legal representative ID number - Principal representative"},
             "legal_representative_id_type": {"type": ["string", "null"], "description": "Legal rep ID type"},
             "legal_representative_authority": {"type": ["string", "null"], "description": "Authority limits"},
+            "legal_representatives": {
+                "type": "array",
+                "description": "ALL legal representatives from the REPRESENTANTES LEGALES section. Extract both principal and suplente/alternate representatives. Look for markers like <principal> or <suplente> in the document.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Full name of the representative"},
+                        "id_number": {"type": "string", "description": "Cedula/ID number of the representative"},
+                        "id_type": {"type": ["string", "null"], "description": "Document type (CC, CE, Pasaporte)"},
+                        "role": {"type": "string", "description": "Role: 'principal' or 'suplente' based on section headers or markers in the document"},
+                        "authority": {"type": ["string", "null"], "description": "Authority limits for this representative"}
+                    },
+                    "required": ["name", "id_number", "role"]
+                }
+            },
             "registered_address": {"type": ["string", "null"], "description": "Company registered address"},
             "city": {"type": ["string", "null"], "description": "City of registration"},
             "certificate_date": {"type": ["string", "null"], "description": "Certificate issue date"},

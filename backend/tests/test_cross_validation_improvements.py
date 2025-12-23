@@ -500,3 +500,355 @@ class TestLegalRepresentativeValidation:
         assert name_result is not None
         assert name_result.is_discrepancy is True
         assert name_result.severity == DiscrepancySeverity.HIGH
+
+
+class TestMultipleLegalRepresentatives:
+    """Test multiple legal representatives support (Issue #10 - False positives fix)"""
+
+    @pytest.fixture
+    def service(self):
+        """Create CrossValidationService with dependencies"""
+        return CrossValidationService(
+            normalization_service=NormalizationService(),
+            typosquatting_service=TyposquattingService()
+        )
+
+    def test_cedula_matches_principal_representative_no_discrepancy(self, service):
+        """Test: Cedula matches principal representative → no discrepancy"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'JUAN CARLOS PEREZ GOMEZ',
+                'document_number': '12345678'
+            },
+            DocumentType.RUT: {
+                'legal_representative_name': 'JUAN CARLOS PEREZ GOMEZ',
+                'legal_representative_id': '12345678',
+                'legal_representatives': [
+                    {
+                        'name': 'JUAN CARLOS PEREZ GOMEZ',
+                        'id_number': '12345678',
+                        'role': 'principal'
+                    },
+                    {
+                        'name': 'MARIA GARCIA RODRIGUEZ',
+                        'id_number': '87654321',
+                        'role': 'suplente'
+                    }
+                ]
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        id_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_id'),
+            None
+        )
+
+        assert name_result is not None
+        assert name_result.is_discrepancy is False
+        assert 'Principal' in name_result.description
+        assert 'verificado' in name_result.description.lower()
+
+        assert id_result is not None
+        assert id_result.is_discrepancy is False
+
+    def test_cedula_matches_suplente_representative_no_discrepancy(self, service):
+        """Test: Cedula matches suplente representative → no discrepancy (BUG FIX)"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'MARIA GARCIA RODRIGUEZ',
+                'document_number': '87654321'
+            },
+            DocumentType.RUT: {
+                'legal_representative_name': 'JUAN CARLOS PEREZ GOMEZ',
+                'legal_representative_id': '12345678',
+                'legal_representatives': [
+                    {
+                        'name': 'JUAN CARLOS PEREZ GOMEZ',
+                        'id_number': '12345678',
+                        'role': 'principal'
+                    },
+                    {
+                        'name': 'MARIA GARCIA RODRIGUEZ',
+                        'id_number': '87654321',
+                        'role': 'suplente'
+                    }
+                ]
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        id_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_id'),
+            None
+        )
+
+        # THIS IS THE KEY BUG FIX - suplente should NOT cause discrepancy
+        assert name_result is not None
+        assert name_result.is_discrepancy is False
+        assert 'Suplente' in name_result.description
+        assert 'verificado' in name_result.description.lower()
+
+        assert id_result is not None
+        assert id_result.is_discrepancy is False
+
+    def test_cedula_matches_no_representative_shows_discrepancy(self, service):
+        """Test: Cedula matches no representative → HIGH severity discrepancy"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'PEDRO GONZALEZ UNKNOWN',
+                'document_number': '99999999'
+            },
+            DocumentType.RUT: {
+                'legal_representative_name': 'JUAN CARLOS PEREZ GOMEZ',
+                'legal_representative_id': '12345678',
+                'legal_representatives': [
+                    {
+                        'name': 'JUAN CARLOS PEREZ GOMEZ',
+                        'id_number': '12345678',
+                        'role': 'principal'
+                    },
+                    {
+                        'name': 'MARIA GARCIA RODRIGUEZ',
+                        'id_number': '87654321',
+                        'role': 'suplente'
+                    }
+                ]
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        assert name_result is not None
+        assert name_result.is_discrepancy is True
+        assert name_result.severity == DiscrepancySeverity.HIGH
+        assert 'no coincide' in name_result.description.lower()
+        # Should list all representatives that were checked
+        assert 'JUAN CARLOS PEREZ GOMEZ' in name_result.description
+        assert 'MARIA GARCIA RODRIGUEZ' in name_result.description
+
+    def test_multiple_suplentes_cedula_matches_one_no_discrepancy(self, service):
+        """Test: Multiple suplentes, Cedula matches one → no discrepancy"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'CARLOS LOPEZ MARTINEZ',
+                'document_number': '55555555'
+            },
+            DocumentType.RUT: {
+                'legal_representative_name': 'JUAN CARLOS PEREZ GOMEZ',
+                'legal_representative_id': '12345678',
+                'legal_representatives': [
+                    {
+                        'name': 'JUAN CARLOS PEREZ GOMEZ',
+                        'id_number': '12345678',
+                        'role': 'principal'
+                    },
+                    {
+                        'name': 'MARIA GARCIA RODRIGUEZ',
+                        'id_number': '87654321',
+                        'role': 'suplente'
+                    },
+                    {
+                        'name': 'CARLOS LOPEZ MARTINEZ',
+                        'id_number': '55555555',
+                        'role': 'suplente'
+                    }
+                ]
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        assert name_result is not None
+        assert name_result.is_discrepancy is False
+        assert 'Suplente' in name_result.description
+
+    def test_rut_has_representatives_but_certificado_missing_handles_gracefully(self, service):
+        """Test: RUT has representatives but Certificado missing → handle gracefully"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'MARIA GARCIA RODRIGUEZ',
+                'document_number': '87654321'
+            },
+            DocumentType.RUT: {
+                'legal_representative_name': 'JUAN CARLOS PEREZ GOMEZ',
+                'legal_representative_id': '12345678',
+                'legal_representatives': [
+                    {
+                        'name': 'JUAN CARLOS PEREZ GOMEZ',
+                        'id_number': '12345678',
+                        'role': 'principal'
+                    },
+                    {
+                        'name': 'MARIA GARCIA RODRIGUEZ',
+                        'id_number': '87654321',
+                        'role': 'suplente'
+                    }
+                ]
+            }
+            # No CERTIFICADO_EXISTENCIA
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        # Should still work with just RUT data
+        assert name_result is not None
+        assert name_result.is_discrepancy is False
+        assert 'RUT' in name_result.description
+
+    def test_backward_compatibility_single_representative_data(self, service):
+        """Test: Backward compatibility with single representative data (no array)"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'JUAN CARLOS PEREZ GOMEZ',
+                'document_number': '12345678'
+            },
+            DocumentType.RUT: {
+                # Old format - only single representative fields, no array
+                'legal_representative_name': 'JUAN CARLOS PEREZ GOMEZ',
+                'legal_representative_id': '12345678'
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        # Should still work with legacy single representative format
+        assert name_result is not None
+        assert name_result.is_discrepancy is False
+        assert 'verificado' in name_result.description.lower()
+
+    def test_cedula_matches_certificado_suplente_but_not_rut(self, service):
+        """Test: Cedula matches Certificado suplente but not RUT → no discrepancy"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'LUIS HERNANDEZ PEÑA',
+                'document_number': '44444444'
+            },
+            DocumentType.RUT: {
+                'legal_representative_name': 'JUAN CARLOS PEREZ GOMEZ',
+                'legal_representative_id': '12345678',
+                'legal_representatives': [
+                    {
+                        'name': 'JUAN CARLOS PEREZ GOMEZ',
+                        'id_number': '12345678',
+                        'role': 'principal'
+                    }
+                ]
+            },
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'legal_representative_name': 'JUAN CARLOS PEREZ GOMEZ',
+                'legal_representative_id': '12345678',
+                'legal_representatives': [
+                    {
+                        'name': 'JUAN CARLOS PEREZ GOMEZ',
+                        'id_number': '12345678',
+                        'role': 'principal'
+                    },
+                    {
+                        'name': 'LUIS HERNANDEZ PEÑA',
+                        'id_number': '44444444',
+                        'role': 'suplente'
+                    }
+                ]
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        # Should match in Certificado even if not in RUT
+        assert name_result is not None
+        assert name_result.is_discrepancy is False
+        assert 'Certificado' in name_result.description
+
+    def test_name_with_accents_matches_suplente(self, service):
+        """Test: Name with accents matches suplente (normalization)"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'MARÍA JOSÉ GARCÍA',
+                'document_number': '87654321'
+            },
+            DocumentType.RUT: {
+                'legal_representative_name': 'JUAN PEREZ',
+                'legal_representative_id': '12345678',
+                'legal_representatives': [
+                    {
+                        'name': 'JUAN PEREZ',
+                        'id_number': '12345678',
+                        'role': 'principal'
+                    },
+                    {
+                        'name': 'MARIA JOSE GARCIA',  # No accents
+                        'id_number': '87654321',
+                        'role': 'suplente'
+                    }
+                ]
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        # Should match despite accent differences (normalization)
+        assert name_result is not None
+        assert name_result.is_discrepancy is False
