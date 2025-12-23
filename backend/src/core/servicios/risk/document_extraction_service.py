@@ -109,7 +109,7 @@ EXTRACTION_SCHEMAS = {
         "type": "object",
         "properties": {
             "company_name": {"type": "string", "description": "Company legal name (field 35)"},
-            "nit": {"type": "string", "description": "NIT with verification digit (fields 5-6)"},
+            "nit": {"type": "string", "description": "NIT with verification digit. Field 5 contains the 9-digit NIT number (labeled '5. Número de Identificación Tributaria (NIT)'). Immediately after field 5, there is a small field labeled '6.DV' containing a single digit which is the verification digit (dígito de verificación). Extract as 'XXXXXXXXX-D' format where D is the digit from field 6.DV. For example, if NIT is 830027231 and 6.DV is 3, return '830027231-3'."},
             "city": {"type": ["string", "null"], "description": "City/Municipality (field 40)"},
             "address": {"type": ["string", "null"], "description": "Registered address"},
             "email": {"type": ["string", "null"], "description": "Contact email (field 42)"},
