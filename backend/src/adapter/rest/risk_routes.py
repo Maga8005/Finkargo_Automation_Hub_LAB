@@ -654,8 +654,8 @@ def _map_to_detail(data: dict, verification_info: dict = None) -> RiskAssessment
     if isinstance(indicators, list):
         indicators = [_map_indicator(ind) for ind in indicators]
 
-    # Extract client info from snapshot
-    snapshot = data.get('client_data_snapshot', {})
+    # Extract client info from snapshot (handle None case)
+    snapshot = data.get('client_data_snapshot') or {}
     client_info = None
     if snapshot:
         client_info = ClientInfo(
@@ -1298,8 +1298,8 @@ async def validate_external_contact(
             detail=f"Evaluation {id} not found"
         )
 
-    # Get company name from client info
-    client_snapshot = assessment.get('client_data_snapshot', {})
+    # Get company name from client info (handle None case)
+    client_snapshot = assessment.get('client_data_snapshot') or {}
     company_name = client_snapshot.get('nombre_importador')
 
     try:

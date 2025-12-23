@@ -5,7 +5,7 @@ Validates external contact emails against company information to detect
 potential typosquatting fraud attempts.
 """
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import re
 
@@ -162,10 +162,14 @@ class ExternalContactService:
         updates = {
             'validation_status': validation_status.value,
             'validation_result': validation_result.model_dump(),
-            'validated_at': datetime.utcnow().isoformat(),
+            'validated_at': datetime.now(timezone.utc).isoformat(),
         }
 
         updated_contact = await self.contact_repo.update(contact_id, updates)
+
+        if not updated_contact:
+            raise ValueError(f"Failed to update contact {contact_id}")
+
         logger.info(f"Email validation complete for contact {contact_id}: status={validation_status.value}")
 
         return updated_contact
