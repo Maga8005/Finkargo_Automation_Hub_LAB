@@ -391,31 +391,23 @@ class FraudDetectionService:
     async def _check_company_history(self, client_data: dict, rule: dict) -> FraudIndicator:
         """
         Check company history and time in business.
-        Newer companies may pose higher risk.
-        """
-        issues = []
 
-        # Check if there are previous assessments for this client
+        NOTE: Per business requirements, lack of previous assessments is NOT
+        a risk factor. Only document cross-validation results should affect
+        the risk score. This method now only provides informational data
+        without triggering score impact.
+        """
+        # Get previous assessments for informational purposes only
         previous = await self.risk_repo.get_recent_by_client(client_data.get('nit', ''), limit=10)
 
-        if not previous:
-            issues.append("Primera evaluación para este cliente - sin historial previo")
-
-        # Check credit limit - very high limits for new clients may be suspicious
-        cupo = client_data.get('cupo_plataforma')
-        if cupo and float(cupo) > 500000000 and not previous:  # > 500M COP for new client
-            issues.append("Cupo muy alto para cliente sin historial")
-
-        triggered = len(issues) > 0
-        severity = RiskLevel.MEDIUM if 'Cupo muy alto' in str(issues) else RiskLevel.LOW
-        weight = Decimal(str(rule.get('weight', 0.10)))
-
+        # Always return non-triggering indicator - no score impact
+        # History information is informational only, not a risk factor
         return FraudIndicator(
             indicator_name="company_history",
-            indicator_value=triggered,
-            severity=severity,
-            evidence="; ".join(issues) if issues else f"Historial: {len(previous)} evaluaciones previas",
-            score_impact=weight * Decimal('50') if triggered else Decimal('0'),  # Reduced impact for history
+            indicator_value=False,  # Never trigger as a risk factor
+            severity=RiskLevel.LOW,
+            evidence=f"Historial: {len(previous)} evaluaciones previas" if previous else "Primera evaluación para este cliente",
+            score_impact=Decimal('0'),  # Zero impact - only cross-validation affects score
         )
 
     async def _check_address_verification(self, client_data: dict, rule: dict) -> FraudIndicator:
