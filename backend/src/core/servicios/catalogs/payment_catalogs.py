@@ -185,6 +185,7 @@ MEXICO_OPTIONAL_COLUMNS: Dict[str, str] = {
     "referencia_bancaria": "Referencia bancaria",  # Bank reference (for comision_banco)
     "short_code": "Short Code",  # Payment provider identifier (SUPRA vs PA)
     "cuenta_remitente": "Cuenta Remitente",  # Sender account (for account lookup)
+    "retencion": "Retención",  # Withholding tax (goes to first output row only)
 }
 
 # Concept columns for México

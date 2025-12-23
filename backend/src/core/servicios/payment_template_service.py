@@ -543,9 +543,9 @@ class PaymentTemplateService:
             except (ValueError, TypeError):
                 pass
 
-        # Extract Retención (withholding tax) for Colombia output
+        # Extract Retención (withholding tax) for Colombia and Mexico output
         retencion_value = None
-        if country.lower() == "colombia":
+        if country.lower() in ("colombia", "mexico"):
             retencion_raw = get_value("retencion", optional_columns)
             if retencion_raw:
                 try:
@@ -790,11 +790,16 @@ class PaymentTemplateService:
                         row_spread_fk = None
                 row_spread_supra = spread_supra if is_spread_target else None
 
-                # subsidiary: always 4 for Colombia, None for other countries
-                row_subsidiary = 4 if country.lower() == "colombia" else None
+                # subsidiary: 4 for Colombia, 6 for Mexico, None for other countries
+                if country.lower() == "colombia":
+                    row_subsidiary = 4
+                elif country.lower() == "mexico":
+                    row_subsidiary = 6
+                else:
+                    row_subsidiary = None
 
-                # retencion_en_fuente: only on first output row (idx == 0), Colombia only
-                row_retencion = retencion_value if idx == 0 and country.lower() == "colombia" else None
+                # retencion_en_fuente: only on first output row (idx == 0), for Colombia and Mexico
+                row_retencion = retencion_value if idx == 0 and country.lower() in ("colombia", "mexico") else None
 
                 output_rows.append({
                     "customer_external_id": customer_external_id,
