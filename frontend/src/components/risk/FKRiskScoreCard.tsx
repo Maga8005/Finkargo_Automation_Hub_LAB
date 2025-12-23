@@ -1,5 +1,9 @@
 /**
- * FKRiskScoreCard - Risk score visualization component
+ * FKRiskScoreCard - Risk assessment indicators display component
+ *
+ * NOTE: Numeric scores are intentionally hidden from the UI.
+ * The stakeholder requirement is to show only binary pass/fail status,
+ * not numeric scores. The score is preserved for internal analytics only.
  */
 import React from 'react';
 import {
@@ -7,14 +11,12 @@ import {
   CardContent,
   Box,
   Typography,
-  Chip,
   List,
   ListItem,
   ListItemIcon,
   ListItemText,
-  CircularProgress,
   Divider,
-  Tooltip,
+  Chip,
 } from '@mui/material';
 import {
   CheckCircle,
@@ -23,31 +25,26 @@ import {
   Cancel,
   HourglassEmpty,
 } from '@mui/icons-material';
-import type { RiskLevel, FraudIndicator } from '../../types/risk';
-import { RISK_LEVEL_CONFIG } from '../../types/risk';
+import type { FraudIndicator, VerificationStatus } from '../../types/risk';
+import { VERIFICATION_STATUS_CONFIG } from '../../types/risk';
 
 interface FKRiskScoreCardProps {
-  score: number;
-  level: RiskLevel;
+  score: number; // Kept for backward compatibility but not displayed
+  level: string; // Kept for backward compatibility but not displayed
   indicators: FraudIndicator[];
   isPreliminary?: boolean;
+  verificationStatus?: VerificationStatus;
+  discrepancyCount?: number;
 }
 
 const FKRiskScoreCard: React.FC<FKRiskScoreCardProps> = ({
-  score,
-  level,
   indicators,
   isPreliminary = false,
+  verificationStatus = 'pass',
+  discrepancyCount = 0,
 }) => {
-  const config = RISK_LEVEL_CONFIG[level];
-
-  // Get color for circular progress
-  const getProgressColor = (): string => {
-    if (level === 'low') return '#2CA14D';
-    if (level === 'medium') return '#B86E00';
-    if (level === 'high') return '#E65100';
-    return '#CC071E';
-  };
+  const config = VERIFICATION_STATUS_CONFIG[verificationStatus];
+  const isPass = verificationStatus === 'pass';
 
   // Get icon for indicator
   const getIndicatorIcon = (indicator: FraudIndicator) => {
@@ -67,146 +64,164 @@ const FKRiskScoreCard: React.FC<FKRiskScoreCardProps> = ({
     }
   };
 
+  // Separate triggered vs passed indicators
+  const triggeredIndicators = indicators.filter(ind => ind.indicator_value);
+  const passedIndicators = indicators.filter(ind => !ind.indicator_value);
+
+  // Get status icon
+  const StatusIcon = isPass ? CheckCircle : Warning;
+
   return (
     <Card sx={{ height: '100%' }}>
       <CardContent>
         <Typography variant="h6" gutterBottom>
-          Puntuación de Riesgo
+          Estado de Verificación
         </Typography>
 
-        {/* Score Circle */}
+        {/* Binary Status Display */}
         <Box
           sx={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             py: 3,
+            backgroundColor: config.bgColor,
+            borderRadius: 2,
           }}
         >
-          <Box sx={{ position: 'relative', display: 'inline-flex' }}>
-            <CircularProgress
-              variant="determinate"
-              value={score}
-              size={120}
-              thickness={6}
-              sx={{
-                color: getProgressColor(),
-                '& .MuiCircularProgress-circle': {
-                  strokeLinecap: 'round',
-                },
-              }}
-            />
-            <Box
-              sx={{
-                top: 0,
-                left: 0,
-                bottom: 0,
-                right: 0,
-                position: 'absolute',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Typography
-                variant="h4"
-                component="div"
-                sx={{ fontWeight: 700 }}
-              >
-                {Number(score).toFixed(0)}
-              </Typography>
-            </Box>
-          </Box>
-
-          <Chip
-            label={config.label}
+          <StatusIcon
             sx={{
-              mt: 2,
-              backgroundColor: config.bgColor,
+              fontSize: 80,
               color: config.textColor,
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              px: 2,
+              mb: 2,
             }}
           />
 
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: 700,
+              color: config.textColor,
+              textAlign: 'center',
+              px: 2,
+            }}
+          >
+            {config.label}
+          </Typography>
+
+          {!isPass && discrepancyCount > 0 && (
+            <Chip
+              label={`${discrepancyCount} discrepancia${discrepancyCount > 1 ? 's' : ''}`}
+              size="small"
+              sx={{
+                mt: 1,
+                backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                color: config.textColor,
+                fontWeight: 600,
+              }}
+            />
+          )}
+
           {isPreliminary && (
-            <Tooltip
-              title="El puntaje final se calculará después de la validación cruzada de documentos"
-              arrow
-              placement="top"
-            >
-              <Chip
-                icon={<HourglassEmpty sx={{ fontSize: 16 }} />}
-                label="Puntaje Preliminar"
-                size="small"
-                sx={{
-                  mt: 1,
-                  backgroundColor: '#E3F2FD',
+            <Chip
+              icon={<HourglassEmpty sx={{ fontSize: 16 }} />}
+              label="Verificación Pendiente"
+              size="small"
+              sx={{
+                mt: 1,
+                backgroundColor: '#E3F2FD',
+                color: '#1976D2',
+                fontWeight: 500,
+                fontSize: '0.75rem',
+                '& .MuiChip-icon': {
                   color: '#1976D2',
-                  fontWeight: 500,
-                  fontSize: '0.75rem',
-                  '& .MuiChip-icon': {
-                    color: '#1976D2',
-                  },
-                }}
-              />
-            </Tooltip>
+                },
+              }}
+            />
           )}
         </Box>
 
         <Divider sx={{ my: 2 }} />
 
-        {/* Indicators List */}
-        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-          Indicadores de Fraude ({indicators.length})
-        </Typography>
+        {/* Indicators List - Grouped by triggered vs passed */}
+        {triggeredIndicators.length > 0 && (
+          <>
+            <Typography variant="subtitle2" color="error" gutterBottom>
+              Alertas Detectadas ({triggeredIndicators.length})
+            </Typography>
 
-        <List dense sx={{ maxHeight: 300, overflow: 'auto' }}>
-          {indicators.map((indicator, index) => (
-            <ListItem
-              key={index}
-              sx={{
-                backgroundColor: indicator.indicator_value
-                  ? 'rgba(255, 0, 0, 0.05)'
-                  : 'transparent',
-                borderRadius: 1,
-                mb: 0.5,
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 36 }}>
-                {getIndicatorIcon(indicator)}
-              </ListItemIcon>
-              <ListItemText
-                primary={indicator.indicator_name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                secondary={indicator.evidence || (indicator.indicator_value ? 'Detectado' : 'OK')}
-                primaryTypographyProps={{
-                  variant: 'body2',
-                  fontWeight: indicator.indicator_value ? 600 : 400,
-                }}
-                secondaryTypographyProps={{
-                  variant: 'caption',
-                  sx: {
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                  },
-                }}
-              />
-              {indicator.indicator_value && (
-                <Typography
-                  variant="caption"
-                  color="error"
-                  sx={{ fontWeight: 600 }}
+            <List dense sx={{ maxHeight: 150, overflow: 'auto', mb: 2 }}>
+              {triggeredIndicators.map((indicator, index) => (
+                <ListItem
+                  key={index}
+                  sx={{
+                    backgroundColor: 'rgba(255, 0, 0, 0.05)',
+                    borderRadius: 1,
+                    mb: 0.5,
+                  }}
                 >
-                  +{Number(indicator.score_impact).toFixed(0)}
-                </Typography>
-              )}
-            </ListItem>
-          ))}
-        </List>
+                  <ListItemIcon sx={{ minWidth: 36 }}>
+                    {getIndicatorIcon(indicator)}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={indicator.indicator_name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    secondary={indicator.evidence || 'Detectado'}
+                    primaryTypographyProps={{
+                      variant: 'body2',
+                      fontWeight: 600,
+                    }}
+                    secondaryTypographyProps={{
+                      variant: 'caption',
+                      sx: {
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                      },
+                    }}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </>
+        )}
+
+        {passedIndicators.length > 0 && (
+          <>
+            <Typography variant="subtitle2" color="success.main" gutterBottom>
+              Verificaciones OK ({passedIndicators.length})
+            </Typography>
+
+            <List dense sx={{ maxHeight: 150, overflow: 'auto' }}>
+              {passedIndicators.map((indicator, index) => (
+                <ListItem
+                  key={index}
+                  sx={{
+                    backgroundColor: 'transparent',
+                    borderRadius: 1,
+                    mb: 0.5,
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 36 }}>
+                    {getIndicatorIcon(indicator)}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={indicator.indicator_name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    secondary="OK"
+                    primaryTypographyProps={{
+                      variant: 'body2',
+                      fontWeight: 400,
+                    }}
+                    secondaryTypographyProps={{
+                      variant: 'caption',
+                    }}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </>
+        )}
       </CardContent>
     </Card>
   );
