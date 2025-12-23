@@ -559,7 +559,7 @@ def _compute_verification_info(assessment_id: str) -> dict:
 
     # Try to run in existing event loop, or create new one
     try:
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
         # If there's a running loop, we can't use run_until_complete
         # Return default values for now - the async endpoint will handle this
         return {
