@@ -19,7 +19,7 @@ IMPROVEMENTS (Fraud Detection Cross-Validation):
 - City normalization with department/region removal
 """
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from decimal import Decimal
 from difflib import SequenceMatcher
 
@@ -292,6 +292,11 @@ class CrossValidationService:
         """
         Validate legal representative identity across Cedula, RUT, and Certificado.
 
+        Enhanced to support multiple legal representatives (principal and suplente).
+        The Cedula document is checked against ALL representatives in RUT and Certificado,
+        not just the principal one. This prevents false positives when the uploaded
+        Cedula belongs to a Representante Legal Suplente.
+
         Uses enhanced normalization for name comparison.
         """
         results = []
@@ -301,91 +306,233 @@ class CrossValidationService:
         rut_data = extractions.get(DocumentType.RUT, {}) or {}
         cert_data = extractions.get(DocumentType.CERTIFICADO_EXISTENCIA, {}) or {}
 
-        # Extract and normalize names
-        names = {}
-        raw_names = {}
+        # Extract Cedula person info (the person we need to verify)
+        cedula_name = cedula_data.get('full_name', '')
+        cedula_id = cedula_data.get('document_number', '')
 
-        if cedula_data.get('full_name'):
-            raw_names['cedula'] = cedula_data['full_name']
-            names['cedula'] = self.normalizer.normalize_person_name(cedula_data['full_name'])
-        if rut_data.get('legal_representative_name'):
-            raw_names['rut'] = rut_data['legal_representative_name']
-            names['rut'] = self.normalizer.normalize_person_name(rut_data['legal_representative_name'])
-        if cert_data.get('legal_representative_name'):
-            raw_names['certificado_existencia'] = cert_data['legal_representative_name']
-            names['certificado_existencia'] = self.normalizer.normalize_person_name(
-                cert_data['legal_representative_name']
-            )
+        if not cedula_name and not cedula_id:
+            # No Cedula data to validate
+            return results
 
-        # Check name consistency
-        if len(names) >= 2:
-            unique_names = set(names.values())
+        normalized_cedula_name = self.normalizer.normalize_person_name(cedula_name) if cedula_name else ''
+        normalized_cedula_id = self._normalize_id(cedula_id) if cedula_id else ''
 
-            if len(unique_names) == 1:
-                results.append(CrossValidationResult(
-                    validation_type=ValidationType.LEGAL_REPRESENTATIVE,
-                    documents_compared=list(names.keys()),
-                    field_compared="legal_representative_name",
-                    values_found=raw_names,
-                    is_discrepancy=False,
-                    severity=None,
-                    description="Nombre del representante legal consistente",
-                    score_impact=Decimal('0')
-                ))
-            else:
-                results.append(CrossValidationResult(
-                    validation_type=ValidationType.LEGAL_REPRESENTATIVE,
-                    documents_compared=list(names.keys()),
-                    field_compared="legal_representative_name",
-                    values_found=raw_names,
-                    is_discrepancy=True,
-                    severity=DiscrepancySeverity.HIGH,
-                    description=f"Nombres de representante legal no coinciden: {', '.join(raw_names.values())}",
-                    score_impact=self.SCORE_IMPACT[DiscrepancySeverity.HIGH]
-                ))
+        # Extract ALL legal representatives from RUT (supports multiple)
+        rut_representatives = self._extract_all_representatives(rut_data, 'rut')
 
-        # Extract and normalize IDs
-        ids = {}
-        raw_ids = {}
+        # Extract ALL legal representatives from Certificado (supports multiple)
+        cert_representatives = self._extract_all_representatives(cert_data, 'certificado_existencia')
 
-        if cedula_data.get('document_number'):
-            raw_ids['cedula'] = cedula_data['document_number']
-            ids['cedula'] = self._normalize_id(cedula_data['document_number'])
-        if rut_data.get('legal_representative_id'):
-            raw_ids['rut'] = rut_data['legal_representative_id']
-            ids['rut'] = self._normalize_id(rut_data['legal_representative_id'])
-        if cert_data.get('legal_representative_id'):
-            raw_ids['certificado_existencia'] = cert_data['legal_representative_id']
-            ids['certificado_existencia'] = self._normalize_id(cert_data['legal_representative_id'])
+        # Validate name: Check if Cedula person matches ANY representative
+        name_result = self._validate_cedula_against_representatives(
+            cedula_name=cedula_name,
+            normalized_cedula_name=normalized_cedula_name,
+            rut_representatives=rut_representatives,
+            cert_representatives=cert_representatives,
+            field_type='name'
+        )
+        if name_result:
+            results.append(name_result)
 
-        # Check ID consistency
-        if len(ids) >= 2:
-            unique_ids = set(ids.values())
-
-            if len(unique_ids) == 1:
-                results.append(CrossValidationResult(
-                    validation_type=ValidationType.LEGAL_REPRESENTATIVE,
-                    documents_compared=list(ids.keys()),
-                    field_compared="legal_representative_id",
-                    values_found=raw_ids,
-                    is_discrepancy=False,
-                    severity=None,
-                    description="Cédula del representante legal consistente",
-                    score_impact=Decimal('0')
-                ))
-            else:
-                results.append(CrossValidationResult(
-                    validation_type=ValidationType.LEGAL_REPRESENTATIVE,
-                    documents_compared=list(ids.keys()),
-                    field_compared="legal_representative_id",
-                    values_found=raw_ids,
-                    is_discrepancy=True,
-                    severity=DiscrepancySeverity.HIGH,
-                    description=f"Cédulas del representante legal no coinciden: {', '.join(raw_ids.values())}",
-                    score_impact=self.SCORE_IMPACT[DiscrepancySeverity.HIGH]
-                ))
+        # Validate ID: Check if Cedula ID matches ANY representative
+        id_result = self._validate_cedula_against_representatives(
+            cedula_name=cedula_id,  # Reuse param for the value
+            normalized_cedula_name=normalized_cedula_id,  # Reuse param for normalized value
+            rut_representatives=rut_representatives,
+            cert_representatives=cert_representatives,
+            field_type='id'
+        )
+        if id_result:
+            results.append(id_result)
 
         return results
+
+    def _extract_all_representatives(
+        self,
+        doc_data: dict,
+        source: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Extract all legal representatives from a document.
+
+        Supports both the new `legal_representatives` array and the legacy
+        single `legal_representative_name`/`legal_representative_id` fields
+        for backward compatibility.
+
+        Args:
+            doc_data: Extracted document data
+            source: Source document name for logging
+
+        Returns:
+            List of representative dicts with normalized name/id and role
+        """
+        representatives = []
+
+        # First, try to get from the new legal_representatives array
+        legal_reps_array = doc_data.get('legal_representatives', [])
+        if legal_reps_array and isinstance(legal_reps_array, list):
+            for rep in legal_reps_array:
+                if isinstance(rep, dict):
+                    name = rep.get('name', '')
+                    id_num = rep.get('id_number', '')
+                    role = rep.get('role', 'principal')  # Default to principal if not specified
+
+                    if name or id_num:
+                        representatives.append({
+                            'name': name,
+                            'normalized_name': self.normalizer.normalize_person_name(name) if name else '',
+                            'id_number': id_num,
+                            'normalized_id': self._normalize_id(id_num) if id_num else '',
+                            'role': role,
+                            'source': source
+                        })
+
+        # Fallback: Use legacy single representative fields if array is empty
+        if not representatives:
+            legacy_name = doc_data.get('legal_representative_name', '')
+            legacy_id = doc_data.get('legal_representative_id', '')
+
+            if legacy_name or legacy_id:
+                representatives.append({
+                    'name': legacy_name,
+                    'normalized_name': self.normalizer.normalize_person_name(legacy_name) if legacy_name else '',
+                    'id_number': legacy_id,
+                    'normalized_id': self._normalize_id(legacy_id) if legacy_id else '',
+                    'role': 'principal',  # Legacy data assumed to be principal
+                    'source': source
+                })
+
+        logger.debug(f"Extracted {len(representatives)} representatives from {source}")
+        return representatives
+
+    def _validate_cedula_against_representatives(
+        self,
+        cedula_name: str,
+        normalized_cedula_name: str,
+        rut_representatives: List[Dict[str, Any]],
+        cert_representatives: List[Dict[str, Any]],
+        field_type: str  # 'name' or 'id'
+    ) -> Optional[CrossValidationResult]:
+        """
+        Check if Cedula data matches ANY representative in RUT or Certificado.
+
+        Args:
+            cedula_name: Raw Cedula value (name or ID depending on field_type)
+            normalized_cedula_name: Normalized Cedula value
+            rut_representatives: List of representatives from RUT
+            cert_representatives: List of representatives from Certificado
+            field_type: Either 'name' or 'id'
+
+        Returns:
+            CrossValidationResult or None if no documents to compare
+        """
+        if not normalized_cedula_name:
+            return None
+
+        if not rut_representatives and not cert_representatives:
+            return None
+
+        # Determine which field to compare
+        if field_type == 'name':
+            field_compared = "legal_representative_name"
+            cedula_label = "Nombre"
+            match_key = 'normalized_name'
+            raw_key = 'name'
+        else:
+            field_compared = "legal_representative_id"
+            cedula_label = "Cédula"
+            match_key = 'normalized_id'
+            raw_key = 'id_number'
+
+        # Check for match in RUT representatives
+        rut_match = None
+        rut_all_values = []
+        for rep in rut_representatives:
+            rut_all_values.append(f"{rep[raw_key]} ({rep['role']})")
+            if rep[match_key] and self._values_match(normalized_cedula_name, rep[match_key], field_type):
+                rut_match = rep
+
+        # Check for match in Certificado representatives
+        cert_match = None
+        cert_all_values = []
+        for rep in cert_representatives:
+            cert_all_values.append(f"{rep[raw_key]} ({rep['role']})")
+            if rep[match_key] and self._values_match(normalized_cedula_name, rep[match_key], field_type):
+                cert_match = rep
+
+        # Build documents compared list
+        documents_compared = ['cedula']
+        if rut_representatives:
+            documents_compared.append('rut')
+        if cert_representatives:
+            documents_compared.append('certificado_existencia')
+
+        # Build values_found dict
+        values_found = {'cedula': cedula_name}
+        if rut_representatives:
+            values_found['rut_representatives'] = rut_all_values
+        if cert_representatives:
+            values_found['certificado_representatives'] = cert_all_values
+
+        # Determine result
+        if rut_match or cert_match:
+            # Found a match!
+            matched_role = (rut_match or cert_match)['role']
+            matched_name = (rut_match or cert_match)[raw_key]
+            matched_sources = []
+            if rut_match:
+                matched_sources.append('RUT')
+            if cert_match:
+                matched_sources.append('Certificado')
+
+            role_display = "Principal" if matched_role == 'principal' else "Suplente"
+
+            return CrossValidationResult(
+                validation_type=ValidationType.LEGAL_REPRESENTATIVE,
+                documents_compared=documents_compared,
+                field_compared=field_compared,
+                values_found=values_found,
+                is_discrepancy=False,
+                severity=None,
+                description=f"{cedula_label} del representante legal verificado: {matched_name} ({role_display}) - "
+                           f"Coincide con {', '.join(matched_sources)}",
+                score_impact=Decimal('0')
+            )
+        else:
+            # No match found - this is a discrepancy
+            all_rep_names = []
+            for rep in rut_representatives + cert_representatives:
+                rep_info = f"{rep[raw_key]} ({rep['role']}, {rep['source']})"
+                if rep_info not in all_rep_names:
+                    all_rep_names.append(rep_info)
+
+            return CrossValidationResult(
+                validation_type=ValidationType.LEGAL_REPRESENTATIVE,
+                documents_compared=documents_compared,
+                field_compared=field_compared,
+                values_found=values_found,
+                is_discrepancy=True,
+                severity=DiscrepancySeverity.HIGH,
+                description=f"{cedula_label} en cédula ({cedula_name}) no coincide con ningún representante legal. "
+                           f"Representantes encontrados: {', '.join(all_rep_names) if all_rep_names else 'ninguno'}",
+                score_impact=self.SCORE_IMPACT[DiscrepancySeverity.HIGH]
+            )
+
+    def _values_match(self, value1: str, value2: str, field_type: str) -> bool:
+        """
+        Check if two values match based on field type.
+
+        For names, uses fuzzy matching. For IDs, uses exact match after normalization.
+        """
+        if not value1 or not value2:
+            return False
+
+        if field_type == 'name':
+            # Use fuzzy matching for names
+            return self._names_match(value1, value2)
+        else:
+            # Use exact match for IDs (already normalized)
+            return value1 == value2
 
     def _validate_shareholders_vs_certificate(
         self,
