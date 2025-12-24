@@ -19,6 +19,7 @@ IMPROVEMENTS (Fraud Detection Cross-Validation):
 - City normalization with department/region removal
 """
 import logging
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from decimal import Decimal
 from difflib import SequenceMatcher

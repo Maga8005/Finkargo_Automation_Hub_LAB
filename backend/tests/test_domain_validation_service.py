@@ -121,13 +121,14 @@ class TestDomainValidationService:
 
     # ==================== WHOIS Lookup Tests ====================
 
-    @patch('whois.whois')
+    @patch('src.core.servicios.risk.domain_validation_service.whois')
+    @patch('src.core.servicios.risk.domain_validation_service.WHOIS_AVAILABLE', True)
     def test_whois_returns_creation_date(self, mock_whois):
         """Test WHOIS lookup returns creation date correctly."""
         mock_response = Mock()
         mock_response.creation_date = datetime(2015, 6, 15, tzinfo=timezone.utc)
         mock_response.registrar = "GoDaddy"
-        mock_whois.return_value = mock_response
+        mock_whois.whois.return_value = mock_response
 
         result = self.service.get_domain_age("example.com")
 
@@ -137,10 +138,11 @@ class TestDomainValidationService:
         assert result.age_days is not None
         assert result.age_days > 0
 
-    @patch('whois.whois')
+    @patch('src.core.servicios.risk.domain_validation_service.whois')
+    @patch('src.core.servicios.risk.domain_validation_service.WHOIS_AVAILABLE', True)
     def test_whois_failure_handled_gracefully(self, mock_whois):
         """Test WHOIS failure is handled gracefully."""
-        mock_whois.side_effect = Exception("WHOIS server error")
+        mock_whois.whois.side_effect = Exception("WHOIS server error")
 
         result = self.service.get_domain_age("failing-whois.com")
 
@@ -148,17 +150,19 @@ class TestDomainValidationService:
         assert result.creation_date is None
         assert result.error_message is not None
 
-    @patch('whois.whois')
+    @patch('src.core.servicios.risk.domain_validation_service.whois')
+    @patch('src.core.servicios.risk.domain_validation_service.WHOIS_AVAILABLE', True)
     def test_whois_privacy_handled(self, mock_whois):
         """Test that privacy-protected WHOIS returns unavailable status."""
-        mock_whois.side_effect = Exception("No WHOIS data available")
+        mock_whois.whois.side_effect = Exception("No WHOIS data available")
 
         result = self.service.get_domain_age("private-domain.com")
 
         assert result.lookup_status == "unavailable"
         assert result.creation_date is None
 
-    @patch('whois.whois')
+    @patch('src.core.servicios.risk.domain_validation_service.whois')
+    @patch('src.core.servicios.risk.domain_validation_service.WHOIS_AVAILABLE', True)
     def test_whois_list_of_dates(self, mock_whois):
         """Test WHOIS with multiple creation dates takes earliest."""
         mock_response = Mock()
@@ -168,7 +172,7 @@ class TestDomainValidationService:
             datetime(2020, 12, 31, tzinfo=timezone.utc),
         ]
         mock_response.registrar = "Namecheap"
-        mock_whois.return_value = mock_response
+        mock_whois.whois.return_value = mock_response
 
         result = self.service.get_domain_age("multi-date.com")
 
@@ -178,25 +182,26 @@ class TestDomainValidationService:
 
     # ==================== Cache Tests ====================
 
-    @patch('whois.whois')
+    @patch('src.core.servicios.risk.domain_validation_service.whois')
+    @patch('src.core.servicios.risk.domain_validation_service.WHOIS_AVAILABLE', True)
     def test_cache_works(self, mock_whois):
         """Test that second call returns cached result without network call."""
         mock_response = Mock()
         mock_response.creation_date = datetime(2020, 1, 1, tzinfo=timezone.utc)
         mock_response.registrar = "Test Registrar"
-        mock_whois.return_value = mock_response
+        mock_whois.whois.return_value = mock_response
 
         # First call
         result1 = self.service.get_domain_age("cached-domain.com")
         assert result1.lookup_status == "success"
-        assert mock_whois.call_count == 1
+        assert mock_whois.whois.call_count == 1
 
         # Second call should use cache
         result2 = self.service.get_domain_age("cached-domain.com")
         assert result2.lookup_status == "success"
         assert result2.creation_date == result1.creation_date
         # WHOIS should NOT be called again
-        assert mock_whois.call_count == 1
+        assert mock_whois.whois.call_count == 1
 
     # ==================== Domain Age Comparison Tests ====================
 
@@ -395,6 +400,11 @@ class TestDomainValidationIntegration:
     @pytest.mark.integration
     def test_real_whois_lookup(self):
         """Test real WHOIS lookup for known domain."""
+        # Import to check if whois is available
+        from src.core.servicios.risk.domain_validation_service import WHOIS_AVAILABLE
+        if not WHOIS_AVAILABLE:
+            pytest.skip("whois module not installed")
+
         service = DomainValidationService()
         result = service.get_domain_age("google.com")
 

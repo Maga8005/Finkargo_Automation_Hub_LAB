@@ -16,8 +16,16 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Tuple
+from typing import Optional
 from threading import Lock
+
+# Try to import whois (optional dependency, gracefully handle if not installed)
+try:
+    import whois
+    WHOIS_AVAILABLE = True
+except ImportError:
+    whois = None  # type: ignore
+    WHOIS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -213,9 +221,15 @@ class DomainValidationService:
         if cached_result:
             return cached_result
 
-        try:
-            import whois
+        # Check if whois module is available
+        if not WHOIS_AVAILABLE or whois is None:
+            return DomainAgeResult(
+                domain=domain,
+                lookup_status="unavailable",
+                error_message="Módulo WHOIS no disponible"
+            )
 
+        try:
             # Set timeout for WHOIS query (handled by library if supported)
             socket.setdefaulttimeout(WHOIS_TIMEOUT)
 
