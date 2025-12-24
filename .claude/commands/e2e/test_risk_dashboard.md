@@ -13,37 +13,38 @@ So that I can prevent financial losses from fraudulent applications
 - Backend server running at http://localhost:8000
 - Frontend server running at http://localhost:5173
 - Database migrations applied (migration_add_risk_roles.sql, migration_create_risk_tables.sql)
-- Test user account with `risk_analyst` or `risk_manager` role exists
+- Admin account exists (admin@finkargo.com) with full system access
 - At least one client record exists in the database for testing
 
 ## Test Credentials
 
-Use test account (configure in test environment):
-- Email: test-risk-analyst@finkargo.com
-- Password: [configured test password]
-- Expected Role: risk_analyst
+Use admin account (has access to all modules including risk):
+- Email: admin@finkargo.com
+- Password: Automation2025*_2026
+- Expected Role: admin (can access all risk features)
 
-Alternative for manager tests:
-- Email: test-risk-manager@finkargo.com
-- Password: [configured test password]
-- Expected Role: risk_manager
+Note: Admin role has full access to risk module including:
+- Risk dashboard viewing
+- Creating risk evaluations
+- Risk configuration management
+- Making approval/rejection decisions
 
 ## Test Steps
 
-### Part 1: Access Control Verification
+### Part 1: Authentication and Access
 
 1. Navigate to the `Application URL` (http://localhost:5173)
-2. Login with a non-risk role user (e.g., operations)
-3. Attempt to navigate directly to `/risk/dashboard`
-4. **Verify** access is denied (403 or redirect to home)
-5. Take a screenshot of access denied state
-6. Logout and login with risk_analyst credentials
-7. **Verify** user can now access `/risk/dashboard`
-8. Take a screenshot of successful access
+2. **Verify** login page is displayed
+3. Enter admin email (admin@finkargo.com) in email field
+4. Enter admin password (Automation2025*_2026) in password field
+5. Click "Iniciar sesión" button
+6. **Verify** login succeeds and redirects to homepage
+7. Navigate to `/risk/dashboard`
+8. **Verify** user can access `/risk/dashboard` (page loads successfully)
+9. Take a screenshot of successful dashboard access
 
 ### Part 2: Dashboard Overview
 
-9. Navigate to `/risk/dashboard`
 10. **Verify** page title shows "Gestión de Riesgos y Fraude"
 11. **Verify** dashboard metrics cards are visible:
     - Total evaluaciones
@@ -117,55 +118,52 @@ Alternative for manager tests:
 38. Take a screenshot of blacklist tab
 39. **Verify** "Agregar a blacklist" button is visible
 
-### Part 7: Configuration Page (Risk Manager Only)
+### Part 7: Configuration Page (Admin Access)
 
-40. If logged in as risk_manager:
-    - Navigate to `/risk/configuration`
-    - **Verify** access is granted
-    - **Verify** rules table displays with:
-      - Rule name
-      - Type
-      - Weight (slider or input)
-      - Threshold
-      - Active toggle
-    - Take a screenshot of configuration page
-    - Adjust a rule weight (if editable)
-    - **Verify** save functionality works
-41. If logged in as risk_analyst:
-    - Navigate to `/risk/configuration`
-    - **Verify** access is denied (403)
-    - Take a screenshot of access denied
+40. Navigate to `/risk/configuration`
+41. **Verify** access is granted (admin has full access)
+42. **Verify** rules table displays with:
+    - Rule name
+    - Type
+    - Weight (slider or input)
+    - Threshold
+    - Active toggle
+43. Take a screenshot of configuration page
+44. (Optional) Adjust a rule weight if editable
+45. **Verify** configuration page loads without errors
 
-### Part 8: Decision Flow (Risk Manager Only)
+### Part 8: Decision Flow (Admin Access)
 
-42. Login as risk_manager if not already
-43. Navigate to an evaluation detail page with status "pending" or "in_progress"
-44. **Verify** decision section is visible with:
+46. Navigate to an evaluation detail page with status "pending" or "in_progress"
+47. **Verify** decision section is visible with:
     - Status dropdown (Aprobar/Rechazar/Escalar)
     - Notes textarea
     - Submit button
-45. Select "Aprobar" from dropdown
-46. Enter review notes
-47. Take a screenshot before submission
-48. Click submit button
-49. **Verify** status changes to "approved"
-50. **Verify** review information is recorded (reviewed_by, reviewed_at)
-51. Take a screenshot of approved evaluation
+48. Select "Aprobar" from dropdown
+49. Enter review notes
+50. Take a screenshot before submission
+51. Click submit button
+52. **Verify** status changes to "approved"
+53. **Verify** review information is recorded (reviewed_by, reviewed_at)
+54. Take a screenshot of approved evaluation
 
 ## Success Criteria
 
-- Dashboard loads without errors for authorized users
-- Role-based access control works correctly:
-  - risk_analyst: Can view dashboard, create evaluations, view details
-  - risk_manager: Can additionally configure rules and make decisions
-  - Other roles: Cannot access risk pages
+- Dashboard loads without errors for authorized users (admin account)
+- Admin can access all risk module features including:
+  - Risk dashboard viewing
+  - Creating risk evaluations
+  - Viewing evaluation details
+  - Accessing alerts and blacklist tabs
+  - Configuration page access
+  - Making approval/rejection decisions
 - Risk evaluation creates successfully with score calculation
 - Fraud indicators display correctly with severity levels
 - Alerts functionality works (view, mark as read)
 - Blacklist displays correctly
-- Configuration page accessible only to risk_manager
+- Configuration page loads successfully
 - Decision workflow completes successfully
-- Screenshots captured at each major step (minimum 10)
+- Screenshots captured at each major step (minimum 8)
 
 ## Error Scenarios to Note
 
@@ -177,13 +175,13 @@ Alternative for manager tests:
 
 ## Expected Screenshots
 
-1. Access denied for non-risk user
+1. Successful dashboard access (after login)
 2. Dashboard with metrics cards
 3. Evaluation form
 4. Evaluation list with new entry
 5. Evaluation detail page
 6. Alerts tab
 7. Blacklist tab
-8. Configuration page (risk_manager only)
-9. Access denied for configuration (risk_analyst)
+8. Configuration page
+9. Decision flow before submission
 10. Approved evaluation detail
