@@ -42,11 +42,13 @@ const FKVerificationStatusCard: React.FC<FKVerificationStatusCardProps> = ({
   isPreliminary = false,
   indicators = [],
 }) => {
-  const config = VERIFICATION_STATUS_CONFIG[verificationStatus];
-  const isPass = verificationStatus === 'pass';
+  // Override config to show pending status when evaluation is preliminary
+  const displayStatus = isPreliminary ? 'pending' : verificationStatus;
+  const config = VERIFICATION_STATUS_CONFIG[displayStatus];
+  const isPass = verificationStatus === 'pass' && !isPreliminary;
 
-  // Get icon component based on status
-  const StatusIcon = isPass ? CheckCircle : Warning;
+  // Get icon component based on display status
+  const StatusIcon = displayStatus === 'pending' ? HourglassEmpty : (isPass ? CheckCircle : Warning);
 
   // Count triggered indicators
   const triggeredIndicators = indicators.filter(ind => ind.indicator_value);
@@ -91,7 +93,7 @@ const FKVerificationStatusCard: React.FC<FKVerificationStatusCardProps> = ({
             {config.label}
           </Typography>
 
-          {!isPass && discrepancyCount > 0 && (
+          {!isPass && !isPreliminary && discrepancyCount > 0 && (
             <Chip
               label={`${discrepancyCount} discrepancia${discrepancyCount > 1 ? 's' : ''} encontrada${discrepancyCount > 1 ? 's' : ''}`}
               sx={{
@@ -99,24 +101,6 @@ const FKVerificationStatusCard: React.FC<FKVerificationStatusCardProps> = ({
                 backgroundColor: 'rgba(255, 255, 255, 0.8)',
                 color: config.textColor,
                 fontWeight: 600,
-              }}
-            />
-          )}
-
-          {isPreliminary && (
-            <Chip
-              icon={<HourglassEmpty sx={{ fontSize: 16 }} />}
-              label="Verificación Pendiente"
-              size="small"
-              sx={{
-                mt: 2,
-                backgroundColor: '#E3F2FD',
-                color: '#1976D2',
-                fontWeight: 500,
-                fontSize: '0.75rem',
-                '& .MuiChip-icon': {
-                  color: '#1976D2',
-                },
               }}
             />
           )}

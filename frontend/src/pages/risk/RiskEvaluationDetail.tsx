@@ -282,11 +282,6 @@ const RiskEvaluationDetail: React.FC = () => {
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
           <Tab
-            icon={<Assessment />}
-            iconPosition="start"
-            label="Evaluación"
-          />
-          <Tab
             icon={<Description />}
             iconPosition="start"
             label="Documentos"
@@ -301,11 +296,50 @@ const RiskEvaluationDetail: React.FC = () => {
             iconPosition="start"
             label="Contacto Externo"
           />
+          <Tab
+            icon={<Assessment />}
+            iconPosition="start"
+            label="Evaluación"
+          />
         </Tabs>
       </Box>
 
       {/* Tab Content */}
-      {activeTab === 0 && (
+
+      {/* Documents Tab */}
+      {activeTab === 0 && id && (
+        <FKDocumentUploader
+          evaluationId={id}
+          evaluationStatus={assessment?.status}
+          onValidationReady={setValidationReady}
+        />
+      )}
+
+      {/* Cross-Validation Tab */}
+      {activeTab === 1 && id && (
+        <FKCrossValidationResults
+          evaluationId={id}
+          canValidate={validationReady}
+          onValidationComplete={handleValidationComplete}
+          assessmentId={assessment?.assessment_id}
+          clientNit={assessment?.client_nit}
+          clientInfo={assessment?.client_info}
+          finalizedBy={assessment?.finalized_by}
+          finalizedAt={assessment?.finalized_at}
+        />
+      )}
+
+      {/* External Contact Tab */}
+      {activeTab === 2 && id && (
+        <FKExternalContactTab
+          evaluationId={id}
+          assessmentId={assessment?.assessment_id}
+          clientInfo={assessment?.client_info}
+        />
+      )}
+
+      {/* Evaluación Tab */}
+      {activeTab === 3 && (
         <Grid container spacing={3}>
           {/* Left Column - Client Info */}
           <Grid size={{ xs: 12, md: 4 }}>
@@ -523,38 +557,6 @@ const RiskEvaluationDetail: React.FC = () => {
             </Card>
           </Grid>
         </Grid>
-      )}
-
-      {/* Documents Tab */}
-      {activeTab === 1 && id && (
-        <FKDocumentUploader
-          evaluationId={id}
-          evaluationStatus={assessment?.status}
-          onValidationReady={setValidationReady}
-        />
-      )}
-
-      {/* Cross-Validation Tab */}
-      {activeTab === 2 && id && (
-        <FKCrossValidationResults
-          evaluationId={id}
-          canValidate={validationReady}
-          onValidationComplete={handleValidationComplete}
-          assessmentId={assessment?.assessment_id}
-          clientNit={assessment?.client_nit}
-          clientInfo={assessment?.client_info}
-          finalizedBy={assessment?.finalized_by}
-          finalizedAt={assessment?.finalized_at}
-        />
-      )}
-
-      {/* External Contact Tab */}
-      {activeTab === 3 && id && (
-        <FKExternalContactTab
-          evaluationId={id}
-          assessmentId={assessment?.assessment_id}
-          clientInfo={assessment?.client_info}
-        />
       )}
     </Box>
   );

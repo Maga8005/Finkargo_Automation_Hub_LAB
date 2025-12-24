@@ -44,7 +44,7 @@ export type RuleType =
   | 'history';
 
 // Binary verification status for risk assessments
-export type VerificationStatus = 'pass' | 'requires_manual_verification';
+export type VerificationStatus = 'pending' | 'pass' | 'requires_manual_verification';
 
 // NOTE: AssessmentType removed - only one evaluation workflow exists (comprehensive)
 // Kept as comment for backward compatibility awareness with existing database records
@@ -268,13 +268,20 @@ export const ALERT_SEVERITY_CONFIG: Record<AlertSeverity, { label: string; color
 
 export interface VerificationStatusConfig {
   label: string;
-  color: 'success' | 'error';
+  color: 'success' | 'error' | 'warning';
   bgColor: string;
   textColor: string;
-  icon: 'CheckCircle' | 'Warning';
+  icon: 'CheckCircle' | 'Warning' | 'HourglassEmpty';
 }
 
 export const VERIFICATION_STATUS_CONFIG: Record<VerificationStatus, VerificationStatusConfig> = {
+  pending: {
+    label: 'PENDIENTE',
+    color: 'warning',
+    bgColor: '#FFF4E5',
+    textColor: '#B86E00',
+    icon: 'HourglassEmpty',
+  },
   pass: {
     label: 'APROBADO',
     color: 'success',
