@@ -249,15 +249,15 @@ const FKEmailChainUploader: React.FC<FKEmailChainUploaderProps> = ({
       )}
 
       {/* Upload Form */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
+      <Card sx={{ mb: 3, position: 'relative', zIndex: 1 }}>
+        <CardContent sx={{ pr: 3 }}>
           <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <CloudUpload /> Subir Cadena de Email
           </Typography>
           <Divider sx={{ mb: 2 }} />
 
           {/* Mode Toggle */}
-          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+          <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
             <Button
               variant={uploadMode === 'text' ? 'contained' : 'outlined'}
               startIcon={<ContentPaste />}
@@ -295,9 +295,14 @@ Subject: Solicitud de Pago
 Estimados,
 Por favor proceder con el pago...`}
                 disabled={uploading}
-                sx={{ mb: 2 }}
+                sx={{
+                  mb: 2,
+                  '& .MuiInputBase-root': {
+                    overflow: 'auto',
+                  },
+                }}
               />
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', pr: 1 }}>
                 <Button
                   variant="contained"
                   startIcon={uploading ? <CircularProgress size={20} /> : <CloudUpload />}
