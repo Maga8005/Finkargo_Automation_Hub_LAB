@@ -405,6 +405,8 @@ class ValidationType(str, Enum):
     TYPOSQUATTING = "typosquatting"  # Domain typosquatting detection
     PROVIDER_DOMAIN = "provider_domain"  # Free email provider detection
     ADDRESS = "address"
+    DOMAIN_EXISTENCE = "domain_existence"  # DNS lookup validation
+    DOMAIN_AGE = "domain_age"  # WHOIS domain age validation
 
 
 class DocumentUploadResponse(BaseModel):
@@ -560,6 +562,12 @@ class EmailValidationResult(BaseModel):
     detection_type: str = Field(..., description="Type of detection: typosquatting, tld_variation, provider_domain, exact_match, no_match")
     description: str = Field(..., description="Human-readable description")
     is_free_provider: bool = Field(default=False, description="Whether using a free email provider")
+    # Domain existence and age validation fields
+    domain_exists: Optional[bool] = Field(None, description="Whether the domain resolves via DNS (null = unknown/pending)")
+    domain_age_days: Optional[int] = Field(None, description="Age of domain in days (null = unavailable)")
+    domain_creation_date: Optional[datetime] = Field(None, description="Domain creation date from WHOIS (null = unavailable)")
+    age_lookup_status: str = Field(default="pending", description="Status of age lookup: success, failed, unavailable, pending")
+    domain_registrar: Optional[str] = Field(None, description="Domain registrar from WHOIS (null = unavailable)")
 
 
 class ExternalContactResponse(BaseModel):
