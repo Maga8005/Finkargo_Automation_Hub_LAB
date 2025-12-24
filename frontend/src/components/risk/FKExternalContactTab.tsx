@@ -29,6 +29,9 @@ import {
   List,
   ListItem,
   ListItemSecondaryAction,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
 import {
   Add,
@@ -38,9 +41,12 @@ import {
   Person,
   Business,
   Notes,
+  ExpandMore,
+  Link as LinkIcon,
 } from '@mui/icons-material';
 import { riskService } from '../../services/riskService';
 import FKEmailValidationResult from './FKEmailValidationResult';
+import FKEmailChainUploader from './FKEmailChainUploader';
 import type {
   ExternalContact,
   ExternalContactRequest,
@@ -191,20 +197,52 @@ const FKExternalContactTab: React.FC<FKExternalContactTabProps> = ({
 
   return (
     <Box>
-      {/* Info Alert */}
-      <Alert severity="info" sx={{ mb: 3 }}>
-        <Typography variant="body2">
-          Ingrese los emails de contacto recibidos a través de canales comerciales para validar
-          si el dominio coincide con la empresa evaluada. El sistema detectará posibles intentos
-          de typosquatting (dominios similares pero fraudulentos).
-        </Typography>
-        {clientInfo?.nombre_importador && (
-          <Typography variant="body2" sx={{ mt: 1, fontWeight: 500 }}>
+      {/* Company Info */}
+      {clientInfo?.nombre_importador && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
             <Business sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle' }} />
             Empresa: {clientInfo.nombre_importador}
           </Typography>
-        )}
-      </Alert>
+        </Alert>
+      )}
+
+      {/* Email Chain Uploader Section */}
+      <Accordion defaultExpanded sx={{ mb: 3 }}>
+        <AccordionSummary
+          expandIcon={<ExpandMore />}
+          aria-controls="email-chains-content"
+          id="email-chains-header"
+        >
+          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LinkIcon /> Cadenas de Email
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <FKEmailChainUploader evaluationId={evaluationId} />
+        </AccordionDetails>
+      </Accordion>
+
+      {/* External Contacts Section */}
+      <Accordion defaultExpanded>
+        <AccordionSummary
+          expandIcon={<ExpandMore />}
+          aria-controls="contacts-content"
+          id="contacts-header"
+        >
+          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Email /> Contactos Externos Individuales
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          {/* Info Alert */}
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              Ingrese los emails de contacto recibidos a través de canales comerciales para validar
+              si el dominio coincide con la empresa evaluada. El sistema detectará posibles intentos
+              de typosquatting (dominios similares pero fraudulentos).
+            </Typography>
+          </Alert>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
@@ -472,6 +510,8 @@ const FKExternalContactTab: React.FC<FKExternalContactTabProps> = ({
           automáticamente esta variación como sospechosa.
         </Typography>
       </Alert>
+        </AccordionDetails>
+      </Accordion>
     </Box>
   );
 };
