@@ -690,4 +690,5 @@ export const EMAIL_CHAIN_FIELD_LABELS: Record<string, string> = {
   company_name: 'Nombre de Empresa',
   nit: 'NIT',
   representative_name: 'Representante Legal',
+  official_document_domain: 'Dominio Email Documento Oficial',
 };

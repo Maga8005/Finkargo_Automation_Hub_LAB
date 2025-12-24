@@ -196,6 +196,13 @@ class EmailChainService:
             if disc:
                 discrepancies.append(disc)
 
+        # 1b. Validate sender domains against official document domains (RUT/Certificado)
+        official_domains = doc_data.get('official_document_domains', [])
+        for domain in sender_domains:
+            disc = self._validate_against_official_document_domains(domain, official_domains)
+            if disc:
+                discrepancies.append(disc)
+
         # 2. Validate company name mentions
         company_mentions = mentions.get('company_names', [])
         for company in company_mentions:
@@ -290,17 +297,23 @@ class EmailChainService:
         Returns:
             dict: Aggregated document data for comparison
         """
+        # Official document types that provide authoritative email domain information
+        official_doc_types = ['rut', 'certificado_existencia']
+
         doc_data = {
             'company_names': [],
             'nits': [],
             'representative_names': [],
             'email_domains': [],
+            'official_document_domains': [],  # Track official doc domains separately
         }
 
         extractions = await self.extraction_repo.get_by_assessment(assessment_id)
 
         for extraction in extractions:
             extracted = extraction.get('extracted_data') or {}
+            doc_type = extraction.get('document_type', '')
+            is_official_doc = doc_type in official_doc_types
 
             # Company names
             for field in ['razon_social', 'nombre_empresa', 'nombre_importador', 'empresa']:
@@ -328,8 +341,12 @@ class EmailChainService:
                 value = extracted.get(field)
                 if value and '@' in value:
                     domain = value.split('@')[1].lower().strip()
-                    if domain and domain not in doc_data['email_domains']:
-                        doc_data['email_domains'].append(domain)
+                    if domain:
+                        if domain not in doc_data['email_domains']:
+                            doc_data['email_domains'].append(domain)
+                        # Also track as official document domain if from RUT/Certificado
+                        if is_official_doc and domain not in doc_data['official_document_domains']:
+                            doc_data['official_document_domains'].append(domain)
 
         return doc_data
 
@@ -410,6 +427,99 @@ class EmailChainService:
 
         # Domain not recognized but not necessarily suspicious
         return None
+
+    def _validate_against_official_document_domains(
+        self,
+        sender_domain: str,
+        official_domains: List[str],
+    ) -> Optional[dict]:
+        """
+        Validate sender domain against official document email domains.
+
+        Compares the email chain sender domain against email domains extracted
+        from RUT and Certificado de Existencia documents. These official documents
+        provide authoritative email domain information for the company.
+
+        Args:
+            sender_domain: Email domain from email chain sender
+            official_domains: Email domains extracted from RUT/Certificado de Existencia
+
+        Returns:
+            Optional[dict]: Discrepancy if mismatch found, None if match or no official domains
+        """
+        if not official_domains:
+            # No official document domains available - skip this check
+            return None
+
+        sender_domain = sender_domain.lower().strip()
+
+        # Check for exact match with any official domain
+        for official_domain in official_domains:
+            if sender_domain == official_domain.lower().strip():
+                return None
+
+        # No exact match - use typosquatting service to detect variations
+        # Check against each official domain for typosquatting/TLD variations
+        for official_domain in official_domains:
+            typo_result = self.typosquatting_service.check_domain_typosquatting(
+                domain=sender_domain,
+                known_domains=[official_domain],
+            )
+
+            if typo_result.detection_type == 'exact_match':
+                # Should not happen since we already checked, but handle gracefully
+                return None
+
+            if typo_result.detection_type == 'tld_variation':
+                return {
+                    'field': 'official_document_domain',
+                    'email_value': sender_domain,
+                    'document_value': official_domain,
+                    'severity': DiscrepancySeverity.CRITICAL.value,
+                    'description': (
+                        f"ALERTA CRÍTICA: El dominio del remitente '{sender_domain}' "
+                        f"difiere del dominio oficial del documento (RUT/Certificado) "
+                        f"'{official_domain}' - Variación de TLD detectada. "
+                        f"Posible suplantación de identidad."
+                    ),
+                    'is_typosquatting': True,
+                    'similarity_score': typo_result.similarity_score,
+                }
+
+            if typo_result.detection_type == 'typosquatting':
+                return {
+                    'field': 'official_document_domain',
+                    'email_value': sender_domain,
+                    'document_value': official_domain,
+                    'severity': DiscrepancySeverity.CRITICAL.value,
+                    'description': (
+                        f"ALERTA CRÍTICA: Posible typosquatting detectado. "
+                        f"El dominio del remitente '{sender_domain}' es similar al "
+                        f"dominio oficial del documento '{official_domain}' "
+                        f"(similitud: {typo_result.similarity_score:.0%}). "
+                        f"Posible suplantación de identidad."
+                    ),
+                    'is_typosquatting': True,
+                    'similarity_score': typo_result.similarity_score,
+                }
+
+        # No typosquatting or TLD variation detected - domain is completely different
+        # Still flag as critical since it doesn't match official document domains
+        official_domains_str = ', '.join(official_domains)
+        return {
+            'field': 'official_document_domain',
+            'email_value': sender_domain,
+            'document_value': official_domains[0],
+            'severity': DiscrepancySeverity.CRITICAL.value,
+            'description': (
+                f"ALERTA CRÍTICA: El dominio del remitente '{sender_domain}' "
+                f"no coincide con el dominio oficial del documento (RUT/Certificado). "
+                f"Dominio(s) oficial(es): {official_domains_str}. "
+                f"Verificar identidad del remitente manualmente."
+            ),
+            'is_typosquatting': False,
+            'similarity_score': None,
+        }
 
     def _validate_company_mention(
         self,
