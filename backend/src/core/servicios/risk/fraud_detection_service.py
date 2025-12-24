@@ -14,6 +14,7 @@ from src.interface.risk_dtos import (
     AssessmentStatus,
     AlertType,
     AlertSeverity,
+    FinalizationRequirements,
 )
 from src.repositorio.risk_repository import (
     RiskAssessmentRepository,
@@ -88,67 +89,52 @@ class FraudDetectionService:
         user_id: str,
     ) -> dict:
         """
-        Evaluate client fraud risk
+        Create initial risk evaluation with score=0 and pending_documents status.
+
+        Per the deferred finalization workflow:
+        - Blacklist check is deferred until finalize_evaluation_complete()
+        - All fraud checks are deferred until finalize_evaluation_complete()
+        - Assessment starts with score=0 to allow document upload
+        - Final score is calculated only when user clicks "Finalizar Evaluación"
 
         Args:
             client_nit: Client NIT to evaluate
             user_id: ID of user performing evaluation
 
         Returns:
-            dict: Assessment result with risk score and indicators
+            dict: Assessment result with score=0 and pending_documents status
         """
         logger.info(f"Starting fraud evaluation for client NIT: {client_nit}")
 
         # 1. Fetch client data (may be None for new clients not yet in database)
         client_data = await self._get_client_data(client_nit)
 
-        # 2. If client not found, create assessment with pending_documents status
-        # This allows new clients to proceed with document upload for cross-validation
-        # Risk score starts at 0 and will be calculated after document cross-validation
-        if not client_data:
-            logger.info(f"New client (NIT not in database): {client_nit}. Creating assessment for document upload.")
-            return await self._create_new_client_assessment(client_nit, user_id)
-
-        # 3. Check blacklist first (immediate critical if found)
-        blacklist_match = await self._check_blacklist(client_data)
-        if blacklist_match:
-            logger.warning(f"Blacklist match found for NIT: {client_nit}")
-            return await self._create_blacklist_assessment(
-                client_nit,
-                user_id,
-                client_data,
-                blacklist_match
-            )
-
-        # 4. Get active detection rules
-        rules = await self.rules_repo.list_active()
-
-        # 5. Run all validation checks
-        indicators = await self._run_all_checks(client_data, rules)
-
-        # 6. Calculate preliminary risk score and level
-        risk_score, risk_level = await self.scoring_service.calculate_score(indicators, rules)
-
-        # 7. Create assessment record with pending_documents status
-        # Final score will be calculated after cross-validation
+        # 2. Create assessment with pending_documents status and score=0
+        # All fraud checks (including blacklist) are deferred until finalization
         assessment_data = {
             'client_nit': client_nit,
-            'risk_level': risk_level.value,
-            'risk_score': float(risk_score),
-            'fraud_indicators': [self._indicator_to_dict(ind) for ind in indicators],
+            'risk_level': RiskLevel.LOW.value,  # Start with low risk (score=0)
+            'risk_score': 0.0,  # Zero score - all checks deferred to finalization
+            'fraud_indicators': [{
+                'indicator_name': 'evaluation_pending',
+                'indicator_value': False,  # Not a risk trigger
+                'severity': RiskLevel.LOW.value,
+                'evidence': 'Evaluación pendiente - ejecute "Finalizar Evaluación" para calcular el puntaje de riesgo',
+                'score_impact': 0.0,
+            }],
             'status': AssessmentStatus.PENDING_DOCUMENTS.value,  # Start with pending_documents
             'assessment_type': 'comprehensive',  # Always comprehensive
             'assessed_by': user_id,
             'assessed_at': datetime.utcnow().isoformat(),
-            'client_data_snapshot': client_data,
+            'client_data_snapshot': client_data,  # Store for finalization (may be None)
         }
 
         assessment = await self.risk_repo.create(assessment_data)
 
-        # Note: Alerts are NOT created here - they will be created after finalize_evaluation()
-        # This ensures alerts reflect the final score including cross-validation results
+        # Note: Alerts are NOT created here - they will be created after finalize_evaluation_complete()
+        # Blacklist check is also deferred to finalization
 
-        logger.info(f"Preliminary evaluation for NIT: {client_nit}, Score: {risk_score}, Level: {risk_level.value}, Status: pending_documents")
+        logger.info(f"Created evaluation for NIT: {client_nit}, Score: 0, Status: pending_documents")
 
         return assessment
 
@@ -728,3 +714,258 @@ class FraudDetectionService:
             return AssessmentStatus.ESCALATED.value  # Auto-escalate critical
         else:
             return AssessmentStatus.PENDING.value  # Manual review for medium/high
+
+    async def finalize_evaluation_complete(
+        self,
+        assessment_id: str,
+        user_id: str,
+        cross_validation_results: List[dict],
+        email_chain_results: Optional[List[dict]] = None,
+        external_contact_results: Optional[List[dict]] = None,
+    ) -> dict:
+        """
+        Complete finalization of risk evaluation with all fraud checks.
+
+        This is the NEW comprehensive finalization method that:
+        1. Runs blacklist check (deferred from evaluate_client)
+        2. Runs all fraud indicator checks (deferred from evaluate_client)
+        3. Aggregates cross-validation results
+        4. Aggregates email chain validation results
+        5. Aggregates external contact validation results
+        6. Calculates final risk score
+        7. Determines final status
+        8. Creates alerts for high/critical risk
+        9. Records finalized_by and finalized_at
+
+        Args:
+            assessment_id: UUID of the assessment to finalize
+            user_id: UUID of user performing finalization
+            cross_validation_results: List of cross-validation results
+            email_chain_results: Optional list of email chain validation results
+            external_contact_results: Optional list of external contact validation results
+
+        Returns:
+            dict: Updated assessment with final score, level, status, and audit fields
+        """
+        logger.info(f"Running complete finalization for assessment: {assessment_id}")
+
+        # 1. Get existing assessment
+        assessment = await self.risk_repo.get_by_id(assessment_id)
+        if not assessment:
+            logger.error(f"Assessment not found: {assessment_id}")
+            raise ValueError(f"Assessment not found: {assessment_id}")
+
+        # 2. Validate assessment is in correct state for finalization
+        current_status = assessment.get('status')
+        if current_status not in [
+            AssessmentStatus.PENDING_DOCUMENTS.value,
+            AssessmentStatus.PENDING_FINALIZATION.value
+        ]:
+            logger.error(f"Assessment {assessment_id} in invalid state for finalization: {current_status}")
+            raise ValueError(
+                f"Cannot finalize assessment in status '{current_status}'. "
+                f"Must be 'pending_documents' or 'pending_finalization'."
+            )
+
+        # 3. Get client data from snapshot or fetch fresh
+        client_data = assessment.get('client_data_snapshot')
+        if not client_data:
+            client_data = await self._get_client_data(assessment['client_nit'])
+
+        # 4. Run blacklist check NOW (deferred from evaluate_client)
+        if client_data:
+            blacklist_match = await self._check_blacklist(client_data)
+            if blacklist_match:
+                logger.warning(f"Blacklist match found during finalization for NIT: {assessment['client_nit']}")
+                # Update assessment to rejected with blacklist indicator
+                update_data = {
+                    'risk_level': RiskLevel.CRITICAL.value,
+                    'risk_score': 100.0,
+                    'fraud_indicators': [{
+                        'indicator_name': 'blacklist_match',
+                        'indicator_value': True,
+                        'severity': RiskLevel.CRITICAL.value,
+                        'evidence': f"Entidad en lista negra: {blacklist_match['entity_type']} = {blacklist_match['entity_value']}. "
+                                   f"Razón: {blacklist_match['reason']}",
+                        'score_impact': 100.0,
+                    }],
+                    'status': AssessmentStatus.REJECTED.value,
+                    'finalized_by': user_id,
+                    'finalized_at': datetime.utcnow().isoformat(),
+                    'updated_at': datetime.utcnow().isoformat(),
+                }
+                updated_assessment = await self.risk_repo.update(assessment_id, update_data)
+
+                # Create critical alert for blacklist match
+                await self.alert_service.create_alert(
+                    assessment_id=assessment_id,
+                    alert_type=AlertType.BLACKLIST_MATCH,
+                    severity=AlertSeverity.CRITICAL,
+                    title=f"BLACKLIST: Entidad bloqueada detectada - {assessment['client_nit']}",
+                    message=f"El cliente {assessment['client_nit']} coincide con una entrada en la lista negra: "
+                            f"{blacklist_match['entity_type']} = {blacklist_match['entity_value']}"
+                )
+
+                logger.info(f"Finalization rejected due to blacklist match for assessment: {assessment_id}")
+                return updated_assessment
+
+        # 5. Run all fraud indicator checks (if client data exists)
+        indicators: List[FraudIndicator] = []
+        if client_data:
+            rules = await self.rules_repo.list_active()
+            indicators = await self._run_all_checks(client_data, rules)
+
+        # 6. Build comprehensive indicator list from all validation sources
+
+        # Add cross-validation discrepancies as indicators
+        for cv_result in cross_validation_results:
+            if cv_result.get('is_discrepancy'):
+                indicators.append(FraudIndicator(
+                    indicator_name=f"cross_validation_{cv_result.get('validation_type', 'unknown')}",
+                    indicator_value=True,
+                    severity=RiskLevel(cv_result.get('severity', 'medium')),
+                    evidence=cv_result.get('description', 'Discrepancia en validación cruzada'),
+                    score_impact=Decimal(str(cv_result.get('score_impact', 0))),
+                ))
+
+        # Add email chain discrepancies as indicators (if provided)
+        if email_chain_results:
+            for chain in email_chain_results:
+                validation_result = chain.get('validation_result', {})
+                for disc in validation_result.get('discrepancies', []):
+                    indicators.append(FraudIndicator(
+                        indicator_name=f"email_chain_{disc.get('field', 'unknown')}",
+                        indicator_value=True,
+                        severity=RiskLevel(disc.get('severity', 'medium')),
+                        evidence=disc.get('description', 'Discrepancia en cadena de correo'),
+                        score_impact=Decimal(str(disc.get('score_impact', 5))),  # Default 5 if not specified
+                    ))
+
+        # Add external contact validation results as indicators (if provided)
+        if external_contact_results:
+            for contact in external_contact_results:
+                validation_result = contact.get('validation_result', {})
+                if validation_result.get('is_suspicious'):
+                    severity = RiskLevel.HIGH if contact.get('validation_status') == 'critical' else RiskLevel.MEDIUM
+                    indicators.append(FraudIndicator(
+                        indicator_name=f"external_contact_{validation_result.get('detection_type', 'unknown')}",
+                        indicator_value=True,
+                        severity=severity,
+                        evidence=validation_result.get('description', 'Contacto externo sospechoso'),
+                        score_impact=Decimal('10') if severity == RiskLevel.HIGH else Decimal('5'),
+                    ))
+
+        # 7. Calculate final score using all indicators
+        rules = await self.rules_repo.list_active()
+        final_score, final_level = await self.scoring_service.calculate_score(indicators, rules)
+
+        # 8. Determine final status based on risk level
+        final_status = self._determine_final_status(final_level)
+
+        # 9. Update assessment with final values including audit fields
+        update_data = {
+            'risk_score': float(final_score),
+            'risk_level': final_level.value,
+            'fraud_indicators': [self._indicator_to_dict(ind) for ind in indicators],
+            'status': final_status,
+            'finalized_by': user_id,
+            'finalized_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat(),
+        }
+
+        updated_assessment = await self.risk_repo.update(assessment_id, update_data)
+
+        # 10. Create alerts for high/critical risk
+        if final_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+            await self._create_risk_alerts(updated_assessment, final_level, indicators)
+
+        logger.info(
+            f"Complete finalization for assessment: {assessment_id}, "
+            f"Final score: {final_score}, Level: {final_level.value}, Status: {final_status}, "
+            f"Indicators: {len(indicators)}"
+        )
+
+        return updated_assessment
+
+    async def get_finalization_status(
+        self,
+        assessment_id: str,
+        cross_validation_count: int = 0,
+        email_chain_count: int = 0,
+        email_chain_validated_count: int = 0,
+        external_contact_count: int = 0,
+        external_contact_validated_count: int = 0,
+        document_count: int = 0,
+    ) -> dict:
+        """
+        Get the finalization status and requirements for an assessment.
+
+        Args:
+            assessment_id: UUID of the assessment
+            cross_validation_count: Number of cross-validation results
+            email_chain_count: Total number of email chains
+            email_chain_validated_count: Number of validated email chains
+            external_contact_count: Total number of external contacts
+            external_contact_validated_count: Number of validated external contacts
+            document_count: Number of documents uploaded
+
+        Returns:
+            dict: Finalization status with requirements and pending items
+        """
+        # Get assessment
+        assessment = await self.risk_repo.get_by_id(assessment_id)
+        if not assessment:
+            raise ValueError(f"Assessment not found: {assessment_id}")
+
+        # Default requirements (can be extended to fetch from config table)
+        require_cross_validation = True
+        require_email_chain_validation = False  # Optional
+        require_external_contact_validation = False  # Optional
+        min_documents_required = 2
+        allow_force_complete = True
+
+        # Build requirements status
+        requirements = FinalizationRequirements(
+            cross_validation_done=cross_validation_count > 0,
+            email_chains_validated=(
+                email_chain_count == 0 or  # None required
+                email_chain_validated_count >= email_chain_count  # All validated
+            ),
+            external_contacts_validated=(
+                external_contact_count == 0 or  # None required
+                external_contact_validated_count >= external_contact_count  # All validated
+            ),
+            min_documents_met=document_count >= min_documents_required,
+        )
+
+        # Build pending items list
+        pending_items: List[str] = []
+
+        if require_cross_validation and not requirements.cross_validation_done:
+            pending_items.append("Ejecutar validación cruzada de documentos")
+
+        if not requirements.min_documents_met:
+            pending_items.append(f"Subir al menos {min_documents_required} documentos (actual: {document_count})")
+
+        if require_email_chain_validation and not requirements.email_chains_validated:
+            pending_items.append(f"Validar cadenas de correo ({email_chain_validated_count}/{email_chain_count})")
+
+        if require_external_contact_validation and not requirements.external_contacts_validated:
+            pending_items.append(f"Validar contactos externos ({external_contact_validated_count}/{external_contact_count})")
+
+        # Can finalize if all required items are done
+        can_finalize = (
+            requirements.cross_validation_done and
+            requirements.min_documents_met
+        )
+
+        current_status = AssessmentStatus(assessment.get('status', 'pending_documents'))
+
+        return {
+            'assessment_id': assessment.get('assessment_id', assessment_id),
+            'can_finalize': can_finalize,
+            'requirements': requirements.model_dump(),
+            'pending_items': pending_items,
+            'current_status': current_status.value,
+            'allow_force_complete': allow_force_complete,
+        }

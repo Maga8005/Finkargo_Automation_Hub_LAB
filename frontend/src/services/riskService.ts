@@ -26,6 +26,8 @@ import type {
   ExternalContactListResponse,
   EmailChain,
   EmailChainListResponse,
+  FinalizationStatus,
+  FinalizeEvaluationRequest,
 } from '../types/risk';
 
 export const riskService = {
@@ -372,5 +374,32 @@ export const riskService = {
    */
   deleteEmailChain: async (evaluationId: string, chainId: string): Promise<void> => {
     await apiClient.delete(`/risk/evaluations/${evaluationId}/email-chains/${chainId}`);
+  },
+
+  // ==================== Finalization ====================
+
+  /**
+   * Get finalization status and requirements for an evaluation
+   */
+  getFinalizationStatus: async (evaluationId: string): Promise<FinalizationStatus> => {
+    const response = await apiClient.get<FinalizationStatus>(
+      `/risk/evaluations/${evaluationId}/finalization-status`
+    );
+    return response.data;
+  },
+
+  /**
+   * Finalize an evaluation, calculating the final risk score
+   * Runs all deferred fraud checks and aggregates validation results
+   */
+  finalizeEvaluation: async (
+    evaluationId: string,
+    request?: FinalizeEvaluationRequest
+  ): Promise<RiskAssessmentDetail> => {
+    const response = await apiClient.post<RiskAssessmentDetail>(
+      `/risk/evaluations/${evaluationId}/finalize`,
+      request || {}
+    );
+    return response.data;
   },
 };

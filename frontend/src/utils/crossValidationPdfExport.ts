@@ -77,6 +77,8 @@ interface AssessmentContext {
   assessment_id: string;
   client_nit: string;
   client_info?: ClientInfo;
+  finalized_by?: string;
+  finalized_at?: string;
 }
 
 /**
@@ -162,6 +164,25 @@ export const exportCrossValidationToPDF = (
       doc.text('Validación ejecutada:', 14, yPosition);
       doc.setFont('helvetica', 'normal');
       doc.text(validatedDate, 50, yPosition);
+      yPosition += 5;
+    }
+
+    // Finalized by (if available)
+    if (assessment.finalized_by) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Finalizado por:', 14, yPosition);
+      doc.setFont('helvetica', 'normal');
+      doc.text(assessment.finalized_by, 50, yPosition);
+      yPosition += 5;
+    }
+
+    // Finalization date (if available)
+    if (assessment.finalized_at) {
+      const finalizedDate = format(new Date(assessment.finalized_at), "dd/MM/yyyy HH:mm", { locale: es });
+      doc.setFont('helvetica', 'bold');
+      doc.text('Fecha de finalización:', 14, yPosition);
+      doc.setFont('helvetica', 'normal');
+      doc.text(finalizedDate, 50, yPosition);
       yPosition += 5;
     }
 

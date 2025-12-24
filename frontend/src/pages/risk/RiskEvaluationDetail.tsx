@@ -41,6 +41,7 @@ import FKDocumentUploader from '../../components/risk/FKDocumentUploader';
 import FKCrossValidationResults from '../../components/risk/FKCrossValidationResults';
 import FKVerificationStatusCard from '../../components/risk/FKVerificationStatusCard';
 import FKExternalContactTab from '../../components/risk/FKExternalContactTab';
+import FKFinalizeButton from '../../components/risk/FKFinalizeButton';
 import type {
   RiskAssessmentDetail,
   RiskDecisionRequest,
@@ -75,8 +76,11 @@ const RiskEvaluationDetail: React.FC = () => {
     assessment &&
     ['pending', 'in_progress', 'escalated'].includes(assessment.status);
 
-  // Check if score is preliminary (pending_documents status)
-  const isPreliminaryScore = assessment?.status === 'pending_documents';
+  // Check if score is preliminary (pending_documents or pending_finalization status)
+  const isPreliminaryScore = assessment?.status === 'pending_documents' || assessment?.status === 'pending_finalization';
+
+  // Check if cross-validation is done
+  const crossValidationDone = validationResults && validationResults.results.length > 0;
 
   // Acknowledgment state for manual verification
   const [isAcknowledged, setIsAcknowledged] = useState(false);
@@ -112,10 +116,20 @@ const RiskEvaluationDetail: React.FC = () => {
   // Handle validation complete - refresh assessment and show success message
   const handleValidationComplete = useCallback(async (results: CrossValidationResponse) => {
     setValidationResults(results);
-    // Refresh assessment to get updated score
+    // Refresh assessment to get updated status (pending_finalization)
+    await loadAssessment();
+    // Show success message - note that score is NOT calculated yet
+    setScoreUpdatedMessage('Validación cruzada completada. Haga clic en "Finalizar Evaluación" para calcular el puntaje de riesgo.');
+    // Auto-hide message after 8 seconds
+    setTimeout(() => setScoreUpdatedMessage(null), 8000);
+  }, [loadAssessment]);
+
+  // Handle finalization complete - refresh assessment
+  const handleFinalizationComplete = useCallback(async () => {
+    // Refresh assessment to get updated score and status
     await loadAssessment();
     // Show success message
-    setScoreUpdatedMessage('Puntaje de riesgo actualizado con resultados de validación cruzada');
+    setScoreUpdatedMessage('Evaluación finalizada exitosamente. El puntaje de riesgo ha sido calculado.');
     // Auto-hide message after 5 seconds
     setTimeout(() => setScoreUpdatedMessage(null), 5000);
   }, [loadAssessment]);
@@ -242,12 +256,26 @@ const RiskEvaluationDetail: React.FC = () => {
           sx={{ mb: 3 }}
         >
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
-            Suba y valide documentos para calcular el puntaje final de riesgo
+            {assessment?.status === 'pending_finalization'
+              ? 'Haga clic en "Finalizar Evaluación" para calcular el puntaje de riesgo'
+              : 'Suba y valide documentos para calcular el puntaje final de riesgo'}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            El puntaje actual es preliminar y se actualizará después de la validación cruzada de documentos.
+            {assessment?.status === 'pending_finalization'
+              ? 'La validación cruzada está completa. Ahora puede finalizar la evaluación.'
+              : 'El puntaje actual es preliminar y se actualizará después de finalizar la evaluación.'}
           </Typography>
         </Alert>
+      )}
+
+      {/* Finalization Button - shown when ready for finalization */}
+      {id && isPreliminaryScore && (
+        <FKFinalizeButton
+          evaluationId={id}
+          evaluationStatus={assessment?.status}
+          onFinalizationComplete={handleFinalizationComplete}
+          crossValidationDone={crossValidationDone ?? false}
+        />
       )}
 
       {/* Tabs Navigation */}
@@ -515,6 +543,8 @@ const RiskEvaluationDetail: React.FC = () => {
           assessmentId={assessment?.assessment_id}
           clientNit={assessment?.client_nit}
           clientInfo={assessment?.client_info}
+          finalizedBy={assessment?.finalized_by}
+          finalizedAt={assessment?.finalized_at}
         />
       )}
 

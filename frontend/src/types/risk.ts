@@ -10,6 +10,7 @@ export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type AssessmentStatus =
   | 'pending'
   | 'pending_documents'
+  | 'pending_finalization'
   | 'in_progress'
   | 'completed'
   | 'escalated'
@@ -93,6 +94,8 @@ export interface RiskAssessmentDetail extends RiskAssessment {
   client_info?: ClientInfo;
   client_data_snapshot?: Record<string, unknown>;
   updated_at?: string;
+  finalized_by?: string;
+  finalized_at?: string;
 }
 
 // ==================== Request/Response Types ====================
@@ -247,6 +250,7 @@ export const RISK_LEVEL_CONFIG: Record<RiskLevel, RiskLevelConfig> = {
 export const ASSESSMENT_STATUS_CONFIG: Record<AssessmentStatus, { label: string; color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' }> = {
   pending: { label: 'Pendiente', color: 'warning' },
   pending_documents: { label: 'Pendiente Documentos', color: 'info' },
+  pending_finalization: { label: 'Pendiente Finalización', color: 'warning' },
   in_progress: { label: 'En Progreso', color: 'info' },
   completed: { label: 'Completado', color: 'success' },
   escalated: { label: 'Escalado', color: 'error' },
@@ -709,3 +713,35 @@ export const EMAIL_CHAIN_FIELD_LABELS: Record<string, string> = {
   domain_existence: 'Existencia de Dominio',
   domain_age: 'Antigüedad de Dominio',
 };
+
+// ==================== Finalization Types ====================
+
+export interface FinalizeEvaluationRequest {
+  force_complete?: boolean;
+}
+
+export interface FinalizationRequirements {
+  cross_validation_done: boolean;
+  email_chains_validated: boolean;
+  external_contacts_validated: boolean;
+  min_documents_met: boolean;
+}
+
+export interface FinalizationStatus {
+  assessment_id: string;
+  can_finalize: boolean;
+  requirements: FinalizationRequirements;
+  pending_items: string[];
+  current_status: AssessmentStatus;
+}
+
+export interface EvaluationRequirementsConfig {
+  id?: string;
+  require_cross_validation: boolean;
+  require_email_chain_validation: boolean;
+  require_external_contact_validation: boolean;
+  min_documents_required: number;
+  allow_force_complete: boolean;
+  updated_at?: string;
+  updated_by?: string;
+}
