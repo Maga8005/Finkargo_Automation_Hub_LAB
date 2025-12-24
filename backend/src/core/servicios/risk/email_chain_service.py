@@ -72,7 +72,7 @@ class EmailChainService:
 
         Args:
             assessment_id: Assessment UUID to associate with
-            file_content: Raw bytes of .eml or .msg file
+            file_content: Raw bytes of .eml, .msg, or .pdf file
             text_content: Raw text content (copy-paste)
             filename: Original filename if file upload
             user_id: ID of uploading user
@@ -90,8 +90,13 @@ class EmailChainService:
         # Parse the email content
         if file_content:
             if filename and filename.lower().endswith('.msg'):
+                logger.info(f"Parsing .msg file: {filename}")
                 parsed_data = self.parser_service.parse_msg_file(file_content)
+            elif filename and filename.lower().endswith('.pdf'):
+                logger.info(f"Parsing .pdf file: {filename}")
+                parsed_data = self.parser_service.parse_pdf_file(file_content)
             else:
+                logger.info(f"Parsing .eml file: {filename}")
                 parsed_data = self.parser_service.parse_eml_file(file_content)
             raw_content = None  # Don't store raw bytes for files
         elif text_content:

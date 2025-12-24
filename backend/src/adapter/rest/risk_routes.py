@@ -1489,7 +1489,7 @@ async def upload_email_chain(
 ):
     """
     Upload an email chain for an evaluation.
-    Can upload either a file (.eml or .msg) or paste text content.
+    Can upload either a file (.eml, .msg, or .pdf) or paste text content.
     Requires risk_analyst, risk_manager, admin, or mesa_control role.
     """
     logger.info(f"Uploading email chain for evaluation {id}")
@@ -1518,10 +1518,10 @@ async def upload_email_chain(
         if file:
             # Validate file type
             filename = file.filename or 'unknown'
-            if not filename.lower().endswith(('.eml', '.msg')):
+            if not filename.lower().endswith(('.eml', '.msg', '.pdf')):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="File must be .eml or .msg format"
+                    detail="File must be .eml, .msg, or .pdf format"
                 )
 
             # Read and validate file size
