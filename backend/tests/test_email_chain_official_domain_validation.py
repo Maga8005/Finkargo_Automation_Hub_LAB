@@ -5,15 +5,54 @@ Tests the validation of email chain sender domains against official document
 (RUT/Certificado de Existencia) email domains to detect potential fraud.
 """
 import sys
+import importlib
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 
 # Mock fitz (PyMuPDF) before importing the service to avoid ImportError
-sys.modules['fitz'] = MagicMock()
+# Save original if exists so we can restore it after tests
+_original_fitz = sys.modules.get('fitz')
+_mock_fitz = MagicMock()
+# Ensure FileDataError is a proper exception class for catching
+_mock_fitz.FileDataError = type('FileDataError', (Exception,), {})
+_mock_fitz.EmptyFileError = type('EmptyFileError', (Exception,), {})
+sys.modules['fitz'] = _mock_fitz
 
 from src.core.servicios.risk.email_chain_service import EmailChainService
 from src.core.servicios.risk.typosquatting_service import TyposquattingService
 from src.interface.risk_dtos import DiscrepancySeverity
+
+
+def teardown_module(module):
+    """Restore original fitz module after all tests in this module complete.
+
+    This is critical to prevent polluting other tests that need the real fitz module.
+    We need to:
+    1. Restore the original fitz module to sys.modules
+    2. Reload any modules that imported the mocked fitz so they get the real one
+    """
+    global _original_fitz
+    if _original_fitz is not None:
+        sys.modules['fitz'] = _original_fitz
+    else:
+        # Remove the mock from sys.modules so subsequent imports get the real fitz
+        if 'fitz' in sys.modules:
+            del sys.modules['fitz']
+
+    # Reload modules that might have cached the mocked fitz
+    # This ensures subsequent tests get the real fitz module
+    modules_to_reload = [
+        'src.core.servicios.rut_parser_service',
+        'src.core.servicios.bank_certificate_parser_service',
+        'src.core.servicios.risk.email_chain_parser_service',
+    ]
+    for module_name in modules_to_reload:
+        if module_name in sys.modules:
+            try:
+                importlib.reload(sys.modules[module_name])
+            except Exception:
+                # If reload fails, just remove from cache so it gets reimported fresh
+                del sys.modules[module_name]
 
 
 class TestValidateAgainstOfficialDocumentDomains:
