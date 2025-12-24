@@ -11,6 +11,7 @@ import re
 
 from src.repositorio.risk_repository import ExternalContactRepository
 from src.core.servicios.risk.typosquatting_service import TyposquattingService
+from src.core.servicios.risk.domain_validation_service import DomainValidationService
 from src.interface.risk_dtos import (
     ExternalContactRequest,
     EmailValidationResult,
@@ -39,6 +40,7 @@ class ExternalContactService:
         """
         self.contact_repo = contact_repo
         self.typosquatting_service = TyposquattingService()
+        self.domain_validator = DomainValidationService()
 
     async def create_contact(
         self,
@@ -144,19 +146,59 @@ class ExternalContactService:
                 company_name=company_name
             )
 
+            # Run domain validation (DNS and WHOIS)
+            domain_exists = None
+            domain_age_days = None
+            domain_creation_date = None
+            age_lookup_status = "pending"
+            domain_registrar = None
+
+            # Skip domain validation for free providers
+            if not is_free_provider:
+                existence_result = self.domain_validator.check_domain_existence(domain)
+                domain_exists = existence_result.exists
+
+                if existence_result.exists:
+                    age_result = self.domain_validator.get_domain_age(domain)
+                    domain_age_days = age_result.age_days
+                    domain_creation_date = age_result.creation_date
+                    age_lookup_status = age_result.lookup_status
+                    domain_registrar = age_result.registrar
+
+            # Determine detection type and suspicion level including domain age
+            final_is_suspicious = typo_result.is_suspicious or is_free_provider
+            final_detection_type = typo_result.detection_type if not is_free_provider else 'provider_domain'
+
+            # Check for domain existence issues
+            if domain_exists is False:
+                final_is_suspicious = True
+                final_detection_type = 'domain_not_found'
+
+            # Check for young domain
+            if domain_age_days is not None and domain_age_days < 90:
+                final_is_suspicious = True
+                # Only override detection type if not already more severe
+                if final_detection_type not in ['typosquatting', 'domain_not_found']:
+                    final_detection_type = 'young_domain'
+
             # Build validation result
             validation_result = EmailValidationResult(
-                is_suspicious=typo_result.is_suspicious or is_free_provider,
+                is_suspicious=final_is_suspicious,
                 similar_domain=typo_result.similar_domain,
                 similarity_score=typo_result.similarity_score,
                 levenshtein_distance=typo_result.levenshtein_distance,
-                detection_type=typo_result.detection_type if not is_free_provider else 'provider_domain',
-                description=self._build_description(typo_result, is_free_provider, domain),
+                detection_type=final_detection_type,
+                description=self._build_description(typo_result, is_free_provider, domain, domain_exists, domain_age_days),
                 is_free_provider=is_free_provider,
+                domain_exists=domain_exists,
+                domain_age_days=domain_age_days,
+                domain_creation_date=domain_creation_date,
+                age_lookup_status=age_lookup_status,
+                domain_registrar=domain_registrar,
             )
 
             # Determine validation status
-            validation_status = self._determine_status(typo_result, is_free_provider)
+            validation_status = self._determine_status(typo_result, is_free_provider, domain_exists, domain_age_days)
 
         # Update contact with validation result
         updates = {
@@ -224,21 +266,33 @@ class ExternalContactService:
     def _determine_status(
         self,
         typo_result,
-        is_free_provider: bool
+        is_free_provider: bool,
+        domain_exists: Optional[bool] = None,
+        domain_age_days: Optional[int] = None
     ) -> ExternalContactValidationStatus:
         """
-        Determine validation status based on typosquatting and free provider checks.
+        Determine validation status based on typosquatting, free provider, and domain age checks.
 
         Args:
             typo_result: Result from TyposquattingService
             is_free_provider: Whether domain is a free email provider
+            domain_exists: Whether domain resolves via DNS (None = unknown)
+            domain_age_days: Age of domain in days (None = unknown)
 
         Returns:
             ExternalContactValidationStatus: Appropriate status
         """
+        # Critical: Domain doesn't exist
+        if domain_exists is False:
+            return ExternalContactValidationStatus.CRITICAL
+
         # Critical: Typosquatting detected (similar but not exact match)
         if typo_result.detection_type == 'typosquatting':
             return ExternalContactValidationStatus.CRITICAL
+
+        # Suspicious: Very young domain (< 90 days)
+        if domain_age_days is not None and domain_age_days < 90:
+            return ExternalContactValidationStatus.SUSPICIOUS
 
         # Suspicious: TLD variation or suspicious TLD
         if typo_result.detection_type in ['tld_variation', 'suspicious_tld']:
@@ -246,6 +300,10 @@ class ExternalContactService:
 
         # Suspicious: Free email provider for business contact
         if is_free_provider:
+            return ExternalContactValidationStatus.SUSPICIOUS
+
+        # Suspicious: Young domain (< 1 year)
+        if domain_age_days is not None and domain_age_days < 365:
             return ExternalContactValidationStatus.SUSPICIOUS
 
         # Validated: Exact match or no concerning signals
@@ -259,7 +317,9 @@ class ExternalContactService:
         self,
         typo_result,
         is_free_provider: bool,
-        domain: str
+        domain: str,
+        domain_exists: Optional[bool] = None,
+        domain_age_days: Optional[int] = None
     ) -> str:
         """
         Build human-readable description of validation result.
@@ -268,15 +328,27 @@ class ExternalContactService:
             typo_result: Result from TyposquattingService
             is_free_provider: Whether domain is a free email provider
             domain: The email domain being validated
+            domain_exists: Whether domain resolves via DNS (None = unknown)
+            domain_age_days: Age of domain in days (None = unknown)
 
         Returns:
             str: Description in Spanish
         """
+        # Critical: Domain doesn't exist
+        if domain_exists is False:
+            return (
+                f"ALERTA CRÍTICA: El dominio '{domain}' no existe o no resuelve (DNS). "
+                f"Posible dominio fraudulento."
+            )
+
         if is_free_provider and not typo_result.is_suspicious:
             return f"Proveedor de email gratuito: {domain}. Para contactos comerciales, se espera un dominio corporativo."
 
         if typo_result.detection_type == 'exact_match':
-            return f"Dominio verificado: coincidencia exacta con {typo_result.similar_domain}"
+            age_info = ""
+            if domain_age_days is not None:
+                age_info = f" Antigüedad: {domain_age_days} días."
+            return f"Dominio verificado: coincidencia exacta con {typo_result.similar_domain}.{age_info}"
 
         if typo_result.detection_type == 'typosquatting':
             return (
@@ -292,6 +364,19 @@ class ExternalContactService:
 
         if typo_result.detection_type == 'suspicious_tld':
             return f"ADVERTENCIA: El dominio '{domain}' usa un TLD sospechoso frecuentemente asociado con fraude."
+
+        # Young domain warning
+        if domain_age_days is not None and domain_age_days < 90:
+            return (
+                f"ADVERTENCIA: El dominio '{domain}' tiene solo {domain_age_days} días de antigüedad "
+                f"(menos de 90 días). Posible dominio fraudulento reciente."
+            )
+
+        if domain_age_days is not None and domain_age_days < 365:
+            return (
+                f"NOTA: El dominio '{domain}' tiene {domain_age_days} días de antigüedad "
+                f"(menos de 1 año). Verifique que sea legítimo."
+            )
 
         if is_free_provider:
             return (

@@ -19,6 +19,7 @@ IMPROVEMENTS (Fraud Detection Cross-Validation):
 - City normalization with department/region removal
 """
 import logging
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from decimal import Decimal
 from difflib import SequenceMatcher
@@ -31,6 +32,7 @@ from src.interface.risk_dtos import (
 )
 from .normalization_service import NormalizationService
 from .typosquatting_service import TyposquattingService
+from .domain_validation_service import DomainValidationService
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +64,8 @@ class CrossValidationService:
     def __init__(
         self,
         normalization_service: Optional[NormalizationService] = None,
-        typosquatting_service: Optional[TyposquattingService] = None
+        typosquatting_service: Optional[TyposquattingService] = None,
+        domain_validation_service: Optional[DomainValidationService] = None
     ):
         """
         Initialize cross-validation service.
@@ -70,9 +73,11 @@ class CrossValidationService:
         Args:
             normalization_service: Service for data normalization (auto-created if None)
             typosquatting_service: Service for typosquatting detection (auto-created if None)
+            domain_validation_service: Service for domain DNS/WHOIS validation (auto-created if None)
         """
         self.normalizer = normalization_service or NormalizationService()
         self.typosquatting = typosquatting_service or TyposquattingService()
+        self.domain_validator = domain_validation_service or DomainValidationService()
 
     def validate_documents(
         self,
@@ -117,7 +122,11 @@ class CrossValidationService:
         email_results = self._validate_email_domain(extractions)
         results.extend(email_results)
 
-        # 7. Address consistency validation (enhanced with normalization)
+        # 7. Domain age validation (DNS lookup and WHOIS age check)
+        domain_age_results = self._validate_domain_age(extractions)
+        results.extend(domain_age_results)
+
+        # 8. Address consistency validation (enhanced with normalization)
         address_result = self._validate_address_consistency(extractions)
         if address_result:
             results.append(address_result)
@@ -776,6 +785,153 @@ class CrossValidationService:
             ))
 
         return results
+
+    def _validate_domain_age(
+        self,
+        extractions: Dict[DocumentType, dict]
+    ) -> List[CrossValidationResult]:
+        """
+        Validate domain existence (DNS) and age (WHOIS) against company age.
+
+        Detects potentially fraudulent domains by:
+        - Checking if the domain exists (DNS resolution)
+        - Looking up domain registration date via WHOIS
+        - Comparing domain age against company constitution/registration date
+
+        Uses company dates from Certificado or RUT for age comparison.
+        """
+        results = []
+
+        # Get email domain from RUT
+        rut_data = extractions.get(DocumentType.RUT, {}) or {}
+        email = rut_data.get('email', '')
+
+        if not email or '@' not in email:
+            return results
+
+        domain = self.normalizer.extract_email_domain(email)
+        if not domain:
+            return results
+
+        # Get company dates for age comparison
+        cert_data = extractions.get(DocumentType.CERTIFICADO_EXISTENCIA, {}) or {}
+
+        # Prefer constitution date from certificate, fallback to registration date from RUT
+        company_constitution_date = None
+        company_registration_date = None
+
+        # Try to extract from certificate
+        constitution_str = cert_data.get('constitution_date') or cert_data.get('fecha_constitucion')
+        if constitution_str:
+            company_constitution_date = self._parse_date(constitution_str)
+
+        # Fallback to RUT registration date
+        registration_str = rut_data.get('registration_date') or rut_data.get('fecha_inscripcion_rut')
+        if registration_str:
+            company_registration_date = self._parse_date(registration_str)
+
+        # Perform domain age validation
+        comparison = self.domain_validator.compare_domain_vs_company_age(
+            domain=domain,
+            company_registration_date=company_registration_date,
+            company_constitution_date=company_constitution_date
+        )
+
+        # Determine validation type based on result
+        if not comparison.is_suspicious:
+            # Domain is OK, but still record the check for audit purposes
+            values_found = {
+                'email': email,
+                'domain': domain,
+                'domain_age_days': comparison.domain_age_days,
+            }
+            if comparison.company_age_days:
+                values_found['company_age_days'] = comparison.company_age_days
+
+            results.append(CrossValidationResult(
+                validation_type=ValidationType.DOMAIN_AGE,
+                documents_compared=['rut'] + (['certificado_existencia'] if company_constitution_date else []),
+                field_compared="email_domain_age",
+                values_found=values_found,
+                is_discrepancy=False,
+                severity=None,
+                description=comparison.reason,
+                score_impact=Decimal('0')
+            ))
+        else:
+            # Domain is suspicious
+            if comparison.severity == 'critical':
+                # Domain doesn't exist - use DOMAIN_EXISTENCE type
+                results.append(CrossValidationResult(
+                    validation_type=ValidationType.DOMAIN_EXISTENCE,
+                    documents_compared=['rut'],
+                    field_compared="email_domain",
+                    values_found={'email': email, 'domain': domain},
+                    is_discrepancy=True,
+                    severity=DiscrepancySeverity.CRITICAL,
+                    description=comparison.reason,
+                    score_impact=Decimal(str(comparison.score_impact))
+                ))
+            else:
+                # Domain age issue - use DOMAIN_AGE type
+                severity = DiscrepancySeverity.HIGH if comparison.severity == 'high' else DiscrepancySeverity.MEDIUM
+                values_found = {
+                    'email': email,
+                    'domain': domain,
+                    'domain_age_days': comparison.domain_age_days,
+                }
+                if comparison.company_age_days:
+                    values_found['company_age_days'] = comparison.company_age_days
+                if comparison.company_registration_date:
+                    values_found['company_registration_date'] = comparison.company_registration_date.isoformat()
+
+                results.append(CrossValidationResult(
+                    validation_type=ValidationType.DOMAIN_AGE,
+                    documents_compared=['rut'] + (['certificado_existencia'] if company_constitution_date else []),
+                    field_compared="email_domain_age",
+                    values_found=values_found,
+                    is_discrepancy=True,
+                    severity=severity,
+                    description=comparison.reason,
+                    score_impact=Decimal(str(comparison.score_impact))
+                ))
+
+        return results
+
+    def _parse_date(self, date_str: str) -> Optional["datetime"]:
+        """
+        Parse a date string into datetime.
+
+        Supports common formats from document extraction.
+        """
+        from datetime import datetime as dt, timezone as tz
+        if not date_str:
+            return None
+
+        # Already a datetime
+        if isinstance(date_str, dt):
+            if date_str.tzinfo is None:
+                return date_str.replace(tzinfo=tz.utc)
+            return date_str
+
+        # Common date formats from Colombian documents
+        formats = [
+            '%Y-%m-%d',
+            '%d/%m/%Y',
+            '%d-%m-%Y',
+            '%Y/%m/%d',
+            '%d de %B de %Y',  # Spanish format
+        ]
+
+        for fmt in formats:
+            try:
+                parsed = dt.strptime(str(date_str).strip(), fmt)
+                return parsed.replace(tzinfo=tz.utc)
+            except ValueError:
+                continue
+
+        logger.debug(f"Could not parse date: {date_str}")
+        return None
 
     def _validate_address_consistency(
         self,

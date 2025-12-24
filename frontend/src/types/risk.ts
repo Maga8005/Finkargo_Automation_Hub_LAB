@@ -318,7 +318,9 @@ export type ValidationType =
   | 'email_domain'
   | 'typosquatting'
   | 'provider_domain'
-  | 'address';
+  | 'address'
+  | 'domain_existence'
+  | 'domain_age';
 
 export type DiscrepancySeverity = 'low' | 'medium' | 'high' | 'critical';
 
@@ -485,6 +487,8 @@ export const VALIDATION_TYPE_LABELS: Record<ValidationType, string> = {
   typosquatting: 'Typosquatting de Dominio',
   provider_domain: 'Proveedor de Email',
   address: 'Dirección',
+  domain_existence: 'Existencia de Dominio',
+  domain_age: 'Antigüedad de Dominio',
 };
 
 // ==================== External Contact Types ====================
@@ -498,9 +502,15 @@ export interface EmailValidationResult {
   similar_domain: string | null;
   similarity_score: number;
   levenshtein_distance: number;
-  detection_type: string; // 'typosquatting', 'tld_variation', 'provider_domain', 'exact_match', 'no_match'
+  detection_type: string; // 'typosquatting', 'tld_variation', 'provider_domain', 'exact_match', 'no_match', 'domain_not_found', 'young_domain'
   description: string;
   is_free_provider: boolean;
+  // Domain existence and age validation fields
+  domain_exists?: boolean | null; // null = unknown/pending
+  domain_age_days?: number | null; // null = unavailable
+  domain_creation_date?: string | null; // ISO date string, null = unavailable
+  age_lookup_status?: string; // 'success', 'failed', 'unavailable', 'pending'
+  domain_registrar?: string | null; // null = unavailable
 }
 
 export interface ExternalContact {
@@ -613,6 +623,11 @@ export interface EmailChainDiscrepancy {
   description: string;
   is_typosquatting: boolean;
   similarity_score?: number;
+  // Domain age validation fields (for domain_existence and domain_age fields)
+  domain_exists?: boolean;
+  domain_age_days?: number | null;
+  domain_creation_date?: string | null;
+  domain_registrar?: string | null;
 }
 
 export interface EmailChainValidationResult {
@@ -691,4 +706,6 @@ export const EMAIL_CHAIN_FIELD_LABELS: Record<string, string> = {
   nit: 'NIT',
   representative_name: 'Representante Legal',
   official_document_domain: 'Dominio Email Documento Oficial',
+  domain_existence: 'Existencia de Dominio',
+  domain_age: 'Antigüedad de Dominio',
 };

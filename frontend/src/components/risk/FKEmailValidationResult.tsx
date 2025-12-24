@@ -73,8 +73,21 @@ const FKEmailValidationResult: React.FC<FKEmailValidationResultProps> = ({
       no_match: 'Sin Coincidencia',
       suspicious_tld: 'TLD Sospechoso',
       invalid_format: 'Formato Inválido',
+      domain_not_found: 'Dominio No Existe',
+      young_domain: 'Dominio Reciente',
     };
     return labels[type] || type;
+  };
+
+  // Format domain age for display
+  const formatDomainAge = (days: number | null | undefined): string => {
+    if (days === null || days === undefined) return 'Desconocida';
+    if (days < 30) return `${days} días`;
+    if (days < 365) return `${Math.floor(days / 30)} meses`;
+    const years = Math.floor(days / 365);
+    const months = Math.floor((days % 365) / 30);
+    if (months > 0) return `${years} años, ${months} meses`;
+    return `${years} años`;
   };
 
   // If pending status, show minimal info
@@ -178,6 +191,45 @@ const FKEmailValidationResult: React.FC<FKEmailValidationResultProps> = ({
             color="success"
             sx={{ fontSize: '0.75rem' }}
           />
+        </Box>
+      )}
+
+      {/* Show domain age info when available */}
+      {validationResult.domain_exists !== undefined && validationResult.domain_exists !== null && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+          {validationResult.domain_exists === false && (
+            <Chip
+              icon={<Error sx={{ fontSize: 16 }} />}
+              label="Dominio No Resuelve (DNS)"
+              size="small"
+              sx={{
+                fontSize: '0.75rem',
+                backgroundColor: '#FFE4E4',
+                color: '#CC071E',
+              }}
+            />
+          )}
+          {validationResult.domain_exists && validationResult.domain_age_days !== undefined && validationResult.domain_age_days !== null && (
+            <Chip
+              label={`Antigüedad: ${formatDomainAge(validationResult.domain_age_days)}`}
+              size="small"
+              sx={{
+                fontSize: '0.75rem',
+                backgroundColor: validationResult.domain_age_days < 90 ? '#FFE4E4' :
+                  validationResult.domain_age_days < 365 ? '#FFF4E5' : '#E0F7E6',
+                color: validationResult.domain_age_days < 90 ? '#CC071E' :
+                  validationResult.domain_age_days < 365 ? '#B86E00' : '#2CA14D',
+              }}
+            />
+          )}
+          {validationResult.domain_registrar && (
+            <Chip
+              label={`Registrador: ${validationResult.domain_registrar}`}
+              size="small"
+              variant="outlined"
+              sx={{ fontSize: '0.75rem' }}
+            />
+          )}
         </Box>
       )}
     </Alert>

@@ -19,6 +19,7 @@ from src.repositorio.risk_repository import (
 from src.core.servicios.risk.email_chain_parser_service import EmailChainParserService
 from src.core.servicios.risk.typosquatting_service import TyposquattingService
 from src.core.servicios.risk.normalization_service import NormalizationService
+from src.core.servicios.risk.domain_validation_service import DomainValidationService
 from src.interface.risk_dtos import (
     EmailChainValidationStatus,
     DiscrepancySeverity,
@@ -58,6 +59,7 @@ class EmailChainService:
         self.parser_service = EmailChainParserService()
         self.typosquatting_service = TyposquattingService()
         self.normalization_service = NormalizationService()
+        self.domain_validator = DomainValidationService()
 
     async def upload_email_chain(
         self,
@@ -221,6 +223,12 @@ class EmailChainService:
         rep_mentions = mentions.get('representative_names', [])
         for rep_name in rep_mentions:
             disc = self._validate_rep_name_mention(rep_name, doc_data, client_snapshot)
+            if disc:
+                discrepancies.append(disc)
+
+        # 5. Validate domain age (DNS/WHOIS) for sender domains
+        for domain in sender_domains:
+            disc = self._validate_domain_age(domain, doc_data)
             if disc:
                 discrepancies.append(disc)
 
@@ -738,3 +746,89 @@ class EmailChainService:
             'is_typosquatting': False,
             'similarity_score': best_similarity,
         }
+
+    def _validate_domain_age(
+        self,
+        domain: str,
+        doc_data: dict,
+    ) -> Optional[dict]:
+        """
+        Validate domain age using DNS and WHOIS lookups.
+
+        Detects potentially fraudulent domains by:
+        - Checking if the domain exists (DNS resolution)
+        - Looking up domain registration date via WHOIS
+        - Flagging domains less than 90 days old
+
+        Args:
+            domain: Email domain to validate
+            doc_data: Data extracted from documents
+
+        Returns:
+            Optional[dict]: Discrepancy if domain is suspicious, None otherwise
+        """
+        # Skip free email providers - they don't need age validation
+        if self.parser_service.is_free_email_provider(domain):
+            return None
+
+        # Check domain existence
+        existence_result = self.domain_validator.check_domain_existence(domain)
+        if not existence_result.exists:
+            return {
+                'field': 'domain_existence',
+                'email_value': domain,
+                'document_value': None,
+                'severity': DiscrepancySeverity.CRITICAL.value,
+                'description': (
+                    f"ALERTA CRÍTICA: El dominio '{domain}' no existe o no resuelve (DNS). "
+                    f"Posible dominio fraudulento."
+                ),
+                'is_typosquatting': False,
+                'similarity_score': None,
+                'domain_age_days': None,
+                'domain_exists': False,
+            }
+
+        # Get domain age via WHOIS
+        age_result = self.domain_validator.get_domain_age(domain)
+
+        if age_result.lookup_status == 'success' and age_result.age_days is not None:
+            # Domain < 90 days is HIGH severity
+            if age_result.age_days < 90:
+                return {
+                    'field': 'domain_age',
+                    'email_value': domain,
+                    'document_value': None,
+                    'severity': DiscrepancySeverity.HIGH.value,
+                    'description': (
+                        f"ADVERTENCIA: El dominio '{domain}' tiene solo {age_result.age_days} días "
+                        f"de antigüedad (menos de 90 días). Posible dominio fraudulento reciente."
+                    ),
+                    'is_typosquatting': False,
+                    'similarity_score': None,
+                    'domain_age_days': age_result.age_days,
+                    'domain_exists': True,
+                    'domain_creation_date': age_result.creation_date.isoformat() if age_result.creation_date else None,
+                    'domain_registrar': age_result.registrar,
+                }
+            # Domain < 1 year is MEDIUM severity
+            elif age_result.age_days < 365:
+                return {
+                    'field': 'domain_age',
+                    'email_value': domain,
+                    'document_value': None,
+                    'severity': DiscrepancySeverity.MEDIUM.value,
+                    'description': (
+                        f"NOTA: El dominio '{domain}' tiene {age_result.age_days} días "
+                        f"de antigüedad (menos de 1 año). Verifique que sea legítimo."
+                    ),
+                    'is_typosquatting': False,
+                    'similarity_score': None,
+                    'domain_age_days': age_result.age_days,
+                    'domain_exists': True,
+                    'domain_creation_date': age_result.creation_date.isoformat() if age_result.creation_date else None,
+                    'domain_registrar': age_result.registrar,
+                }
+
+        # Domain is old enough or age is unknown - no issue
+        return None
