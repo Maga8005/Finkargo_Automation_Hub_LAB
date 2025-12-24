@@ -4,6 +4,7 @@ Email Chain Parser Service - Parse email files and text to extract structured da
 Supports:
 - .eml files (RFC 5322 format)
 - .msg files (Outlook format) - requires extract-msg library
+- .pdf files (exported email correspondence) - requires PyMuPDF
 - Raw text email content (copy-paste from email client)
 """
 import re
@@ -12,6 +13,8 @@ from email import policy
 from email.parser import BytesParser, Parser
 from email.utils import parseaddr, parsedate_to_datetime
 from typing import List
+
+import fitz  # PyMuPDF
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +173,102 @@ class EmailChainParserService:
                     'domains': [],
                 },
                 'parse_errors': [f"Error al parsear archivo .msg: {str(e)}"],
+            }
+
+    def parse_pdf_file(self, file_content: bytes) -> dict:
+        """
+        Parse a PDF file containing email correspondence and extract email data.
+
+        Extracts text from all pages and passes it to parse_raw_text() for
+        email pattern detection.
+
+        Args:
+            file_content: Raw bytes of the PDF file
+
+        Returns:
+            dict: Parsed email data with messages and mentions
+        """
+        logger.info("Parsing PDF file content")
+
+        try:
+            # Open PDF from bytes
+            doc = fitz.open(stream=file_content, filetype="pdf")
+
+            # Check if PDF is encrypted/password-protected
+            if doc.is_encrypted:
+                doc.close()
+                return {
+                    'messages': [],
+                    'mentions': {
+                        'company_names': [],
+                        'nits': [],
+                        'representative_names': [],
+                        'domains': [],
+                    },
+                    'parse_errors': [
+                        "El archivo PDF está protegido con contraseña. "
+                        "Por favor proporcione un archivo sin protección."
+                    ],
+                }
+
+            # Extract text from all pages
+            text_parts = []
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                page_text = page.get_text()
+                if page_text.strip():
+                    text_parts.append(page_text)
+
+            doc.close()
+
+            # Check if any text was extracted
+            full_text = '\n\n'.join(text_parts)
+            if not full_text.strip():
+                return {
+                    'messages': [],
+                    'mentions': {
+                        'company_names': [],
+                        'nits': [],
+                        'representative_names': [],
+                        'domains': [],
+                    },
+                    'parse_errors': [
+                        "No se pudo extraer texto del archivo PDF. "
+                        "El PDF puede contener solo imágenes (escaneos) "
+                        "que no son compatibles con la extracción de texto."
+                    ],
+                }
+
+            logger.info(f"Extracted {len(full_text)} characters from PDF")
+
+            # Use the existing raw text parser for email pattern detection
+            return self.parse_raw_text(full_text)
+
+        except fitz.FileDataError:
+            logger.error("Invalid PDF file format")
+            return {
+                'messages': [],
+                'mentions': {
+                    'company_names': [],
+                    'nits': [],
+                    'representative_names': [],
+                    'domains': [],
+                },
+                'parse_errors': [
+                    "El archivo PDF está corrupto o tiene un formato inválido."
+                ],
+            }
+        except Exception as e:
+            logger.error(f"Error parsing PDF file: {e}", exc_info=True)
+            return {
+                'messages': [],
+                'mentions': {
+                    'company_names': [],
+                    'nits': [],
+                    'representative_names': [],
+                    'domains': [],
+                },
+                'parse_errors': [f"Error al parsear archivo PDF: {str(e)}"],
             }
 
     def parse_raw_text(self, text: str) -> dict:

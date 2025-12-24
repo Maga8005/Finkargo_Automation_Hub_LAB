@@ -2,7 +2,7 @@
  * FKEmailChainUploader - Email chain upload and validation component
  *
  * Allows users to:
- * - Upload email chains via file (.eml, .msg) or paste text
+ * - Upload email chains via file (.eml, .msg, .pdf) or paste text
  * - View parsed email data
  * - Trigger validation against document data
  * - View validation results with discrepancy indicators
@@ -123,8 +123,9 @@ const FKEmailChainUploader: React.FC<FKEmailChainUploaderProps> = ({
     if (!file) return;
 
     // Validate file type
-    if (!file.name.toLowerCase().endsWith('.eml') && !file.name.toLowerCase().endsWith('.msg')) {
-      setError('Solo se aceptan archivos .eml o .msg');
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith('.eml') && !fileName.endsWith('.msg') && !fileName.endsWith('.pdf')) {
+      setError('Solo se aceptan archivos .eml, .msg o .pdf');
       return;
     }
 
@@ -317,7 +318,7 @@ Por favor proceder con el pago...`}
             <Box sx={{ textAlign: 'center', py: 3 }}>
               <input
                 type="file"
-                accept=".eml,.msg"
+                accept=".eml,.msg,.pdf"
                 ref={fileInputRef}
                 onChange={handleFileUpload}
                 style={{ display: 'none' }}
@@ -330,7 +331,7 @@ Por favor proceder con el pago...`}
                 disabled={uploading}
                 sx={{ py: 2, px: 4 }}
               >
-                {uploading ? 'Subiendo...' : 'Seleccionar archivo .eml o .msg'}
+                {uploading ? 'Subiendo...' : 'Seleccionar archivo .eml, .msg o .pdf'}
               </Button>
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
                 Máximo 10MB
