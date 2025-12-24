@@ -6,14 +6,12 @@ Supports:
 - .msg files (Outlook format) - requires extract-msg library
 - Raw text email content (copy-paste from email client)
 """
-import email
 import re
 import logging
 from email import policy
 from email.parser import BytesParser, Parser
 from email.utils import parseaddr, parsedate_to_datetime
-from typing import List, Optional, Tuple
-from datetime import datetime
+from typing import List
 
 logger = logging.getLogger(__name__)
 

@@ -59,7 +59,6 @@ from src.interface.risk_dtos import (
     ExternalContactValidationStatus,
     EmailValidationResult,
     EmailChainValidationStatus,
-    EmailChainUploadRequest,
     EmailChainResponse,
     EmailChainListResponse,
     EmailChainParsedData,
@@ -1531,7 +1530,7 @@ async def upload_email_chain(
             if len(content) > max_size:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"File too large. Maximum size is 10MB"
+                    detail="File too large. Maximum size is 10MB"
                 )
 
             chain = await service.upload_email_chain(
@@ -1546,7 +1545,7 @@ async def upload_email_chain(
             if len(text_content) > max_text_size:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Text content too large. Maximum size is 500KB"
+                    detail="Text content too large. Maximum size is 500KB"
                 )
 
             chain = await service.upload_email_chain(

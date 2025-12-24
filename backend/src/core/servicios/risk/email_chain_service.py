@@ -7,7 +7,7 @@ Handles:
 - Cross-validation against document-extracted data
 - Discrepancy detection with severity levels
 """
-from typing import Optional, List, Union
+from typing import Optional, List
 from datetime import datetime, timezone
 import logging
 
@@ -21,11 +21,6 @@ from src.core.servicios.risk.typosquatting_service import TyposquattingService
 from src.core.servicios.risk.normalization_service import NormalizationService
 from src.interface.risk_dtos import (
     EmailChainValidationStatus,
-    EmailChainParsedData,
-    EmailChainValidationResult,
-    EmailChainDiscrepancy,
-    EmailMessage,
-    ExtractedMentions,
     DiscrepancySeverity,
 )
 
