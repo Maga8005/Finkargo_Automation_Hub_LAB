@@ -590,3 +590,101 @@ class ExternalContactListResponse(BaseModel):
     suspicious_count: int = 0
     critical_count: int = 0
     contacts: List[ExternalContactResponse] = []
+
+
+# ==================== Email Chain DTOs ====================
+
+class EmailChainValidationStatus(str, Enum):
+    """Status of email chain validation"""
+    PENDING = "pending"
+    VALIDATED = "validated"
+    SUSPICIOUS = "suspicious"
+    CRITICAL = "critical"
+
+
+class EmailMessage(BaseModel):
+    """Individual email message in a chain"""
+    sender_email: str = Field(..., description="Sender email address")
+    sender_name: Optional[str] = Field(None, description="Sender display name")
+    sender_domain: str = Field(..., description="Sender email domain")
+    date: Optional[str] = Field(None, description="Email date in ISO format")
+    subject: Optional[str] = Field(None, description="Email subject line")
+    body_excerpt: Optional[str] = Field(None, max_length=2000, description="First 2000 chars of body")
+
+
+class ExtractedMentions(BaseModel):
+    """Data extracted from email body content"""
+    company_names: List[str] = Field(default_factory=list, description="Company names mentioned in email body")
+    nits: List[str] = Field(default_factory=list, description="NITs mentioned in email body")
+    representative_names: List[str] = Field(default_factory=list, description="Representative names mentioned")
+    domains: List[str] = Field(default_factory=list, description="All email domains found")
+
+
+class EmailChainParsedData(BaseModel):
+    """Parsed data from email chain"""
+    messages: List[EmailMessage] = Field(default_factory=list, description="Parsed email messages")
+    mentions: ExtractedMentions = Field(default_factory=ExtractedMentions, description="Extracted mentions from body")
+    parse_errors: List[str] = Field(default_factory=list, description="Any parsing errors encountered")
+
+
+class EmailChainDiscrepancy(BaseModel):
+    """Individual discrepancy found during email chain validation"""
+    field: str = Field(..., description="Field being compared (sender_domain, company_name, nit, rep_name)")
+    email_value: str = Field(..., description="Value found in email")
+    document_value: Optional[str] = Field(None, description="Value from documents for comparison")
+    severity: DiscrepancySeverity = Field(..., description="Severity level of the discrepancy")
+    description: str = Field(..., description="Human-readable description")
+    is_typosquatting: bool = Field(default=False, description="Whether typosquatting was detected")
+    similarity_score: Optional[float] = Field(None, ge=0, le=1, description="Similarity score if applicable")
+
+
+class EmailChainValidationResult(BaseModel):
+    """Full validation result for an email chain"""
+    total_discrepancies: int = 0
+    critical_count: int = 0
+    high_count: int = 0
+    medium_count: int = 0
+    low_count: int = 0
+    discrepancies: List[EmailChainDiscrepancy] = Field(default_factory=list)
+    summary: str = Field(default="", description="Summary of validation results")
+    validated_at: Optional[datetime] = None
+
+
+class EmailChainUploadRequest(BaseModel):
+    """Request to upload an email chain (text content only, file handled separately)"""
+    text_content: Optional[str] = Field(None, max_length=512000, description="Raw email text (up to 500KB)")
+
+    @validator('text_content')
+    def validate_content(cls, v):
+        """Validate text content is not empty if provided"""
+        if v is not None and not v.strip():
+            raise ValueError('text_content cannot be empty if provided')
+        return v
+
+
+class EmailChainResponse(BaseModel):
+    """Response for an email chain record"""
+    id: str
+    assessment_id: str
+    original_filename: Optional[str] = None
+    parsed_data: Optional[EmailChainParsedData] = None
+    validation_status: EmailChainValidationStatus = EmailChainValidationStatus.PENDING
+    validation_result: Optional[EmailChainValidationResult] = None
+    validated_at: Optional[datetime] = None
+    created_at: datetime
+    created_by: Optional[str] = None
+    is_active: bool = True
+
+    class Config:
+        from_attributes = True
+
+
+class EmailChainListResponse(BaseModel):
+    """Response containing all email chains for an assessment"""
+    assessment_id: str
+    total_chains: int = 0
+    pending_count: int = 0
+    validated_count: int = 0
+    suspicious_count: int = 0
+    critical_count: int = 0
+    chains: List[EmailChainResponse] = []

@@ -16,6 +16,7 @@ from src.repositorio.risk_repository import (
     DocumentExtractionRepository,
     CrossValidationRepository,
     ExternalContactRepository,
+    EmailChainRepository,
 )
 from src.repositorio.client_repository import ClientRepository
 from src.core.servicios.risk.fraud_detection_service import FraudDetectionService
@@ -24,6 +25,7 @@ from src.core.servicios.risk.alert_service import AlertService
 from src.core.servicios.risk.document_extraction_service import DocumentExtractionService
 from src.core.servicios.risk.cross_validation_service import CrossValidationService
 from src.core.servicios.risk.external_contact_service import ExternalContactService
+from src.core.servicios.risk.email_chain_service import EmailChainService
 from src.interface.risk_dtos import (
     RiskAssessmentRequest,
     RiskAssessmentResponse,
@@ -56,6 +58,15 @@ from src.interface.risk_dtos import (
     ExternalContactListResponse,
     ExternalContactValidationStatus,
     EmailValidationResult,
+    EmailChainValidationStatus,
+    EmailChainUploadRequest,
+    EmailChainResponse,
+    EmailChainListResponse,
+    EmailChainParsedData,
+    EmailChainValidationResult,
+    EmailMessage,
+    ExtractedMentions,
+    EmailChainDiscrepancy,
 )
 
 logger = logging.getLogger(__name__)
@@ -153,6 +164,21 @@ def get_external_contact_repo():
 def get_external_contact_service():
     """Get external contact service"""
     return ExternalContactService(get_external_contact_repo())
+
+
+def get_email_chain_repo():
+    """Get email chain repository"""
+    supabase = get_supabase()
+    return EmailChainRepository(supabase.admin_client)
+
+
+def get_email_chain_service():
+    """Get email chain service"""
+    return EmailChainService(
+        chain_repo=get_email_chain_repo(),
+        assessment_repo=get_risk_repo(),
+        extraction_repo=get_extraction_repo(),
+    )
 
 
 # ==================== Dashboard Endpoints ====================
@@ -1409,5 +1435,286 @@ def _map_to_external_contact_response(data: dict) -> ExternalContactResponse:
         created_at=_parse_datetime(data.get('created_at')) or datetime.utcnow(),
         created_by=data.get('created_by'),
         notes=data.get('notes'),
+        is_active=data.get('is_active', True),
+    )
+
+
+# ==================== Email Chain Endpoints ====================
+
+@router.get("/evaluations/{id}/email-chains", response_model=EmailChainListResponse)
+async def get_email_chains(
+    id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Get all email chains for an evaluation.
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Getting email chains for evaluation {id}")
+
+    # Verify assessment exists
+    risk_repo = get_risk_repo()
+    assessment = await risk_repo.get_by_id(id)
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Evaluation {id} not found"
+        )
+
+    service = get_email_chain_service()
+    chains = await service.get_email_chains(id)
+
+    # Count by status
+    pending_count = sum(1 for c in chains if c.get('validation_status') == 'pending')
+    validated_count = sum(1 for c in chains if c.get('validation_status') == 'validated')
+    suspicious_count = sum(1 for c in chains if c.get('validation_status') == 'suspicious')
+    critical_count = sum(1 for c in chains if c.get('validation_status') == 'critical')
+
+    return EmailChainListResponse(
+        assessment_id=id,
+        total_chains=len(chains),
+        pending_count=pending_count,
+        validated_count=validated_count,
+        suspicious_count=suspicious_count,
+        critical_count=critical_count,
+        chains=[_map_to_email_chain_response(c) for c in chains]
+    )
+
+
+@router.post("/evaluations/{id}/email-chains", response_model=EmailChainResponse)
+async def upload_email_chain(
+    id: str,
+    text_content: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Upload an email chain for an evaluation.
+    Can upload either a file (.eml or .msg) or paste text content.
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Uploading email chain for evaluation {id}")
+
+    # Verify assessment exists
+    risk_repo = get_risk_repo()
+    assessment = await risk_repo.get_by_id(id)
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Evaluation {id} not found"
+        )
+
+    # Validate input
+    if not file and not text_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either file or text_content must be provided"
+        )
+
+    user_id = current_user.get('id')
+
+    try:
+        service = get_email_chain_service()
+
+        if file:
+            # Validate file type
+            filename = file.filename or 'unknown'
+            if not filename.lower().endswith(('.eml', '.msg')):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="File must be .eml or .msg format"
+                )
+
+            # Read and validate file size
+            content = await file.read()
+            max_size = 10 * 1024 * 1024  # 10MB
+            if len(content) > max_size:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File too large. Maximum size is 10MB"
+                )
+
+            chain = await service.upload_email_chain(
+                assessment_id=id,
+                file_content=content,
+                filename=filename,
+                user_id=user_id,
+            )
+        else:
+            # Validate text size
+            max_text_size = 500 * 1024  # 500KB
+            if len(text_content) > max_text_size:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Text content too large. Maximum size is 500KB"
+                )
+
+            chain = await service.upload_email_chain(
+                assessment_id=id,
+                text_content=text_content,
+                user_id=user_id,
+            )
+
+        return _map_to_email_chain_response(chain)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error uploading email chain: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading email chain: {str(e)}"
+        )
+
+
+@router.post("/evaluations/{id}/email-chains/{chain_id}/validate", response_model=EmailChainResponse)
+async def validate_email_chain(
+    id: str,
+    chain_id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Validate an email chain against document-extracted data.
+    Cross-validates sender domains, company names, NITs, and representative names.
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Validating email chain {chain_id} for evaluation {id}")
+
+    try:
+        service = get_email_chain_service()
+
+        # Verify chain belongs to this evaluation
+        chain = await service.get_email_chain(chain_id)
+        if not chain or chain['assessment_id'] != id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Email chain {chain_id} not found for evaluation {id}"
+            )
+
+        updated_chain = await service.validate_email_chain(chain_id)
+        return _map_to_email_chain_response(updated_chain)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error validating email chain {chain_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error validating email chain: {str(e)}"
+        )
+
+
+@router.delete("/evaluations/{id}/email-chains/{chain_id}")
+async def delete_email_chain(
+    id: str,
+    chain_id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Delete an email chain (soft delete).
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Deleting email chain {chain_id}")
+
+    service = get_email_chain_service()
+
+    # Verify chain belongs to this evaluation
+    chain = await service.get_email_chain(chain_id)
+    if not chain or chain['assessment_id'] != id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Email chain {chain_id} not found for evaluation {id}"
+        )
+
+    success = await service.delete_email_chain(chain_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Email chain {chain_id} not found"
+        )
+
+    return {"message": "Email chain deleted successfully"}
+
+
+# ==================== Email Chain Helper Functions ====================
+
+def _map_to_email_chain_response(data: dict) -> EmailChainResponse:
+    """Map database record to email chain response model"""
+    parsed_data = None
+    if data.get('parsed_data'):
+        pd = data['parsed_data']
+
+        # Map messages
+        messages = []
+        for msg in pd.get('messages', []):
+            messages.append(EmailMessage(
+                sender_email=msg.get('sender_email', ''),
+                sender_name=msg.get('sender_name'),
+                sender_domain=msg.get('sender_domain', ''),
+                date=msg.get('date'),
+                subject=msg.get('subject'),
+                body_excerpt=msg.get('body_excerpt'),
+            ))
+
+        # Map mentions
+        mentions_data = pd.get('mentions', {})
+        mentions = ExtractedMentions(
+            company_names=mentions_data.get('company_names', []),
+            nits=mentions_data.get('nits', []),
+            representative_names=mentions_data.get('representative_names', []),
+            domains=mentions_data.get('domains', []),
+        )
+
+        parsed_data = EmailChainParsedData(
+            messages=messages,
+            mentions=mentions,
+            parse_errors=pd.get('parse_errors', []),
+        )
+
+    validation_result = None
+    if data.get('validation_result'):
+        vr = data['validation_result']
+
+        # Map discrepancies
+        discrepancies = []
+        for disc in vr.get('discrepancies', []):
+            discrepancies.append(EmailChainDiscrepancy(
+                field=disc.get('field', ''),
+                email_value=disc.get('email_value', ''),
+                document_value=disc.get('document_value'),
+                severity=DiscrepancySeverity(disc.get('severity', 'low')),
+                description=disc.get('description', ''),
+                is_typosquatting=disc.get('is_typosquatting', False),
+                similarity_score=disc.get('similarity_score'),
+            ))
+
+        validation_result = EmailChainValidationResult(
+            total_discrepancies=vr.get('total_discrepancies', 0),
+            critical_count=vr.get('critical_count', 0),
+            high_count=vr.get('high_count', 0),
+            medium_count=vr.get('medium_count', 0),
+            low_count=vr.get('low_count', 0),
+            discrepancies=discrepancies,
+            summary=vr.get('summary', ''),
+            validated_at=_parse_datetime(vr.get('validated_at')),
+        )
+
+    return EmailChainResponse(
+        id=data['id'],
+        assessment_id=data['assessment_id'],
+        original_filename=data.get('original_filename'),
+        parsed_data=parsed_data,
+        validation_status=EmailChainValidationStatus(data.get('validation_status', 'pending')),
+        validation_result=validation_result,
+        validated_at=_parse_datetime(data.get('validated_at')),
+        created_at=_parse_datetime(data.get('created_at')) or datetime.utcnow(),
+        created_by=data.get('created_by'),
         is_active=data.get('is_active', True),
     )

@@ -24,6 +24,8 @@ import type {
   ExternalContact,
   ExternalContactRequest,
   ExternalContactListResponse,
+  EmailChain,
+  EmailChainListResponse,
 } from '../types/risk';
 
 export const riskService = {
@@ -293,5 +295,82 @@ export const riskService = {
    */
   deleteExternalContact: async (evaluationId: string, contactId: string): Promise<void> => {
     await apiClient.delete(`/risk/evaluations/${evaluationId}/external-contacts/${contactId}`);
+  },
+
+  // ==================== Email Chains ====================
+
+  /**
+   * Get all email chains for an evaluation
+   */
+  getEmailChains: async (evaluationId: string): Promise<EmailChainListResponse> => {
+    const response = await apiClient.get<EmailChainListResponse>(
+      `/risk/evaluations/${evaluationId}/email-chains`
+    );
+    return response.data;
+  },
+
+  /**
+   * Upload an email chain (text content)
+   */
+  uploadEmailChainText: async (
+    evaluationId: string,
+    textContent: string
+  ): Promise<EmailChain> => {
+    const formData = new FormData();
+    formData.append('text_content', textContent);
+
+    const response = await apiClient.post<EmailChain>(
+      `/risk/evaluations/${evaluationId}/email-chains`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  /**
+   * Upload an email chain (file upload)
+   */
+  uploadEmailChainFile: async (
+    evaluationId: string,
+    file: File
+  ): Promise<EmailChain> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<EmailChain>(
+      `/risk/evaluations/${evaluationId}/email-chains`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 60000, // 1 minute for file processing
+      }
+    );
+    return response.data;
+  },
+
+  /**
+   * Validate an email chain against document data
+   */
+  validateEmailChain: async (
+    evaluationId: string,
+    chainId: string
+  ): Promise<EmailChain> => {
+    const response = await apiClient.post<EmailChain>(
+      `/risk/evaluations/${evaluationId}/email-chains/${chainId}/validate`
+    );
+    return response.data;
+  },
+
+  /**
+   * Delete an email chain (soft delete)
+   */
+  deleteEmailChain: async (evaluationId: string, chainId: string): Promise<void> => {
+    await apiClient.delete(`/risk/evaluations/${evaluationId}/email-chains/${chainId}`);
   },
 };

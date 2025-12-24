@@ -578,3 +578,116 @@ export const EXTERNAL_CONTACT_SOURCE_LABELS: Record<ExternalContactSource, strin
   phone: 'Teléfono',
   other: 'Otro',
 };
+
+// ==================== Email Chain Types ====================
+
+export type EmailChainValidationStatus = 'pending' | 'validated' | 'suspicious' | 'critical';
+
+export interface EmailMessage {
+  sender_email: string;
+  sender_name?: string;
+  sender_domain: string;
+  date?: string;
+  subject?: string;
+  body_excerpt?: string;
+}
+
+export interface ExtractedMentions {
+  company_names: string[];
+  nits: string[];
+  representative_names: string[];
+  domains: string[];
+}
+
+export interface EmailChainParsedData {
+  messages: EmailMessage[];
+  mentions: ExtractedMentions;
+  parse_errors: string[];
+}
+
+export interface EmailChainDiscrepancy {
+  field: string;
+  email_value: string;
+  document_value?: string;
+  severity: DiscrepancySeverity;
+  description: string;
+  is_typosquatting: boolean;
+  similarity_score?: number;
+}
+
+export interface EmailChainValidationResult {
+  total_discrepancies: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+  discrepancies: EmailChainDiscrepancy[];
+  summary: string;
+  validated_at?: string;
+}
+
+export interface EmailChain {
+  id: string;
+  assessment_id: string;
+  original_filename?: string;
+  parsed_data?: EmailChainParsedData;
+  validation_status: EmailChainValidationStatus;
+  validation_result?: EmailChainValidationResult;
+  validated_at?: string;
+  created_at: string;
+  created_by?: string;
+  is_active: boolean;
+}
+
+export interface EmailChainListResponse {
+  assessment_id: string;
+  total_chains: number;
+  pending_count: number;
+  validated_count: number;
+  suspicious_count: number;
+  critical_count: number;
+  chains: EmailChain[];
+}
+
+// ==================== Email Chain UI Config ====================
+
+export interface EmailChainValidationStatusConfig {
+  label: string;
+  color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
+  bgColor: string;
+  textColor: string;
+}
+
+export const EMAIL_CHAIN_VALIDATION_STATUS_CONFIG: Record<EmailChainValidationStatus, EmailChainValidationStatusConfig> = {
+  pending: {
+    label: 'Pendiente',
+    color: 'warning',
+    bgColor: '#FFF4E5',
+    textColor: '#B86E00',
+  },
+  validated: {
+    label: 'Validado',
+    color: 'success',
+    bgColor: '#E0F7E6',
+    textColor: '#2CA14D',
+  },
+  suspicious: {
+    label: 'Sospechoso',
+    color: 'warning',
+    bgColor: '#FFF4E5',
+    textColor: '#B86E00',
+  },
+  critical: {
+    label: 'Crítico',
+    color: 'error',
+    bgColor: '#FFE4E4',
+    textColor: '#CC071E',
+  },
+};
+
+export const EMAIL_CHAIN_FIELD_LABELS: Record<string, string> = {
+  sender_domain: 'Dominio del Remitente',
+  company_name: 'Nombre de Empresa',
+  nit: 'NIT',
+  representative_name: 'Representante Legal',
+};

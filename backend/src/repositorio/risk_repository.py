@@ -1013,3 +1013,120 @@ class ExternalContactRepository:
             .execute()
 
         return response.count or 0
+
+
+class EmailChainRepository:
+    """Repository for email chain operations (cross-validation)"""
+
+    def __init__(self, supabase_client: Client):
+        """Initialize repository with Supabase client"""
+        self.db = supabase_client
+
+    async def create(self, data: dict) -> dict:
+        """
+        Create new email chain record
+
+        Args:
+            data: Email chain data
+
+        Returns:
+            dict: Created email chain record
+        """
+        logger.info(f"Creating email chain for assessment: {data.get('assessment_id')}")
+
+        response = self.db.table('email_chains') \
+            .insert(data) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_id(self, id: str) -> Optional[dict]:
+        """
+        Get email chain by UUID
+
+        Args:
+            id: Email chain UUID
+
+        Returns:
+            Optional[dict]: Email chain record
+        """
+        response = self.db.table('email_chains') \
+            .select('*') \
+            .eq('id', id) \
+            .eq('is_active', True) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_assessment(self, assessment_id: str) -> List[dict]:
+        """
+        Get all email chains for an assessment
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            List[dict]: Email chain records
+        """
+        response = self.db.table('email_chains') \
+            .select('*') \
+            .eq('assessment_id', assessment_id) \
+            .eq('is_active', True) \
+            .order('created_at', desc=False) \
+            .execute()
+
+        return response.data if response.data else []
+
+    async def update(self, id: str, updates: dict) -> Optional[dict]:
+        """
+        Update email chain
+
+        Args:
+            id: Email chain UUID
+            updates: Fields to update
+
+        Returns:
+            Optional[dict]: Updated email chain record
+        """
+        response = self.db.table('email_chains') \
+            .update(updates) \
+            .eq('id', id) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def delete(self, id: str) -> bool:
+        """
+        Soft delete email chain (set is_active to False)
+
+        Args:
+            id: Email chain UUID
+
+        Returns:
+            bool: True if successful
+        """
+        response = self.db.table('email_chains') \
+            .update({'is_active': False}) \
+            .eq('id', id) \
+            .execute()
+
+        return len(response.data) > 0 if response.data else False
+
+    async def get_suspicious_count(self, assessment_id: str) -> int:
+        """
+        Get count of suspicious or critical email chains for an assessment
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            int: Count of suspicious/critical chains
+        """
+        response = self.db.table('email_chains') \
+            .select('id', count='exact') \
+            .eq('assessment_id', assessment_id) \
+            .eq('is_active', True) \
+            .in_('validation_status', ['suspicious', 'critical']) \
+            .execute()
+
+        return response.count or 0
