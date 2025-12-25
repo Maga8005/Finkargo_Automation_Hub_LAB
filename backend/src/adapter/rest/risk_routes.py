@@ -1296,68 +1296,79 @@ async def finalize_evaluation(
                    f"Must be 'pending_documents' or 'pending_finalization'."
         )
 
-    # Get cross-validation results
-    validation_repo = get_validation_repo()
-    cross_validation_results = await validation_repo.get_by_assessment(id)
+    try:
+        # Get cross-validation results
+        validation_repo = get_validation_repo()
+        cross_validation_results = await validation_repo.get_by_assessment(id)
 
-    # Check if force_complete is allowed when requirements not met
-    if not request.force_complete and len(cross_validation_results) == 0:
-        # Check document count
-        extraction_repo = get_extraction_repo()
-        extractions = await extraction_repo.get_by_assessment(id)
-        completed_docs = len([e for e in extractions if e['extraction_status'] == 'completed'])
+        # Check if force_complete is allowed when requirements not met
+        if not request.force_complete and len(cross_validation_results) == 0:
+            # Check document count
+            extraction_repo = get_extraction_repo()
+            extractions = await extraction_repo.get_by_assessment(id)
+            completed_docs = len([e for e in extractions if e['extraction_status'] == 'completed'])
 
-        if completed_docs < 2:
+            if completed_docs < 2:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot finalize: Need at least 2 documents (have {completed_docs}) "
+                           "and cross-validation must be completed. Use force_complete=true to override."
+                )
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot finalize: Need at least 2 documents (have {completed_docs}) "
-                       "and cross-validation must be completed. Use force_complete=true to override."
+                detail="Cannot finalize: Cross-validation has not been completed. "
+                       "Run cross-validation first or use force_complete=true to override."
             )
 
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot finalize: Cross-validation has not been completed. "
-                   "Run cross-validation first or use force_complete=true to override."
+        # Get email chain results
+        email_chain_repo = get_email_chain_repo()
+        email_chains = await email_chain_repo.get_by_assessment(id)
+        email_chain_results = [
+            c for c in email_chains
+            if c.get('is_active', True) and c.get('validation_result')
+        ]
+
+        # Get external contact results
+        external_contact_repo = get_external_contact_repo()
+        external_contacts = await external_contact_repo.get_by_assessment(id)
+        external_contact_results = [
+            c for c in external_contacts
+            if c.get('is_active', True) and c.get('validation_result')
+        ]
+
+        # Get user ID from current user
+        user_id = current_user.get('user_id') or current_user.get('id')
+
+        # Finalize evaluation
+        fraud_service = get_fraud_service()
+        updated_assessment = await fraud_service.finalize_evaluation_complete(
+            assessment_id=id,
+            user_id=user_id,
+            cross_validation_results=cross_validation_results,
+            email_chain_results=email_chain_results,
+            external_contact_results=external_contact_results,
         )
 
-    # Get email chain results
-    email_chain_repo = get_email_chain_repo()
-    email_chains = await email_chain_repo.get_by_assessment(id)
-    email_chain_results = [
-        c for c in email_chains
-        if c.get('is_active', True) and c.get('validation_result')
-    ]
+        logger.info(
+            f"Evaluation {id} finalized. Score: {updated_assessment.get('risk_score')}, "
+            f"Level: {updated_assessment.get('risk_level')}, Status: {updated_assessment.get('status')}"
+        )
 
-    # Get external contact results
-    external_contact_repo = get_external_contact_repo()
-    external_contacts = await external_contact_repo.get_by_assessment(id)
-    external_contact_results = [
-        c for c in external_contacts
-        if c.get('is_active', True) and c.get('validation_result')
-    ]
+        # Compute verification info for response
+        verification_info = await _compute_verification_info_async(id)
 
-    # Get user ID from current user
-    user_id = current_user.get('user_id') or current_user.get('id')
-
-    # Finalize evaluation
-    fraud_service = get_fraud_service()
-    updated_assessment = await fraud_service.finalize_evaluation_complete(
-        assessment_id=id,
-        user_id=user_id,
-        cross_validation_results=cross_validation_results,
-        email_chain_results=email_chain_results,
-        external_contact_results=external_contact_results,
-    )
-
-    logger.info(
-        f"Evaluation {id} finalized. Score: {updated_assessment.get('risk_score')}, "
-        f"Level: {updated_assessment.get('risk_level')}, Status: {updated_assessment.get('status')}"
-    )
-
-    # Compute verification info for response
-    verification_info = await _compute_verification_info_async(id)
-
-    return _map_to_detail(updated_assessment, verification_info)
+        return _map_to_detail(updated_assessment, verification_info)
+    except HTTPException:
+        # Re-raise HTTPException as-is (already has proper status code)
+        raise
+    except Exception as e:
+        logger.error(f"Error finalizing evaluation {id}: {e}", exc_info=True)
+        # Re-raise as HTTPException to ensure proper error response with CORS headers
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error finalizing evaluation: {str(e)}"
+        )
 
 
 # ==================== Document Extraction Helper Functions ====================
