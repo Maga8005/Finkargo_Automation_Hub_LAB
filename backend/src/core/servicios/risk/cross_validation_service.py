@@ -692,16 +692,18 @@ class CrossValidationService:
         if not domain:
             return results
 
-        company_name = rut_data.get('company_name', '')
-
-        # Build known domains list including company-specific
+        # Build known domains list - only use DEFAULT_KNOWN_DOMAINS
+        # NOTE: We do NOT derive a domain from company_name because the RUT email
+        # domain IS the official domain. Previously, deriving "company.com" from the
+        # company name caused false positives when the RUT had a different TLD like
+        # "company.com.co" (the actual official domain from the government document).
         known_domains = list(self.typosquatting.DEFAULT_KNOWN_DOMAINS)
 
-        # Check for typosquatting
+        # Check for typosquatting against known legitimate domains only
+        # Do NOT pass company_name - the RUT domain is authoritative
         typo_result = self.typosquatting.check_domain_typosquatting(
             domain,
-            known_domains=known_domains,
-            company_name=company_name
+            known_domains=known_domains
         )
 
         if typo_result.is_suspicious:
