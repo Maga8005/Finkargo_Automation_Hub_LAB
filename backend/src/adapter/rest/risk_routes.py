@@ -1678,6 +1678,12 @@ def _map_to_external_contact_response(data: dict) -> ExternalContactResponse:
             detection_type=vr.get('detection_type', 'no_match'),
             description=vr.get('description', ''),
             is_free_provider=vr.get('is_free_provider', False),
+            # Domain validation fields
+            domain_exists=vr.get('domain_exists'),
+            domain_age_days=vr.get('domain_age_days'),
+            domain_creation_date=_parse_datetime(vr.get('domain_creation_date')),
+            age_lookup_status=vr.get('age_lookup_status', 'pending'),
+            domain_registrar=vr.get('domain_registrar'),
         )
 
     return ExternalContactResponse(
