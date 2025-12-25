@@ -590,54 +590,6 @@ export const exportComprehensiveEvaluationReport = (
     doc.setFontSize(16);
     doc.text(verificationConfig.label, 18, yPosition + 16);
 
-    yPosition += 25;
-
-    // ==================== RISK ASSESSMENT SUMMARY ====================
-    doc.setFillColor(FINKARGO_COLORS.grey100);
-    doc.rect(14, yPosition, pageWidth - 28, 25, 'F');
-
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(FINKARGO_COLORS.primaryDark);
-    doc.text('Resumen de Riesgo', 18, yPosition + 7);
-
-    const summaryY = yPosition + 12;
-    const colWidth = (pageWidth - 36) / 4;
-
-    // Risk score
-    const riskConfig = RISK_LEVEL_CONFIG[assessment.risk_level];
-    doc.setFontSize(14);
-    doc.setTextColor(riskConfig.textColor);
-    doc.text(`${Number(assessment.risk_score).toFixed(0)}`, 18, summaryY);
-    doc.setFontSize(8);
-    doc.setTextColor(FINKARGO_COLORS.grey900);
-    doc.text('Puntaje', 18, summaryY + 5);
-
-    // Risk level
-    doc.setFontSize(14);
-    doc.setTextColor(riskConfig.textColor);
-    doc.text(riskConfig.label.toUpperCase(), 18 + colWidth, summaryY);
-    doc.setFontSize(8);
-    doc.setTextColor(FINKARGO_COLORS.grey900);
-    doc.text('Nivel', 18 + colWidth, summaryY + 5);
-
-    // Triggered indicators count
-    const triggeredCount = assessment.fraud_indicators.filter(i => i.indicator_value).length;
-    doc.setFontSize(14);
-    doc.setTextColor(triggeredCount > 0 ? FINKARGO_COLORS.error : FINKARGO_COLORS.success);
-    doc.text(String(triggeredCount), 18 + colWidth * 2, summaryY);
-    doc.setFontSize(8);
-    doc.setTextColor(FINKARGO_COLORS.grey900);
-    doc.text('Alertas', 18 + colWidth * 2, summaryY + 5);
-
-    // Total discrepancies
-    doc.setFontSize(14);
-    doc.setTextColor(results.total_discrepancies > 0 ? FINKARGO_COLORS.error : FINKARGO_COLORS.success);
-    doc.text(String(results.total_discrepancies), 18 + colWidth * 3, summaryY);
-    doc.setFontSize(8);
-    doc.setTextColor(FINKARGO_COLORS.grey900);
-    doc.text('Discrepancias', 18 + colWidth * 3, summaryY + 5);
-
     yPosition += 30;
 
     // ==================== FRAUD INDICATORS TABLE ====================

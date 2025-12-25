@@ -259,7 +259,7 @@ async def list_evaluations(
     # Compute verification info for each evaluation
     results = []
     for eval_data in evaluations:
-        verification_info = await _compute_verification_info_async(eval_data['id'])
+        verification_info = await _compute_verification_info_async(eval_data['id'], eval_data)
 
         # Apply verification_status filter if specified
         if verification_status:
@@ -292,7 +292,7 @@ async def get_evaluation(
         )
 
     # Compute verification info
-    verification_info = await _compute_verification_info_async(id)
+    verification_info = await _compute_verification_info_async(id, evaluation)
 
     return _map_to_detail(evaluation, verification_info)
 
@@ -375,7 +375,7 @@ async def submit_decision(
         )
 
     # Compute verification info
-    verification_info = await _compute_verification_info_async(id)
+    verification_info = await _compute_verification_info_async(id, updated)
 
     return _map_to_detail(updated, verification_info)
 
@@ -572,25 +572,55 @@ async def mark_alert_read(
 
 # ==================== Helper Functions ====================
 
-def _compute_verification_info(assessment_id: str) -> dict:
+def _compute_verification_info(assessment_id: str, assessment_data: dict = None) -> dict:
     """
-    Compute verification status from cross-validation results.
+    Compute verification status from assessment data and cross-validation results.
     This is called synchronously as helper for mapping functions.
+
+    Priority:
+    1. If assessment has stored verification_status (from finalization), use it
+    2. Otherwise, compute from both fraud indicators AND cross-validation discrepancies
 
     Args:
         assessment_id: The assessment ID to look up
+        assessment_data: Optional assessment dict containing fraud_indicators and verification_status
 
     Returns:
         Dict with verification_status, has_discrepancies, discrepancy_count
     """
+    # Check if assessment has stored verification status (from finalization)
+    if assessment_data:
+        stored_status = assessment_data.get('verification_status')
+        if stored_status:
+            # Use stored values from finalization
+            return {
+                'verification_status': VerificationStatus(stored_status),
+                'has_discrepancies': assessment_data.get('has_discrepancies', False),
+                'discrepancy_count': assessment_data.get('discrepancy_count', 0),
+            }
+
     import asyncio
 
     async def _get_verification_info():
+        # Count triggered fraud indicators from assessment data
+        fraud_alert_count = 0
+        if assessment_data:
+            fraud_indicators = assessment_data.get('fraud_indicators', [])
+            if isinstance(fraud_indicators, list):
+                fraud_alert_count = sum(
+                    1 for ind in fraud_indicators
+                    if ind.get('indicator_value', False) is True
+                )
+
+        # Count cross-validation discrepancies
         validation_repo = get_validation_repo()
         results = await validation_repo.get_by_assessment(assessment_id)
+        cross_validation_count = sum(1 for r in results if r.get('is_discrepancy', False))
 
-        discrepancy_count = sum(1 for r in results if r.get('is_discrepancy', False))
-        has_discrepancies = discrepancy_count > 0
+        # Total discrepancy count includes BOTH fraud alerts AND cross-validation discrepancies
+        total_discrepancy_count = fraud_alert_count + cross_validation_count
+        has_discrepancies = total_discrepancy_count > 0
+
         verification_status = (
             VerificationStatus.REQUIRES_MANUAL_VERIFICATION
             if has_discrepancies
@@ -600,14 +630,28 @@ def _compute_verification_info(assessment_id: str) -> dict:
         return {
             'verification_status': verification_status,
             'has_discrepancies': has_discrepancies,
-            'discrepancy_count': discrepancy_count,
+            'discrepancy_count': total_discrepancy_count,
         }
 
     # Try to run in existing event loop, or create new one
     try:
         asyncio.get_running_loop()
         # If there's a running loop, we can't use run_until_complete
-        # Return default values for now - the async endpoint will handle this
+        # Compute synchronously from assessment data only (fraud indicators)
+        if assessment_data:
+            fraud_indicators = assessment_data.get('fraud_indicators', [])
+            if isinstance(fraud_indicators, list):
+                fraud_alert_count = sum(
+                    1 for ind in fraud_indicators
+                    if ind.get('indicator_value', False) is True
+                )
+                if fraud_alert_count > 0:
+                    return {
+                        'verification_status': VerificationStatus.REQUIRES_MANUAL_VERIFICATION,
+                        'has_discrepancies': True,
+                        'discrepancy_count': fraud_alert_count,
+                    }
+        # Return default values - the async endpoint will handle cross-validation
         return {
             'verification_status': VerificationStatus.PASS,
             'has_discrepancies': False,
@@ -618,21 +662,51 @@ def _compute_verification_info(assessment_id: str) -> dict:
         return asyncio.run(_get_verification_info())
 
 
-async def _compute_verification_info_async(assessment_id: str) -> dict:
+async def _compute_verification_info_async(assessment_id: str, assessment_data: dict = None) -> dict:
     """
-    Compute verification status from cross-validation results asynchronously.
+    Compute verification status from assessment data and cross-validation results.
+
+    Priority:
+    1. If assessment has stored verification_status (from finalization), use it
+    2. Otherwise, compute from both fraud indicators AND cross-validation discrepancies
 
     Args:
         assessment_id: The assessment ID to look up
+        assessment_data: Optional assessment dict containing fraud_indicators and verification_status
 
     Returns:
         Dict with verification_status, has_discrepancies, discrepancy_count
     """
+    # Check if assessment has stored verification status (from finalization)
+    if assessment_data:
+        stored_status = assessment_data.get('verification_status')
+        if stored_status:
+            # Use stored values from finalization
+            return {
+                'verification_status': VerificationStatus(stored_status),
+                'has_discrepancies': assessment_data.get('has_discrepancies', False),
+                'discrepancy_count': assessment_data.get('discrepancy_count', 0),
+            }
+
+    # Count triggered fraud indicators from assessment data
+    fraud_alert_count = 0
+    if assessment_data:
+        fraud_indicators = assessment_data.get('fraud_indicators', [])
+        if isinstance(fraud_indicators, list):
+            fraud_alert_count = sum(
+                1 for ind in fraud_indicators
+                if ind.get('indicator_value', False) is True
+            )
+
+    # Count cross-validation discrepancies
     validation_repo = get_validation_repo()
     results = await validation_repo.get_by_assessment(assessment_id)
+    cross_validation_count = sum(1 for r in results if r.get('is_discrepancy', False))
 
-    discrepancy_count = sum(1 for r in results if r.get('is_discrepancy', False))
-    has_discrepancies = discrepancy_count > 0
+    # Total discrepancy count includes BOTH fraud alerts AND cross-validation discrepancies
+    total_discrepancy_count = fraud_alert_count + cross_validation_count
+    has_discrepancies = total_discrepancy_count > 0
+
     verification_status = (
         VerificationStatus.REQUIRES_MANUAL_VERIFICATION
         if has_discrepancies
@@ -642,7 +716,7 @@ async def _compute_verification_info_async(assessment_id: str) -> dict:
     return {
         'verification_status': verification_status,
         'has_discrepancies': has_discrepancies,
-        'discrepancy_count': discrepancy_count,
+        'discrepancy_count': total_discrepancy_count,
     }
 
 
@@ -1356,7 +1430,7 @@ async def finalize_evaluation(
         )
 
         # Compute verification info for response
-        verification_info = await _compute_verification_info_async(id)
+        verification_info = await _compute_verification_info_async(id, updated_assessment)
 
         return _map_to_detail(updated_assessment, verification_info)
     except HTTPException:
