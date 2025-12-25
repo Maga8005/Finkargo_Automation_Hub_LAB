@@ -608,7 +608,7 @@ export const exportComprehensiveEvaluationReport = (
     const riskConfig = RISK_LEVEL_CONFIG[assessment.risk_level];
     doc.setFontSize(14);
     doc.setTextColor(riskConfig.textColor);
-    doc.text(`${assessment.risk_score.toFixed(0)}`, 18, summaryY);
+    doc.text(`${Number(assessment.risk_score).toFixed(0)}`, 18, summaryY);
     doc.setFontSize(8);
     doc.setTextColor(FINKARGO_COLORS.grey900);
     doc.text('Puntaje', 18, summaryY + 5);
@@ -655,7 +655,7 @@ export const exportComprehensiveEvaluationReport = (
         return [
           ind.indicator_name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
           severityLabel,
-          `+${ind.score_impact.toFixed(0)}`,
+          `+${Number(ind.score_impact).toFixed(0)}`,
           ind.evidence || '-',
         ];
       });
