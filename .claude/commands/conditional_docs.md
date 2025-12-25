@@ -37,3 +37,12 @@ This prompt helps you determine what documentation you should read based on the 
     - When working with risk_analyst or risk_manager roles
     - When troubleshooting risk evaluation or scoring issues
     - When modifying blacklist or alert functionality
+
+- app_docs/feature-ec3ddef5-fraud-risk-module-fixes.md
+  - Conditions:
+    - When working with email chain validation or NIT normalization
+    - When troubleshooting Pydantic validation errors in risk module
+    - When modifying file upload size limits for risk documents
+    - When working with Colombian cellphone number filtering
+    - When implementing domain validation or typosquatting detection
+    - When modifying cross-validation discrepancy severity levels
