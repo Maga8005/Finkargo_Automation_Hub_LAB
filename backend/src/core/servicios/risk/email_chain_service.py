@@ -233,12 +233,16 @@ class EmailChainService:
                 discrepancies.append(disc)
 
         # Build validation result
+        info_count = sum(1 for d in discrepancies if d['severity'] == DiscrepancySeverity.INFO.value)
         critical_count = sum(1 for d in discrepancies if d['severity'] == DiscrepancySeverity.CRITICAL.value)
         high_count = sum(1 for d in discrepancies if d['severity'] == DiscrepancySeverity.HIGH.value)
         medium_count = sum(1 for d in discrepancies if d['severity'] == DiscrepancySeverity.MEDIUM.value)
         low_count = sum(1 for d in discrepancies if d['severity'] == DiscrepancySeverity.LOW.value)
 
-        # Determine overall status
+        # Count only actual discrepancies (exclude INFO which is informational/positive status)
+        actual_discrepancy_count = critical_count + high_count + medium_count + low_count
+
+        # Determine overall status (INFO discrepancies don't affect status negatively)
         if critical_count > 0:
             validation_status = EmailChainValidationStatus.CRITICAL
             summary = f"ALERTA CRÍTICA: {critical_count} discrepancia(s) crítica(s) detectada(s). Posible intento de fraude."
@@ -253,7 +257,8 @@ class EmailChainService:
             summary = "Validación completada. No se encontraron discrepancias significativas."
 
         validation_result = {
-            'total_discrepancies': len(discrepancies),
+            'total_discrepancies': actual_discrepancy_count,
+            'info_count': info_count,
             'critical_count': critical_count,
             'high_count': high_count,
             'medium_count': medium_count,
@@ -838,5 +843,25 @@ class EmailChainService:
                     'domain_registrar': age_result.registrar,
                 }
 
-        # Domain is old enough or age is unknown - no issue
-        return None
+        # Domain exists and is old enough - return positive status (INFO severity)
+        if age_result.lookup_status == 'success' and age_result.age_days is not None:
+            description = (
+                f"Dominio '{domain}' verificado correctamente. "
+                f"Existe y tiene {age_result.age_days} días de antigüedad."
+            )
+        else:
+            description = f"Dominio '{domain}' existe (DNS verificado). Antigüedad no disponible."
+
+        return {
+            'field': 'domain_age',
+            'email_value': domain,
+            'document_value': None,
+            'severity': DiscrepancySeverity.INFO.value,
+            'description': description,
+            'is_typosquatting': False,
+            'similarity_score': None,
+            'domain_age_days': age_result.age_days if age_result.lookup_status == 'success' else None,
+            'domain_exists': True,
+            'domain_creation_date': age_result.creation_date.isoformat() if age_result.creation_date else None,
+            'domain_registrar': age_result.registrar if age_result.lookup_status == 'success' else None,
+        }

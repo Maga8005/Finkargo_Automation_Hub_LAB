@@ -41,6 +41,7 @@ const FINKARGO_COLORS = {
 
 // Severity colors for PDF (RGB values for jsPDF)
 const SEVERITY_PDF_COLORS: Record<DiscrepancySeverity, { bg: [number, number, number]; text: [number, number, number] }> = {
+  info: { bg: [224, 247, 230], text: [44, 161, 77] },
   critical: { bg: [204, 7, 30], text: [255, 255, 255] },
   high: { bg: [255, 228, 228], text: [204, 7, 30] },
   medium: { bg: [255, 244, 229], text: [184, 110, 0] },
@@ -267,8 +268,8 @@ export const exportCrossValidationToPDF = (
     const discrepancies = results.results
       .filter(r => r.is_discrepancy)
       .sort((a, b) => {
-        const severityOrder: Record<DiscrepancySeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-        return (severityOrder[a.severity || 'low'] || 4) - (severityOrder[b.severity || 'low'] || 4);
+        const severityOrder: Record<DiscrepancySeverity, number> = { info: 4, critical: 0, high: 1, medium: 2, low: 3 };
+        return (severityOrder[a.severity || 'low'] || 5) - (severityOrder[b.severity || 'low'] || 5);
       });
 
     if (discrepancies.length > 0) {
@@ -659,8 +660,8 @@ export const exportComprehensiveEvaluationReport = (
     const discrepancies = results.results
       .filter(r => r.is_discrepancy)
       .sort((a, b) => {
-        const severityOrder: Record<DiscrepancySeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-        return (severityOrder[a.severity || 'low'] || 4) - (severityOrder[b.severity || 'low'] || 4);
+        const severityOrder: Record<DiscrepancySeverity, number> = { info: 4, critical: 0, high: 1, medium: 2, low: 3 };
+        return (severityOrder[a.severity || 'low'] || 5) - (severityOrder[b.severity || 'low'] || 5);
       });
 
     doc.setFontSize(12);

@@ -390,6 +390,7 @@ class ExtractionStatus(str, Enum):
 
 class DiscrepancySeverity(str, Enum):
     """Severity level of cross-validation discrepancy"""
+    INFO = "info"  # Informational, no issue detected
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
