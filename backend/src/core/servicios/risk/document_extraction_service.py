@@ -479,7 +479,7 @@ class DocumentExtractionService:
             DocumentType.CERTIFICADO_EXISTENCIA: {
                 "label": "Certificado de Existencia",
                 "accepted_formats": ["pdf"],
-                "max_size_mb": 10,
+                "max_size_mb": 50,
                 "required_fields": ["company_name", "nit", "legal_representative_name", "legal_representative_id"]
             }
         }
