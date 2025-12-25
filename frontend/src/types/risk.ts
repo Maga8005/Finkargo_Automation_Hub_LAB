@@ -448,7 +448,7 @@ export const DOCUMENT_TYPE_CONFIG: Record<DocumentType, DocumentTypeConfig> = {
   certificado_existencia: {
     label: 'Certificado de Existencia',
     accepted_formats: ['pdf'],
-    max_size_mb: 10,
+    max_size_mb: 50,
     required: false,
   },
 };

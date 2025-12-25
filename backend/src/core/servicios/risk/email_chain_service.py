@@ -333,10 +333,13 @@ class EmailChainService:
             for field in ['nit', 'nit_empresa', 'numero_identificacion']:
                 value = extracted.get(field)
                 if value:
-                    # Normalize NIT for comparison
-                    normalized = self.normalization_service.normalize_nit(str(value))
-                    if normalized and normalized not in doc_data['nits']:
-                        doc_data['nits'].append(normalized)
+                    # Normalize NIT for comparison - normalize_nit returns (base_digits, check_digit) tuple
+                    base, check = self.normalization_service.normalize_nit(str(value))
+                    if base:
+                        # Join base and check digit into a single string
+                        normalized = f"{base}-{check}" if check else base
+                        if normalized not in doc_data['nits']:
+                            doc_data['nits'].append(normalized)
 
             # Representative names
             for field in ['representante_legal', 'nombre_representante', 'gerente']:
@@ -626,15 +629,19 @@ class EmailChainService:
         known_nits = doc_data.get('nits', [])
         client_nit = client_snapshot.get('nit')
         if client_nit:
-            normalized_client_nit = self.normalization_service.normalize_nit(str(client_nit))
-            if normalized_client_nit and normalized_client_nit not in known_nits:
-                known_nits.append(normalized_client_nit)
+            # normalize_nit returns (base_digits, check_digit) tuple
+            base, check = self.normalization_service.normalize_nit(str(client_nit))
+            if base:
+                normalized_client_nit = f"{base}-{check}" if check else base
+                if normalized_client_nit not in known_nits:
+                    known_nits.append(normalized_client_nit)
 
         if not known_nits:
             return None
 
-        # Normalize the mentioned NIT
-        normalized_mention = self.normalization_service.normalize_nit(nit)
+        # Normalize the mentioned NIT - normalize_nit returns (base_digits, check_digit) tuple
+        base_mention, check_mention = self.normalization_service.normalize_nit(nit)
+        normalized_mention = f"{base_mention}-{check_mention}" if check_mention else base_mention
 
         # Check for exact match
         if normalized_mention in known_nits:
@@ -642,8 +649,9 @@ class EmailChainService:
 
         # Check for check digit mismatch (base digits same, check digit different)
         for known_nit in known_nits:
-            base_mention = normalized_mention[:-1] if len(normalized_mention) > 1 else normalized_mention
-            base_known = known_nit[:-1] if len(known_nit) > 1 else known_nit
+            # Extract base from known_nit (format: "base-check" or just "base")
+            known_parts = known_nit.split('-')
+            base_known = known_parts[0] if known_parts else known_nit
 
             if base_mention == base_known:
                 return {
