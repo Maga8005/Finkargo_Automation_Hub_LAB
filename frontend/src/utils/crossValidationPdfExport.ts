@@ -11,11 +11,18 @@ import type {
   DiscrepancySeverity,
   ValidationType,
   ClientInfo,
+  FraudIndicator,
+  ExternalContact,
+  VerificationStatus,
+  RiskLevel,
 } from '../types/risk';
 import {
   DISCREPANCY_SEVERITY_CONFIG,
   VALIDATION_TYPE_LABELS,
   DOCUMENT_TYPE_CONFIG,
+  VERIFICATION_STATUS_CONFIG,
+  RISK_LEVEL_CONFIG,
+  EXTERNAL_CONTACT_VALIDATION_STATUS_CONFIG,
 } from '../types/risk';
 
 // Finkargo brand colors (consistent with pdfExport.ts)
@@ -77,6 +84,8 @@ interface AssessmentContext {
   assessment_id: string;
   client_nit: string;
   client_info?: ClientInfo;
+  finalized_by?: string;
+  finalized_at?: string;
 }
 
 /**
@@ -162,6 +171,25 @@ export const exportCrossValidationToPDF = (
       doc.text('Validación ejecutada:', 14, yPosition);
       doc.setFont('helvetica', 'normal');
       doc.text(validatedDate, 50, yPosition);
+      yPosition += 5;
+    }
+
+    // Finalized by (if available)
+    if (assessment.finalized_by) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Finalizado por:', 14, yPosition);
+      doc.setFont('helvetica', 'normal');
+      doc.text(assessment.finalized_by, 50, yPosition);
+      yPosition += 5;
+    }
+
+    // Finalization date (if available)
+    if (assessment.finalized_at) {
+      const finalizedDate = format(new Date(assessment.finalized_at), "dd/MM/yyyy HH:mm", { locale: es });
+      doc.setFont('helvetica', 'bold');
+      doc.text('Fecha de finalización:', 14, yPosition);
+      doc.setFont('helvetica', 'normal');
+      doc.text(finalizedDate, 50, yPosition);
       yPosition += 5;
     }
 
@@ -428,4 +456,408 @@ const addPageFooter = (doc: jsPDF, pageNumber: number, totalPages?: number): voi
   doc.setFontSize(7);
   doc.setTextColor(150, 150, 150);
   doc.text('Generado por Finkargo Automation Hub - Módulo de Gestión de Riesgos', 14, pageHeight - 7);
+};
+
+// ==================== COMPREHENSIVE EVALUATION REPORT ====================
+
+/**
+ * Extended assessment context for comprehensive report
+ */
+export interface ComprehensiveReportContext extends AssessmentContext {
+  risk_score: number;
+  risk_level: RiskLevel;
+  verification_status: VerificationStatus;
+  fraud_indicators: FraudIndicator[];
+  external_contacts?: ExternalContact[];
+}
+
+/**
+ * Verification status colors for PDF (RGB values for jsPDF)
+ */
+const VERIFICATION_PDF_COLORS: Record<VerificationStatus, { bg: [number, number, number]; text: [number, number, number] }> = {
+  pending: { bg: [255, 244, 229], text: [184, 110, 0] },
+  pass: { bg: [224, 247, 230], text: [44, 161, 77] },
+  requires_manual_verification: { bg: [255, 228, 228], text: [204, 7, 30] },
+};
+
+/**
+ * Export comprehensive evaluation report to PDF
+ * Includes: evaluation summary, fraud indicators, cross-validation results, external contact alerts
+ */
+export const exportComprehensiveEvaluationReport = (
+  results: CrossValidationResponse,
+  assessment: ComprehensiveReportContext
+): void => {
+  try {
+    // Create PDF document (A4, portrait)
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    // Set document properties
+    doc.setProperties({
+      title: `Reporte de Evaluación Completa - ${assessment.assessment_id}`,
+      subject: 'Evaluación de riesgo y fraude',
+      author: 'Finkargo Automation Hub - Módulo de Riesgos',
+      creator: 'Finkargo Automation Hub',
+    });
+
+    const pageWidth = doc.internal.pageSize.width;
+    let yPosition = 15;
+
+    // ==================== HEADER ====================
+    doc.setFontSize(18);
+    doc.setTextColor(FINKARGO_COLORS.primaryDark);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Reporte de Evaluación Completa', 14, yPosition);
+    yPosition += 7;
+
+    doc.setFontSize(12);
+    doc.setTextColor(FINKARGO_COLORS.coral);
+    doc.text('Finkargo - Módulo de Gestión de Riesgos', 14, yPosition);
+    yPosition += 10;
+
+    // ==================== EVALUATION SUMMARY ====================
+    doc.setFontSize(10);
+    doc.setTextColor(FINKARGO_COLORS.grey900);
+    doc.setFont('helvetica', 'normal');
+
+    // Assessment ID
+    doc.setFont('helvetica', 'bold');
+    doc.text('ID Evaluación:', 14, yPosition);
+    doc.setFont('courier', 'normal');
+    doc.text(assessment.assessment_id, 55, yPosition);
+    yPosition += 5;
+
+    // Client NIT
+    doc.setFont('helvetica', 'bold');
+    doc.text('NIT Cliente:', 14, yPosition);
+    doc.setFont('helvetica', 'normal');
+    doc.text(assessment.client_nit, 55, yPosition);
+    yPosition += 5;
+
+    // Company name
+    if (assessment.client_info?.nombre_importador) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Empresa:', 14, yPosition);
+      doc.setFont('helvetica', 'normal');
+      doc.text(assessment.client_info.nombre_importador, 55, yPosition);
+      yPosition += 5;
+    }
+
+    // Finalized by
+    if (assessment.finalized_by) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Finalizado por:', 14, yPosition);
+      doc.setFont('helvetica', 'normal');
+      doc.text(assessment.finalized_by, 55, yPosition);
+      yPosition += 5;
+    }
+
+    // Finalization date
+    if (assessment.finalized_at) {
+      const finalizedDate = format(new Date(assessment.finalized_at), "dd 'de' MMMM 'de' yyyy, HH:mm", { locale: es });
+      doc.setFont('helvetica', 'bold');
+      doc.text('Fecha de finalización:', 14, yPosition);
+      doc.setFont('helvetica', 'normal');
+      doc.text(finalizedDate, 55, yPosition);
+      yPosition += 5;
+    }
+
+    // Export date
+    const exportDate = format(new Date(), "dd 'de' MMMM 'de' yyyy, HH:mm", { locale: es });
+    doc.setFont('helvetica', 'bold');
+    doc.text('Fecha de reporte:', 14, yPosition);
+    doc.setFont('helvetica', 'normal');
+    doc.text(exportDate, 55, yPosition);
+    yPosition += 10;
+
+    // ==================== VERIFICATION STATUS (PROMINENT) ====================
+    const verificationConfig = VERIFICATION_STATUS_CONFIG[assessment.verification_status];
+    const verificationColors = VERIFICATION_PDF_COLORS[assessment.verification_status];
+
+    // Draw verification status box
+    doc.setFillColor(...verificationColors.bg);
+    doc.rect(14, yPosition, pageWidth - 28, 20, 'F');
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...verificationColors.text);
+    doc.text('RESULTADO DE EVALUACIÓN:', 18, yPosition + 8);
+
+    doc.setFontSize(16);
+    doc.text(verificationConfig.label, 18, yPosition + 16);
+
+    yPosition += 30;
+
+    // ==================== FRAUD INDICATORS TABLE ====================
+    const triggeredIndicators = assessment.fraud_indicators.filter(i => i.indicator_value);
+
+    if (triggeredIndicators.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(FINKARGO_COLORS.error);
+      doc.text(`Indicadores de Fraude Activados (${triggeredIndicators.length})`, 14, yPosition);
+      yPosition += 5;
+
+      const indicatorData = triggeredIndicators.map((ind) => {
+        const severityLabel = RISK_LEVEL_CONFIG[ind.severity]?.label || ind.severity;
+        return [
+          ind.indicator_name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          severityLabel,
+          `+${Number(ind.score_impact).toFixed(0)}`,
+          ind.evidence || '-',
+        ];
+      });
+
+      autoTable(doc, {
+        head: [['Indicador', 'Severidad', 'Impacto', 'Evidencia']],
+        body: indicatorData,
+        startY: yPosition,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          overflow: 'linebreak',
+          halign: 'left',
+          valign: 'middle',
+        },
+        headStyles: {
+          fillColor: FINKARGO_COLORS.error,
+          textColor: FINKARGO_COLORS.white,
+          fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'center',
+        },
+        alternateRowStyles: {
+          fillColor: FINKARGO_COLORS.grey50,
+        },
+        columnStyles: {
+          0: { cellWidth: 40 },
+          1: { cellWidth: 20, halign: 'center' },
+          2: { cellWidth: 18, halign: 'center', textColor: FINKARGO_COLORS.error },
+          3: { cellWidth: 'auto' },
+        },
+        margin: { left: 14, right: 14 },
+        didDrawPage: (data) => {
+          addPageFooter(doc, data.pageNumber);
+        },
+      });
+
+      yPosition = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+    }
+
+    // ==================== CROSS-VALIDATION RESULTS ====================
+    // Check if we need a new page
+    if (yPosition > 200) {
+      doc.addPage();
+      yPosition = 20;
+    }
+
+    const discrepancies = results.results
+      .filter(r => r.is_discrepancy)
+      .sort((a, b) => {
+        const severityOrder: Record<DiscrepancySeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+        return (severityOrder[a.severity || 'low'] || 4) - (severityOrder[b.severity || 'low'] || 4);
+      });
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(FINKARGO_COLORS.primaryDark);
+    doc.text('Resultados de Validación Cruzada', 14, yPosition);
+    yPosition += 5;
+
+    if (discrepancies.length > 0) {
+      const discrepancyData = discrepancies.map((r) => [
+        formatValidationType(r.validation_type),
+        r.field_compared || '-',
+        formatSeverity(r.severity).label,
+        `+${Number(r.score_impact).toFixed(0)}`,
+        r.description || '-',
+      ]);
+
+      autoTable(doc, {
+        head: [['Tipo', 'Campo', 'Severidad', 'Impacto', 'Descripción']],
+        body: discrepancyData,
+        startY: yPosition,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          overflow: 'linebreak',
+          halign: 'left',
+          valign: 'middle',
+        },
+        headStyles: {
+          fillColor: FINKARGO_COLORS.primaryDark,
+          textColor: FINKARGO_COLORS.white,
+          fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'center',
+        },
+        alternateRowStyles: {
+          fillColor: FINKARGO_COLORS.grey50,
+        },
+        columnStyles: {
+          0: { cellWidth: 30 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 20, halign: 'center' },
+          3: { cellWidth: 18, halign: 'center', textColor: FINKARGO_COLORS.error },
+          4: { cellWidth: 'auto' },
+        },
+        margin: { left: 14, right: 14 },
+        didParseCell: (data) => {
+          if (data.section === 'body' && data.column.index === 2) {
+            const severityLabel = data.cell.raw as string;
+            if (severityLabel === 'Crítico') {
+              data.cell.styles.fillColor = SEVERITY_PDF_COLORS.critical.bg;
+              data.cell.styles.textColor = SEVERITY_PDF_COLORS.critical.text;
+              data.cell.styles.fontStyle = 'bold';
+            } else if (severityLabel === 'Alto') {
+              data.cell.styles.fillColor = SEVERITY_PDF_COLORS.high.bg;
+              data.cell.styles.textColor = SEVERITY_PDF_COLORS.high.text;
+            } else if (severityLabel === 'Medio') {
+              data.cell.styles.fillColor = SEVERITY_PDF_COLORS.medium.bg;
+              data.cell.styles.textColor = SEVERITY_PDF_COLORS.medium.text;
+            } else if (severityLabel === 'Bajo') {
+              data.cell.styles.fillColor = SEVERITY_PDF_COLORS.low.bg;
+              data.cell.styles.textColor = SEVERITY_PDF_COLORS.low.text;
+            }
+          }
+        },
+        didDrawPage: (data) => {
+          addPageFooter(doc, data.pageNumber);
+        },
+      });
+
+      yPosition = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+    } else {
+      doc.setFillColor(224, 247, 230);
+      doc.rect(14, yPosition, pageWidth - 28, 12, 'F');
+      doc.setFontSize(10);
+      doc.setTextColor(FINKARGO_COLORS.success);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Sin discrepancias - Documentos consistentes', 18, yPosition + 8);
+      yPosition += 18;
+    }
+
+    // ==================== EXTERNAL CONTACT ALERTS ====================
+    const suspiciousContacts = assessment.external_contacts?.filter(
+      c => c.validation_status === 'suspicious' || c.validation_status === 'critical'
+    ) || [];
+
+    if (suspiciousContacts.length > 0) {
+      if (yPosition > 220) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(FINKARGO_COLORS.warning);
+      doc.text(`Alertas de Contactos Externos (${suspiciousContacts.length})`, 14, yPosition);
+      yPosition += 5;
+
+      const contactData = suspiciousContacts.map((contact) => {
+        const statusConfig = EXTERNAL_CONTACT_VALIDATION_STATUS_CONFIG[contact.validation_status];
+        const detectionType = contact.validation_result?.detection_type || '-';
+        return [
+          contact.email,
+          contact.sender_name || '-',
+          statusConfig.label,
+          detectionType.replace(/_/g, ' '),
+          contact.validation_result?.description || '-',
+        ];
+      });
+
+      autoTable(doc, {
+        head: [['Email', 'Remitente', 'Estado', 'Tipo', 'Descripción']],
+        body: contactData,
+        startY: yPosition,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          overflow: 'linebreak',
+          halign: 'left',
+          valign: 'middle',
+        },
+        headStyles: {
+          fillColor: FINKARGO_COLORS.warning,
+          textColor: FINKARGO_COLORS.white,
+          fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'center',
+        },
+        alternateRowStyles: {
+          fillColor: FINKARGO_COLORS.grey50,
+        },
+        columnStyles: {
+          0: { cellWidth: 40 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 20, halign: 'center' },
+          3: { cellWidth: 25 },
+          4: { cellWidth: 'auto' },
+        },
+        margin: { left: 14, right: 14 },
+        didDrawPage: (data) => {
+          addPageFooter(doc, data.pageNumber);
+        },
+      });
+
+      yPosition = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+    }
+
+    // ==================== FINAL RECOMMENDATION ====================
+    if (yPosition > 240) {
+      doc.addPage();
+      yPosition = 20;
+    }
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(FINKARGO_COLORS.primaryDark);
+    doc.text('Recomendación Final', 14, yPosition);
+    yPosition += 5;
+
+    let recommendation: string;
+    let recommendationColor: [number, number, number];
+
+    if (assessment.verification_status === 'pass') {
+      recommendation = 'La evaluación ha sido completada exitosamente. No se encontraron indicadores de fraude ni discrepancias significativas. Se recomienda APROBAR la solicitud.';
+      recommendationColor = [44, 161, 77]; // success green
+    } else {
+      recommendation = 'La evaluación ha detectado indicadores de fraude o discrepancias que requieren revisión manual. Se recomienda una REVISIÓN DETALLADA antes de aprobar la solicitud. Verifique los indicadores activados y las discrepancias encontradas.';
+      recommendationColor = [204, 7, 30]; // error red
+    }
+
+    doc.setFillColor(FINKARGO_COLORS.grey100);
+    doc.rect(14, yPosition, pageWidth - 28, 20, 'F');
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...recommendationColor);
+
+    const splitRecommendation = doc.splitTextToSize(recommendation, pageWidth - 36);
+    doc.text(splitRecommendation, 18, yPosition + 6);
+
+    // Add footer to all pages
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      addPageFooter(doc, i, totalPages);
+    }
+
+    // Generate filename with assessment ID and date
+    const dateStr = format(new Date(), 'yyyy-MM-dd');
+    const filename = `reporte_evaluacion_${assessment.assessment_id}_${dateStr}.pdf`;
+
+    // Save PDF
+    doc.save(filename);
+  } catch (error) {
+    console.error('Error generating comprehensive evaluation PDF:', error);
+    throw new Error('Error al generar el reporte de evaluación');
+  }
 };

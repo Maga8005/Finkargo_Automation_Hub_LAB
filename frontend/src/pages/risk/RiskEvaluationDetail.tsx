@@ -34,6 +34,7 @@ import {
   Assessment,
   Info,
   Email,
+  PictureAsPdf,
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
 import { riskService } from '../../services/riskService';
@@ -41,12 +42,16 @@ import FKDocumentUploader from '../../components/risk/FKDocumentUploader';
 import FKCrossValidationResults from '../../components/risk/FKCrossValidationResults';
 import FKVerificationStatusCard from '../../components/risk/FKVerificationStatusCard';
 import FKExternalContactTab from '../../components/risk/FKExternalContactTab';
+import FKFinalizeButton from '../../components/risk/FKFinalizeButton';
 import type {
   RiskAssessmentDetail,
   RiskDecisionRequest,
   CrossValidationResponse,
+  ExternalContact,
 } from '../../types/risk';
 import { ASSESSMENT_STATUS_CONFIG } from '../../types/risk';
+import { exportComprehensiveEvaluationReport } from '../../utils/crossValidationPdfExport';
+import type { ComprehensiveReportContext } from '../../utils/crossValidationPdfExport';
 
 const RiskEvaluationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -66,6 +71,8 @@ const RiskEvaluationDetail: React.FC = () => {
   const [validationReady, setValidationReady] = useState(false);
   const [validationResults, setValidationResults] = useState<CrossValidationResponse | null>(null);
   const [scoreUpdatedMessage, setScoreUpdatedMessage] = useState<string | null>(null);
+  const [externalContacts, setExternalContacts] = useState<ExternalContact[]>([]);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   // Check if user is risk manager
   const isRiskManager = userProfile?.role === 'risk_manager' || userProfile?.role === 'admin';
@@ -75,8 +82,14 @@ const RiskEvaluationDetail: React.FC = () => {
     assessment &&
     ['pending', 'in_progress', 'escalated'].includes(assessment.status);
 
-  // Check if score is preliminary (pending_documents status)
-  const isPreliminaryScore = assessment?.status === 'pending_documents';
+  // Check if score is preliminary (pending_documents or pending_finalization status)
+  const isPreliminaryScore = assessment?.status === 'pending_documents' || assessment?.status === 'pending_finalization';
+
+  // Check if evaluation is finalized (can generate report)
+  const isFinalized = assessment?.status && !['pending_documents', 'pending_finalization'].includes(assessment.status);
+
+  // Check if cross-validation is done
+  const crossValidationDone = validationResults && validationResults.results.length > 0;
 
   // Acknowledgment state for manual verification
   const [isAcknowledged, setIsAcknowledged] = useState(false);
@@ -87,7 +100,7 @@ const RiskEvaluationDetail: React.FC = () => {
   // Decision is blocked until acknowledgment for flagged evaluations
   const decisionBlocked = requiresAcknowledgment && !isAcknowledged;
 
-  // Load assessment
+  // Load assessment and related data
   const loadAssessment = useCallback(async () => {
     if (!id) return;
 
@@ -97,6 +110,15 @@ const RiskEvaluationDetail: React.FC = () => {
 
       const data = await riskService.getEvaluation(id);
       setAssessment(data);
+
+      // Also load external contacts for the report
+      try {
+        const contactsResponse = await riskService.getExternalContacts(id);
+        setExternalContacts(contactsResponse.contacts || []);
+      } catch {
+        // External contacts may not exist yet, that's okay
+        setExternalContacts([]);
+      }
     } catch (err) {
       console.error('Error loading assessment:', err);
       setError('Error al cargar la evaluación');
@@ -112,13 +134,73 @@ const RiskEvaluationDetail: React.FC = () => {
   // Handle validation complete - refresh assessment and show success message
   const handleValidationComplete = useCallback(async (results: CrossValidationResponse) => {
     setValidationResults(results);
-    // Refresh assessment to get updated score
+    // Refresh assessment to get updated status (pending_finalization)
+    await loadAssessment();
+    // Show success message - note that score is NOT calculated yet
+    setScoreUpdatedMessage('Validación cruzada completada. Haga clic en "Finalizar Evaluación" para calcular el puntaje de riesgo.');
+    // Auto-hide message after 8 seconds
+    setTimeout(() => setScoreUpdatedMessage(null), 8000);
+  }, [loadAssessment]);
+
+  // Handle finalization complete - refresh assessment
+  const handleFinalizationComplete = useCallback(async () => {
+    // Refresh assessment to get updated score and status
     await loadAssessment();
     // Show success message
-    setScoreUpdatedMessage('Puntaje de riesgo actualizado con resultados de validación cruzada');
+    setScoreUpdatedMessage('Evaluación finalizada exitosamente. El puntaje de riesgo ha sido calculado.');
     // Auto-hide message after 5 seconds
     setTimeout(() => setScoreUpdatedMessage(null), 5000);
   }, [loadAssessment]);
+
+  // Helper to generate report with data
+  const generateReportWithData = useCallback((cvResults: CrossValidationResponse) => {
+    if (!assessment) return;
+
+    try {
+      setGeneratingReport(true);
+
+      const reportContext: ComprehensiveReportContext = {
+        assessment_id: assessment.assessment_id,
+        client_nit: assessment.client_nit,
+        client_info: assessment.client_info,
+        finalized_by: assessment.finalized_by,
+        finalized_at: assessment.finalized_at,
+        risk_score: assessment.risk_score,
+        risk_level: assessment.risk_level,
+        verification_status: assessment.verification_status || 'pending',
+        fraud_indicators: assessment.fraud_indicators || [],
+        external_contacts: externalContacts,
+      };
+
+      exportComprehensiveEvaluationReport(cvResults, reportContext);
+    } catch (err) {
+      console.error('Error generating report:', err);
+      setSubmitError('Error al generar el reporte');
+    } finally {
+      setGeneratingReport(false);
+    }
+  }, [assessment, externalContacts]);
+
+  // Handle comprehensive report generation
+  const handleGenerateReport = useCallback(async () => {
+    if (!assessment || !validationResults) {
+      // Try to load validation results if not available
+      if (id) {
+        try {
+          const cvResults = await riskService.getDiscrepancies(id);
+          setValidationResults(cvResults);
+          // Generate report with fresh results
+          generateReportWithData(cvResults);
+        } catch (err) {
+          console.error('Error loading validation results for report:', err);
+          setSubmitError('Error al cargar resultados de validación para el reporte');
+          return;
+        }
+      }
+      return;
+    }
+    generateReportWithData(validationResults);
+  }, [assessment, validationResults, id, generateReportWithData]);
 
   // Handle decision submission
   const handleSubmitDecision = async () => {
@@ -242,22 +324,31 @@ const RiskEvaluationDetail: React.FC = () => {
           sx={{ mb: 3 }}
         >
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
-            Suba y valide documentos para calcular el puntaje final de riesgo
+            {assessment?.status === 'pending_finalization'
+              ? 'Haga clic en "Finalizar Evaluación" para calcular el puntaje de riesgo'
+              : 'Suba y valide documentos para calcular el puntaje final de riesgo'}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            El puntaje actual es preliminar y se actualizará después de la validación cruzada de documentos.
+            {assessment?.status === 'pending_finalization'
+              ? 'La validación cruzada está completa. Ahora puede finalizar la evaluación.'
+              : 'El puntaje actual es preliminar y se actualizará después de finalizar la evaluación.'}
           </Typography>
         </Alert>
+      )}
+
+      {/* Finalization Button - shown when ready for finalization */}
+      {id && isPreliminaryScore && (
+        <FKFinalizeButton
+          evaluationId={id}
+          evaluationStatus={assessment?.status}
+          onFinalizationComplete={handleFinalizationComplete}
+          crossValidationDone={crossValidationDone ?? false}
+        />
       )}
 
       {/* Tabs Navigation */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
-          <Tab
-            icon={<Assessment />}
-            iconPosition="start"
-            label="Evaluación"
-          />
           <Tab
             icon={<Description />}
             iconPosition="start"
@@ -273,11 +364,50 @@ const RiskEvaluationDetail: React.FC = () => {
             iconPosition="start"
             label="Contacto Externo"
           />
+          <Tab
+            icon={<Assessment />}
+            iconPosition="start"
+            label="Evaluación"
+          />
         </Tabs>
       </Box>
 
       {/* Tab Content */}
-      {activeTab === 0 && (
+
+      {/* Documents Tab */}
+      {activeTab === 0 && id && (
+        <FKDocumentUploader
+          evaluationId={id}
+          evaluationStatus={assessment?.status}
+          onValidationReady={setValidationReady}
+        />
+      )}
+
+      {/* Cross-Validation Tab */}
+      {activeTab === 1 && id && (
+        <FKCrossValidationResults
+          evaluationId={id}
+          canValidate={validationReady}
+          onValidationComplete={handleValidationComplete}
+          assessmentId={assessment?.assessment_id}
+          clientNit={assessment?.client_nit}
+          clientInfo={assessment?.client_info}
+          finalizedBy={assessment?.finalized_by}
+          finalizedAt={assessment?.finalized_at}
+        />
+      )}
+
+      {/* External Contact Tab */}
+      {activeTab === 2 && id && (
+        <FKExternalContactTab
+          evaluationId={id}
+          assessmentId={assessment?.assessment_id}
+          clientInfo={assessment?.client_info}
+        />
+      )}
+
+      {/* Evaluación Tab */}
+      {activeTab === 3 && (
         <Grid container spacing={3}>
           {/* Left Column - Client Info */}
           <Grid size={{ xs: 12, md: 4 }}>
@@ -397,6 +527,27 @@ const RiskEvaluationDetail: React.FC = () => {
               isPreliminary={isPreliminaryScore}
               indicators={assessment.fraud_indicators}
             />
+
+            {/* Generate Report Button - only visible when finalized */}
+            {isFinalized && (
+              <Box sx={{ mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  fullWidth
+                  startIcon={generatingReport ? <CircularProgress size={20} /> : <PictureAsPdf />}
+                  onClick={handleGenerateReport}
+                  disabled={generatingReport}
+                  sx={{
+                    py: 1.5,
+                    borderRadius: 2,
+                    fontWeight: 600,
+                  }}
+                >
+                  {generatingReport ? 'Generando...' : 'Generar Reporte Completo'}
+                </Button>
+              </Box>
+            )}
           </Grid>
 
           {/* Right Column - Decision */}
@@ -495,36 +646,6 @@ const RiskEvaluationDetail: React.FC = () => {
             </Card>
           </Grid>
         </Grid>
-      )}
-
-      {/* Documents Tab */}
-      {activeTab === 1 && id && (
-        <FKDocumentUploader
-          evaluationId={id}
-          evaluationStatus={assessment?.status}
-          onValidationReady={setValidationReady}
-        />
-      )}
-
-      {/* Cross-Validation Tab */}
-      {activeTab === 2 && id && (
-        <FKCrossValidationResults
-          evaluationId={id}
-          canValidate={validationReady}
-          onValidationComplete={handleValidationComplete}
-          assessmentId={assessment?.assessment_id}
-          clientNit={assessment?.client_nit}
-          clientInfo={assessment?.client_info}
-        />
-      )}
-
-      {/* External Contact Tab */}
-      {activeTab === 3 && id && (
-        <FKExternalContactTab
-          evaluationId={id}
-          assessmentId={assessment?.assessment_id}
-          clientInfo={assessment?.client_info}
-        />
       )}
     </Box>
   );

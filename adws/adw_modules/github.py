@@ -18,7 +18,7 @@ import sys
 import os
 import json
 from typing import Dict, List, Optional
-from .data_types import GitHubIssue, GitHubIssueListItem
+from .data_types import GitHubIssue, GitHubIssueListItem, GitHubComment
 
 
 def get_github_env() -> Optional[dict]:
@@ -278,3 +278,28 @@ def fetch_issue_comments(repo_path: str, issue_number: int) -> List[Dict]:
             file=sys.stderr,
         )
         return []
+
+
+def find_keyword_from_comment(keyword: str, issue: GitHubIssue) -> Optional[GitHubComment]:
+    """Find the latest comment containing a specific keyword.
+
+    Args:
+        keyword: The keyword to search for in comments
+        issue: The GitHub issue with comments
+
+    Returns:
+        The latest GitHubComment containing the keyword, or None if not found
+    """
+    # Filter comments containing the keyword
+    matching_comments = [
+        comment for comment in issue.comments
+        if keyword.lower() in comment.body.lower()
+    ]
+
+    if not matching_comments:
+        return None
+
+    # Return the latest comment (comments are already sorted by created_at)
+    # Sort by created_at to ensure we get the latest
+    matching_comments.sort(key=lambda c: c.created_at, reverse=True)
+    return matching_comments[0]

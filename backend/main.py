@@ -5,7 +5,8 @@ Optimizado con:
 - GZipMiddleware para compresión de respuestas JSON
 - CORS configurado para Vercel preview URLs
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from src.config.settings import get_settings
@@ -52,6 +53,20 @@ app.add_middleware(
 # GZip middleware for compressing JSON responses
 # minimum_size=500 means only compress responses larger than 500 bytes
 app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Global exception handler to catch unhandled exceptions.
+    Ensures CORS headers are included in error responses.
+    """
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"}
+    )
+
 
 # Include routers AFTER middleware
 app.include_router(auth_routes.router, prefix="/api")

@@ -576,7 +576,7 @@ def create_and_implement_patch(
     logger: logging.Logger,
     agent_name_planner: str,
     agent_name_implementor: str,
-    spec_path: str,
+    spec_path: Optional[str] = None,
     issue_screenshots: Optional[str] = None,
 ) -> Tuple[Optional[str], AgentPromptResponse]:
     """Create a patch plan and implement it to resolve review issues.
@@ -587,15 +587,15 @@ def create_and_implement_patch(
         logger: Logger instance
         agent_name_planner: Name for the patch planner agent
         agent_name_implementor: Name for the patch implementor agent
-        spec_path: Path to the spec file
+        spec_path: Path to the spec file (optional, can be None for direct patches)
         issue_screenshots: Optional path to screenshots showing the issue
 
     Returns:
         Tuple of (patch_file_path, implement_response)
         patch_file_path is None if patch creation failed
     """
-    # Build args for the /patch command
-    patch_args = [adw_id, spec_path, review_change_request]
+    # Build args for the /patch command - use empty string if spec_path is None
+    patch_args = [adw_id, spec_path or "", review_change_request]
     if issue_screenshots:
         patch_args.append(issue_screenshots)
 

@@ -56,6 +56,8 @@ interface FKCrossValidationResultsProps {
   assessmentId?: string;
   clientNit?: string;
   clientInfo?: ClientInfo;
+  finalizedBy?: string;
+  finalizedAt?: string;
 }
 
 const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
@@ -65,6 +67,8 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
   assessmentId,
   clientNit,
   clientInfo,
+  finalizedBy,
+  finalizedAt,
 }) => {
   // State
   const [results, setResults] = useState<CrossValidationResponse | null>(null);
@@ -102,8 +106,8 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
       setResults(response);
       onValidationComplete?.(response);
 
-      // Show success message
-      setSuccess('Validación cruzada completada. El puntaje de riesgo ha sido actualizado.');
+      // Show success message - note score is NOT calculated until finalization
+      setSuccess('Validación cruzada completada. Haga clic en "Finalizar Evaluación" para calcular el puntaje de riesgo.');
     } catch (err) {
       console.error('Validation error:', err);
       const message = err instanceof Error ? err.message : 'Error en validación cruzada';
@@ -128,6 +132,8 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
         assessment_id: exportAssessmentId,
         client_nit: exportClientNit,
         client_info: clientInfo,
+        finalized_by: finalizedBy,
+        finalized_at: finalizedAt,
       });
     } catch (err) {
       console.error('PDF export error:', err);

@@ -23,6 +23,7 @@ class AssessmentStatus(str, Enum):
     """Risk assessment status"""
     PENDING = "pending"
     PENDING_DOCUMENTS = "pending_documents"
+    PENDING_FINALIZATION = "pending_finalization"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     ESCALATED = "escalated"
@@ -169,6 +170,8 @@ class RiskAssessmentDetail(RiskAssessmentResponse):
     client_info: Optional[ClientInfo] = None
     client_data_snapshot: Optional[Dict[str, Any]] = None
     updated_at: Optional[datetime] = None
+    finalized_by: Optional[str] = None
+    finalized_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -696,3 +699,45 @@ class EmailChainListResponse(BaseModel):
     suspicious_count: int = 0
     critical_count: int = 0
     chains: List[EmailChainResponse] = []
+
+
+# ==================== Finalization DTOs ====================
+
+class FinalizeEvaluationRequest(BaseModel):
+    """Request to finalize a risk evaluation"""
+    force_complete: bool = Field(
+        default=False,
+        description="Skip optional validation requirements and force finalization"
+    )
+
+
+class FinalizationRequirements(BaseModel):
+    """Status of individual finalization requirements"""
+    cross_validation_done: bool = Field(default=False, description="Whether cross-validation has been completed")
+    email_chains_validated: bool = Field(default=False, description="Whether all email chains have been validated")
+    external_contacts_validated: bool = Field(default=False, description="Whether all external contacts have been validated")
+    min_documents_met: bool = Field(default=False, description="Whether minimum document count has been met")
+
+
+class FinalizationStatusResponse(BaseModel):
+    """Response containing finalization status and requirements"""
+    assessment_id: str
+    can_finalize: bool = Field(..., description="Whether the evaluation can be finalized")
+    requirements: FinalizationRequirements
+    pending_items: List[str] = Field(default_factory=list, description="List of incomplete requirements")
+    current_status: AssessmentStatus
+
+
+class EvaluationRequirementsConfig(BaseModel):
+    """Configuration for evaluation finalization requirements"""
+    id: Optional[str] = None
+    require_cross_validation: bool = Field(default=True, description="Whether cross-validation is required")
+    require_email_chain_validation: bool = Field(default=False, description="Whether email chain validation is required")
+    require_external_contact_validation: bool = Field(default=False, description="Whether external contact validation is required")
+    min_documents_required: int = Field(default=2, ge=0, description="Minimum number of documents required")
+    allow_force_complete: bool = Field(default=True, description="Whether force complete is allowed")
+    updated_at: Optional[datetime] = None
+    updated_by: Optional[str] = None
+
+    class Config:
+        from_attributes = True

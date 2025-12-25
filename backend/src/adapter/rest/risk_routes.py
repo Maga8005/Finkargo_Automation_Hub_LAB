@@ -66,6 +66,9 @@ from src.interface.risk_dtos import (
     EmailMessage,
     ExtractedMentions,
     EmailChainDiscrepancy,
+    FinalizeEvaluationRequest,
+    FinalizationStatusResponse,
+    FinalizationRequirements,
 )
 
 logger = logging.getLogger(__name__)
@@ -256,7 +259,7 @@ async def list_evaluations(
     # Compute verification info for each evaluation
     results = []
     for eval_data in evaluations:
-        verification_info = await _compute_verification_info_async(eval_data['id'])
+        verification_info = await _compute_verification_info_async(eval_data['id'], eval_data)
 
         # Apply verification_status filter if specified
         if verification_status:
@@ -289,7 +292,7 @@ async def get_evaluation(
         )
 
     # Compute verification info
-    verification_info = await _compute_verification_info_async(id)
+    verification_info = await _compute_verification_info_async(id, evaluation)
 
     return _map_to_detail(evaluation, verification_info)
 
@@ -372,7 +375,7 @@ async def submit_decision(
         )
 
     # Compute verification info
-    verification_info = await _compute_verification_info_async(id)
+    verification_info = await _compute_verification_info_async(id, updated)
 
     return _map_to_detail(updated, verification_info)
 
@@ -569,25 +572,55 @@ async def mark_alert_read(
 
 # ==================== Helper Functions ====================
 
-def _compute_verification_info(assessment_id: str) -> dict:
+def _compute_verification_info(assessment_id: str, assessment_data: dict = None) -> dict:
     """
-    Compute verification status from cross-validation results.
+    Compute verification status from assessment data and cross-validation results.
     This is called synchronously as helper for mapping functions.
+
+    Priority:
+    1. If assessment has stored verification_status (from finalization), use it
+    2. Otherwise, compute from both fraud indicators AND cross-validation discrepancies
 
     Args:
         assessment_id: The assessment ID to look up
+        assessment_data: Optional assessment dict containing fraud_indicators and verification_status
 
     Returns:
         Dict with verification_status, has_discrepancies, discrepancy_count
     """
+    # Check if assessment has stored verification status (from finalization)
+    if assessment_data:
+        stored_status = assessment_data.get('verification_status')
+        if stored_status:
+            # Use stored values from finalization
+            return {
+                'verification_status': VerificationStatus(stored_status),
+                'has_discrepancies': assessment_data.get('has_discrepancies', False),
+                'discrepancy_count': assessment_data.get('discrepancy_count', 0),
+            }
+
     import asyncio
 
     async def _get_verification_info():
+        # Count triggered fraud indicators from assessment data
+        fraud_alert_count = 0
+        if assessment_data:
+            fraud_indicators = assessment_data.get('fraud_indicators', [])
+            if isinstance(fraud_indicators, list):
+                fraud_alert_count = sum(
+                    1 for ind in fraud_indicators
+                    if ind.get('indicator_value', False) is True
+                )
+
+        # Count cross-validation discrepancies
         validation_repo = get_validation_repo()
         results = await validation_repo.get_by_assessment(assessment_id)
+        cross_validation_count = sum(1 for r in results if r.get('is_discrepancy', False))
 
-        discrepancy_count = sum(1 for r in results if r.get('is_discrepancy', False))
-        has_discrepancies = discrepancy_count > 0
+        # Total discrepancy count includes BOTH fraud alerts AND cross-validation discrepancies
+        total_discrepancy_count = fraud_alert_count + cross_validation_count
+        has_discrepancies = total_discrepancy_count > 0
+
         verification_status = (
             VerificationStatus.REQUIRES_MANUAL_VERIFICATION
             if has_discrepancies
@@ -597,14 +630,28 @@ def _compute_verification_info(assessment_id: str) -> dict:
         return {
             'verification_status': verification_status,
             'has_discrepancies': has_discrepancies,
-            'discrepancy_count': discrepancy_count,
+            'discrepancy_count': total_discrepancy_count,
         }
 
     # Try to run in existing event loop, or create new one
     try:
         asyncio.get_running_loop()
         # If there's a running loop, we can't use run_until_complete
-        # Return default values for now - the async endpoint will handle this
+        # Compute synchronously from assessment data only (fraud indicators)
+        if assessment_data:
+            fraud_indicators = assessment_data.get('fraud_indicators', [])
+            if isinstance(fraud_indicators, list):
+                fraud_alert_count = sum(
+                    1 for ind in fraud_indicators
+                    if ind.get('indicator_value', False) is True
+                )
+                if fraud_alert_count > 0:
+                    return {
+                        'verification_status': VerificationStatus.REQUIRES_MANUAL_VERIFICATION,
+                        'has_discrepancies': True,
+                        'discrepancy_count': fraud_alert_count,
+                    }
+        # Return default values - the async endpoint will handle cross-validation
         return {
             'verification_status': VerificationStatus.PASS,
             'has_discrepancies': False,
@@ -615,21 +662,51 @@ def _compute_verification_info(assessment_id: str) -> dict:
         return asyncio.run(_get_verification_info())
 
 
-async def _compute_verification_info_async(assessment_id: str) -> dict:
+async def _compute_verification_info_async(assessment_id: str, assessment_data: dict = None) -> dict:
     """
-    Compute verification status from cross-validation results asynchronously.
+    Compute verification status from assessment data and cross-validation results.
+
+    Priority:
+    1. If assessment has stored verification_status (from finalization), use it
+    2. Otherwise, compute from both fraud indicators AND cross-validation discrepancies
 
     Args:
         assessment_id: The assessment ID to look up
+        assessment_data: Optional assessment dict containing fraud_indicators and verification_status
 
     Returns:
         Dict with verification_status, has_discrepancies, discrepancy_count
     """
+    # Check if assessment has stored verification status (from finalization)
+    if assessment_data:
+        stored_status = assessment_data.get('verification_status')
+        if stored_status:
+            # Use stored values from finalization
+            return {
+                'verification_status': VerificationStatus(stored_status),
+                'has_discrepancies': assessment_data.get('has_discrepancies', False),
+                'discrepancy_count': assessment_data.get('discrepancy_count', 0),
+            }
+
+    # Count triggered fraud indicators from assessment data
+    fraud_alert_count = 0
+    if assessment_data:
+        fraud_indicators = assessment_data.get('fraud_indicators', [])
+        if isinstance(fraud_indicators, list):
+            fraud_alert_count = sum(
+                1 for ind in fraud_indicators
+                if ind.get('indicator_value', False) is True
+            )
+
+    # Count cross-validation discrepancies
     validation_repo = get_validation_repo()
     results = await validation_repo.get_by_assessment(assessment_id)
+    cross_validation_count = sum(1 for r in results if r.get('is_discrepancy', False))
 
-    discrepancy_count = sum(1 for r in results if r.get('is_discrepancy', False))
-    has_discrepancies = discrepancy_count > 0
+    # Total discrepancy count includes BOTH fraud alerts AND cross-validation discrepancies
+    total_discrepancy_count = fraud_alert_count + cross_validation_count
+    has_discrepancies = total_discrepancy_count > 0
+
     verification_status = (
         VerificationStatus.REQUIRES_MANUAL_VERIFICATION
         if has_discrepancies
@@ -639,7 +716,7 @@ async def _compute_verification_info_async(assessment_id: str) -> dict:
     return {
         'verification_status': verification_status,
         'has_discrepancies': has_discrepancies,
-        'discrepancy_count': discrepancy_count,
+        'discrepancy_count': total_discrepancy_count,
     }
 
 
@@ -1125,20 +1202,15 @@ async def trigger_cross_validation(
     low_count = sum(1 for r in discrepancies if r.severity == DiscrepancySeverity.LOW)
     total_impact = validation_service.calculate_total_score_impact(results)
 
-    # Update assessment validation status
+    # Update assessment status to pending_finalization (ready for user to finalize)
+    # NOTE: Auto-finalization removed per deferred finalization workflow
+    # User must click "Finalizar Evaluación" button to trigger score calculation
     await risk_repo.update(id, {
-        'document_validation_status': 'completed'
+        'document_validation_status': 'completed',
+        'status': AssessmentStatus.PENDING_FINALIZATION.value,  # Ready for finalization
     })
 
-    # Finalize evaluation with cross-validation results
-    # This calculates the final risk score incorporating discrepancy impacts
-    fraud_service = get_fraud_service()
-    await fraud_service.finalize_evaluation(
-        assessment_id=id,
-        cross_validation_results=result_records
-    )
-
-    logger.info(f"Cross-validation complete for assessment {id}. Discrepancies: {len(discrepancies)}, Score impact: {total_impact}")
+    logger.info(f"Cross-validation complete for assessment {id}. Discrepancies: {len(discrepancies)}, Score impact: {total_impact}. Status: pending_finalization")
 
     return CrossValidationResponse(
         assessment_id=id,
@@ -1185,6 +1257,192 @@ async def get_discrepancies(
         results=[_map_db_to_validation_result(r) for r in results],
         validated_at=_parse_datetime(results[0].get('created_at')) if results else None
     )
+
+
+# ==================== Finalization Endpoints ====================
+
+@router.get("/evaluations/{id}/finalization-status", response_model=FinalizationStatusResponse)
+async def get_finalization_status(
+    id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager']))
+):
+    """
+    Get finalization status and requirements for an evaluation.
+    Shows what requirements are met and what is still pending.
+    Requires risk_analyst or risk_manager role.
+    """
+    logger.info(f"Getting finalization status for evaluation {id}")
+
+    # Verify assessment exists
+    risk_repo = get_risk_repo()
+    assessment = await risk_repo.get_by_id(id)
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Evaluation {id} not found"
+        )
+
+    # Get counts for various validation requirements
+    extraction_repo = get_extraction_repo()
+    extractions = await extraction_repo.get_by_assessment(id)
+    document_count = len([e for e in extractions if e['extraction_status'] == 'completed'])
+
+    validation_repo = get_validation_repo()
+    cross_validation_results = await validation_repo.get_by_assessment(id)
+    cross_validation_count = len(cross_validation_results)
+
+    email_chain_repo = get_email_chain_repo()
+    email_chains = await email_chain_repo.get_by_assessment(id)
+    email_chain_count = len([c for c in email_chains if c.get('is_active', True)])
+    email_chain_validated_count = len([
+        c for c in email_chains
+        if c.get('is_active', True) and c.get('validation_status') in ['validated', 'suspicious', 'critical']
+    ])
+
+    external_contact_repo = get_external_contact_repo()
+    external_contacts = await external_contact_repo.get_by_assessment(id)
+    external_contact_count = len([c for c in external_contacts if c.get('is_active', True)])
+    external_contact_validated_count = len([
+        c for c in external_contacts
+        if c.get('is_active', True) and c.get('validation_status') in ['validated', 'suspicious', 'critical']
+    ])
+
+    # Get finalization status from service
+    fraud_service = get_fraud_service()
+    finalization_status = await fraud_service.get_finalization_status(
+        assessment_id=id,
+        cross_validation_count=cross_validation_count,
+        email_chain_count=email_chain_count,
+        email_chain_validated_count=email_chain_validated_count,
+        external_contact_count=external_contact_count,
+        external_contact_validated_count=external_contact_validated_count,
+        document_count=document_count,
+    )
+
+    return FinalizationStatusResponse(
+        assessment_id=finalization_status['assessment_id'],
+        can_finalize=finalization_status['can_finalize'],
+        requirements=FinalizationRequirements(**finalization_status['requirements']),
+        pending_items=finalization_status['pending_items'],
+        current_status=AssessmentStatus(finalization_status['current_status']),
+    )
+
+
+@router.post("/evaluations/{id}/finalize", response_model=RiskAssessmentDetail)
+async def finalize_evaluation(
+    id: str,
+    request: FinalizeEvaluationRequest = FinalizeEvaluationRequest(),
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager']))
+):
+    """
+    Finalize a risk evaluation, calculating the final risk score.
+
+    This endpoint:
+    1. Runs blacklist check
+    2. Runs all fraud indicator checks
+    3. Aggregates cross-validation, email chain, and external contact results
+    4. Calculates final risk score
+    5. Determines final status (completed/pending/escalated/rejected)
+    6. Creates alerts for high/critical risk
+
+    Requires risk_analyst or risk_manager role.
+    """
+    logger.info(f"Finalizing evaluation {id}, force_complete={request.force_complete}")
+
+    # Verify assessment exists
+    risk_repo = get_risk_repo()
+    assessment = await risk_repo.get_by_id(id)
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Evaluation {id} not found"
+        )
+
+    # Check if assessment is in valid state for finalization
+    current_status = assessment.get('status')
+    if current_status not in [
+        AssessmentStatus.PENDING_DOCUMENTS.value,
+        AssessmentStatus.PENDING_FINALIZATION.value
+    ]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot finalize evaluation in status '{current_status}'. "
+                   f"Must be 'pending_documents' or 'pending_finalization'."
+        )
+
+    try:
+        # Get cross-validation results
+        validation_repo = get_validation_repo()
+        cross_validation_results = await validation_repo.get_by_assessment(id)
+
+        # Check if force_complete is allowed when requirements not met
+        if not request.force_complete and len(cross_validation_results) == 0:
+            # Check document count
+            extraction_repo = get_extraction_repo()
+            extractions = await extraction_repo.get_by_assessment(id)
+            completed_docs = len([e for e in extractions if e['extraction_status'] == 'completed'])
+
+            if completed_docs < 2:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot finalize: Need at least 2 documents (have {completed_docs}) "
+                           "and cross-validation must be completed. Use force_complete=true to override."
+                )
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot finalize: Cross-validation has not been completed. "
+                       "Run cross-validation first or use force_complete=true to override."
+            )
+
+        # Get email chain results
+        email_chain_repo = get_email_chain_repo()
+        email_chains = await email_chain_repo.get_by_assessment(id)
+        email_chain_results = [
+            c for c in email_chains
+            if c.get('is_active', True) and c.get('validation_result')
+        ]
+
+        # Get external contact results
+        external_contact_repo = get_external_contact_repo()
+        external_contacts = await external_contact_repo.get_by_assessment(id)
+        external_contact_results = [
+            c for c in external_contacts
+            if c.get('is_active', True) and c.get('validation_result')
+        ]
+
+        # Get user ID from current user
+        user_id = current_user.get('user_id') or current_user.get('id')
+
+        # Finalize evaluation
+        fraud_service = get_fraud_service()
+        updated_assessment = await fraud_service.finalize_evaluation_complete(
+            assessment_id=id,
+            user_id=user_id,
+            cross_validation_results=cross_validation_results,
+            email_chain_results=email_chain_results,
+            external_contact_results=external_contact_results,
+        )
+
+        logger.info(
+            f"Evaluation {id} finalized. Score: {updated_assessment.get('risk_score')}, "
+            f"Level: {updated_assessment.get('risk_level')}, Status: {updated_assessment.get('status')}"
+        )
+
+        # Compute verification info for response
+        verification_info = await _compute_verification_info_async(id, updated_assessment)
+
+        return _map_to_detail(updated_assessment, verification_info)
+    except HTTPException:
+        # Re-raise HTTPException as-is (already has proper status code)
+        raise
+    except Exception as e:
+        logger.error(f"Error finalizing evaluation {id}: {e}", exc_info=True)
+        # Re-raise as HTTPException to ensure proper error response with CORS headers
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error finalizing evaluation: {str(e)}"
+        )
 
 
 # ==================== Document Extraction Helper Functions ====================
