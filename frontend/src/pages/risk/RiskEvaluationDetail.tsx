@@ -34,6 +34,7 @@ import {
   Assessment,
   Info,
   Email,
+  PictureAsPdf,
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
 import { riskService } from '../../services/riskService';
@@ -46,8 +47,11 @@ import type {
   RiskAssessmentDetail,
   RiskDecisionRequest,
   CrossValidationResponse,
+  ExternalContact,
 } from '../../types/risk';
 import { ASSESSMENT_STATUS_CONFIG } from '../../types/risk';
+import { exportComprehensiveEvaluationReport } from '../../utils/crossValidationPdfExport';
+import type { ComprehensiveReportContext } from '../../utils/crossValidationPdfExport';
 
 const RiskEvaluationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -67,6 +71,8 @@ const RiskEvaluationDetail: React.FC = () => {
   const [validationReady, setValidationReady] = useState(false);
   const [validationResults, setValidationResults] = useState<CrossValidationResponse | null>(null);
   const [scoreUpdatedMessage, setScoreUpdatedMessage] = useState<string | null>(null);
+  const [externalContacts, setExternalContacts] = useState<ExternalContact[]>([]);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   // Check if user is risk manager
   const isRiskManager = userProfile?.role === 'risk_manager' || userProfile?.role === 'admin';
@@ -78,6 +84,9 @@ const RiskEvaluationDetail: React.FC = () => {
 
   // Check if score is preliminary (pending_documents or pending_finalization status)
   const isPreliminaryScore = assessment?.status === 'pending_documents' || assessment?.status === 'pending_finalization';
+
+  // Check if evaluation is finalized (can generate report)
+  const isFinalized = assessment?.status && !['pending_documents', 'pending_finalization'].includes(assessment.status);
 
   // Check if cross-validation is done
   const crossValidationDone = validationResults && validationResults.results.length > 0;
@@ -91,7 +100,7 @@ const RiskEvaluationDetail: React.FC = () => {
   // Decision is blocked until acknowledgment for flagged evaluations
   const decisionBlocked = requiresAcknowledgment && !isAcknowledged;
 
-  // Load assessment
+  // Load assessment and related data
   const loadAssessment = useCallback(async () => {
     if (!id) return;
 
@@ -101,6 +110,15 @@ const RiskEvaluationDetail: React.FC = () => {
 
       const data = await riskService.getEvaluation(id);
       setAssessment(data);
+
+      // Also load external contacts for the report
+      try {
+        const contactsResponse = await riskService.getExternalContacts(id);
+        setExternalContacts(contactsResponse.contacts || []);
+      } catch {
+        // External contacts may not exist yet, that's okay
+        setExternalContacts([]);
+      }
     } catch (err) {
       console.error('Error loading assessment:', err);
       setError('Error al cargar la evaluación');
@@ -133,6 +151,56 @@ const RiskEvaluationDetail: React.FC = () => {
     // Auto-hide message after 5 seconds
     setTimeout(() => setScoreUpdatedMessage(null), 5000);
   }, [loadAssessment]);
+
+  // Helper to generate report with data
+  const generateReportWithData = useCallback((cvResults: CrossValidationResponse) => {
+    if (!assessment) return;
+
+    try {
+      setGeneratingReport(true);
+
+      const reportContext: ComprehensiveReportContext = {
+        assessment_id: assessment.assessment_id,
+        client_nit: assessment.client_nit,
+        client_info: assessment.client_info,
+        finalized_by: assessment.finalized_by,
+        finalized_at: assessment.finalized_at,
+        risk_score: assessment.risk_score,
+        risk_level: assessment.risk_level,
+        verification_status: assessment.verification_status || 'pending',
+        fraud_indicators: assessment.fraud_indicators || [],
+        external_contacts: externalContacts,
+      };
+
+      exportComprehensiveEvaluationReport(cvResults, reportContext);
+    } catch (err) {
+      console.error('Error generating report:', err);
+      setSubmitError('Error al generar el reporte');
+    } finally {
+      setGeneratingReport(false);
+    }
+  }, [assessment, externalContacts]);
+
+  // Handle comprehensive report generation
+  const handleGenerateReport = useCallback(async () => {
+    if (!assessment || !validationResults) {
+      // Try to load validation results if not available
+      if (id) {
+        try {
+          const cvResults = await riskService.getDiscrepancies(id);
+          setValidationResults(cvResults);
+          // Generate report with fresh results
+          generateReportWithData(cvResults);
+        } catch (err) {
+          console.error('Error loading validation results for report:', err);
+          setSubmitError('Error al cargar resultados de validación para el reporte');
+          return;
+        }
+      }
+      return;
+    }
+    generateReportWithData(validationResults);
+  }, [assessment, validationResults, id, generateReportWithData]);
 
   // Handle decision submission
   const handleSubmitDecision = async () => {
@@ -459,6 +527,27 @@ const RiskEvaluationDetail: React.FC = () => {
               isPreliminary={isPreliminaryScore}
               indicators={assessment.fraud_indicators}
             />
+
+            {/* Generate Report Button - only visible when finalized */}
+            {isFinalized && (
+              <Box sx={{ mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  fullWidth
+                  startIcon={generatingReport ? <CircularProgress size={20} /> : <PictureAsPdf />}
+                  onClick={handleGenerateReport}
+                  disabled={generatingReport}
+                  sx={{
+                    py: 1.5,
+                    borderRadius: 2,
+                    fontWeight: 600,
+                  }}
+                >
+                  {generatingReport ? 'Generando...' : 'Generar Reporte Completo'}
+                </Button>
+              </Box>
+            )}
           </Grid>
 
           {/* Right Column - Decision */}

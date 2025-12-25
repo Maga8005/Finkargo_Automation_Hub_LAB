@@ -862,12 +862,31 @@ class FraudDetectionService:
         # 8. Determine final status based on risk level
         final_status = self._determine_final_status(final_level)
 
-        # 9. Update assessment with final values including audit fields
+        # 9. Determine verification status based on triggered indicators
+        # Any indicator with indicator_value=True means an alert was triggered
+        triggered_indicators = [ind for ind in indicators if ind.indicator_value]
+        has_any_alert = len(triggered_indicators) > 0
+
+        # If ANY indicator is triggered, set requires_manual_verification
+        # Otherwise, set pass
+        verification_status = 'requires_manual_verification' if has_any_alert else 'pass'
+        has_discrepancies = has_any_alert
+        discrepancy_count = len(triggered_indicators)
+
+        logger.info(
+            f"Verification status for assessment {assessment_id}: "
+            f"triggered_indicators={discrepancy_count}, verification_status={verification_status}"
+        )
+
+        # 10. Update assessment with final values including audit fields and verification status
         update_data = {
             'risk_score': float(final_score),
             'risk_level': final_level.value,
             'fraud_indicators': [self._indicator_to_dict(ind) for ind in indicators],
             'status': final_status,
+            'verification_status': verification_status,
+            'has_discrepancies': has_discrepancies,
+            'discrepancy_count': discrepancy_count,
             'finalized_by': user_id,
             'finalized_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat(),
@@ -875,7 +894,7 @@ class FraudDetectionService:
 
         updated_assessment = await self.risk_repo.update(assessment_id, update_data)
 
-        # 10. Create alerts for high/critical risk
+        # 11. Create alerts for high/critical risk
         if final_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
             await self._create_risk_alerts(updated_assessment, final_level, indicators)
 

@@ -290,7 +290,7 @@ export const VERIFICATION_STATUS_CONFIG: Record<VerificationStatus, Verification
     icon: 'CheckCircle',
   },
   requires_manual_verification: {
-    label: 'REQUIERE VERIFICACIÓN MANUAL',
+    label: 'FALLIDO-REQUIERE REVISIÓN',
     color: 'error',
     bgColor: '#FFE4E4',
     textColor: '#CC071E',
