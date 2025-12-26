@@ -1158,6 +1158,48 @@ async def get_extractions(
     )
 
 
+@router.delete("/evaluations/{id}/extractions/{extraction_id}")
+async def delete_extraction(
+    id: str,
+    extraction_id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Delete a document extraction.
+    This allows users to remove incorrect documents and reupload new ones.
+    Also clears cross-validation results since they may be based on incorrect data.
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Deleting extraction {extraction_id} for evaluation {id}")
+
+    # Get extraction record
+    extraction_repo = get_extraction_repo()
+    extraction = await extraction_repo.get_by_id(extraction_id)
+
+    if not extraction or extraction['assessment_id'] != id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Extraction {extraction_id} not found for evaluation {id}"
+        )
+
+    # Delete the extraction record
+    await extraction_repo.delete(extraction_id)
+
+    # Clear cross-validation results since they may be based on this document
+    validation_repo = get_validation_repo()
+    await validation_repo.delete_by_assessment(id)
+
+    # Update assessment to indicate revalidation may be needed
+    risk_repo = get_risk_repo()
+    await risk_repo.update(id, {
+        'document_validation_status': 'needs_revalidation'
+    })
+
+    logger.info(f"Extraction {extraction_id} deleted, cross-validation results cleared")
+
+    return {"message": "Document extraction deleted successfully", "cross_validation_cleared": True}
+
+
 @router.post("/evaluations/{id}/cross-validate", response_model=CrossValidationResponse)
 async def trigger_cross_validation(
     id: str,
