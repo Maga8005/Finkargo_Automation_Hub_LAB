@@ -22,8 +22,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Checkbox,
-  FormControlLabel,
 } from '@mui/material';
 import {
   CheckCircle,
@@ -55,7 +53,6 @@ const FKFinalizeButton: React.FC<FKFinalizeButtonProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [forceComplete, setForceComplete] = useState(false);
 
   // Load finalization status
   const loadStatus = useCallback(async () => {
@@ -84,7 +81,7 @@ const FKFinalizeButton: React.FC<FKFinalizeButtonProps> = ({
       setSuccess(null);
 
       const result = await riskService.finalizeEvaluation(evaluationId, {
-        force_complete: forceComplete,
+        force_complete: false,
       });
 
       setSuccess('Evaluación finalizada exitosamente');
@@ -98,7 +95,6 @@ const FKFinalizeButton: React.FC<FKFinalizeButtonProps> = ({
       setError(message);
     } finally {
       setFinalizing(false);
-      setForceComplete(false);
     }
   };
 
@@ -276,7 +272,7 @@ const FKFinalizeButton: React.FC<FKFinalizeButtonProps> = ({
                   )
                 }
                 onClick={() => setShowConfirmDialog(true)}
-                disabled={finalizing || (!canFinalize && !status)}
+                disabled={finalizing || !canFinalize}
                 sx={{
                   flex: 1,
                   py: 1.5,
@@ -287,11 +283,6 @@ const FKFinalizeButton: React.FC<FKFinalizeButtonProps> = ({
               </Button>
             </Box>
 
-            {!canFinalize && status && (
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                Complete los requisitos pendientes o use "Forzar Finalización" en el diálogo de confirmación.
-              </Typography>
-            )}
           </>
         )}
 
@@ -334,25 +325,6 @@ const FKFinalizeButton: React.FC<FKFinalizeButtonProps> = ({
               </ListItem>
             </List>
 
-            {!canFinalize && (
-              <Box sx={{ mt: 2 }}>
-                <Alert severity="warning" sx={{ mb: 1 }}>
-                  <Typography variant="body2">
-                    No se han completado todos los requisitos. Puede forzar la finalización si lo desea.
-                  </Typography>
-                </Alert>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={forceComplete}
-                      onChange={(e) => setForceComplete(e.target.checked)}
-                      color="warning"
-                    />
-                  }
-                  label="Forzar finalización sin completar requisitos opcionales"
-                />
-              </Box>
-            )}
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setShowConfirmDialog(false)}>
@@ -362,7 +334,7 @@ const FKFinalizeButton: React.FC<FKFinalizeButtonProps> = ({
               variant="contained"
               color="primary"
               onClick={handleFinalize}
-              disabled={!canFinalize && !forceComplete}
+              disabled={!canFinalize}
             >
               Confirmar Finalización
             </Button>

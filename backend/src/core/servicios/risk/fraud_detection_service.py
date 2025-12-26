@@ -946,7 +946,7 @@ class FraudDetectionService:
 
         # Default requirements (can be extended to fetch from config table)
         require_cross_validation = True
-        require_email_chain_validation = False  # Optional
+        require_email_chain_validation = True  # Mandatory when chains exist
         require_external_contact_validation = False  # Optional
         min_documents_required = 2
         allow_force_complete = True
@@ -988,9 +988,11 @@ class FraudDetectionService:
             pending_items.append(f"Validar contactos externos ({external_contact_validated_count}/{external_contact_count})")
 
         # Can finalize if all required items are done
+        # Email chains: if any exist, ALL must be validated
         can_finalize = (
             requirements.cross_validation_done and
-            requirements.min_documents_met
+            requirements.min_documents_met and
+            (email_chain_count == 0 or requirements.email_chains_validated)
         )
 
         current_status = AssessmentStatus(assessment.get('status', 'pending_documents'))
