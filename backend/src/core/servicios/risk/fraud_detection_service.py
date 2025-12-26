@@ -952,17 +952,24 @@ class FraudDetectionService:
         allow_force_complete = True
 
         # Build requirements status
+        # FIX: Only mark as validated if items exist AND all are validated
+        # "No items" (count == 0) should NOT be treated as "validated"
         requirements = FinalizationRequirements(
             cross_validation_done=cross_validation_count > 0,
             email_chains_validated=(
-                email_chain_count == 0 or  # None required
+                email_chain_count > 0 and  # Must have items
                 email_chain_validated_count >= email_chain_count  # All validated
             ),
             external_contacts_validated=(
-                external_contact_count == 0 or  # None required
+                external_contact_count > 0 and  # Must have items
                 external_contact_validated_count >= external_contact_count  # All validated
             ),
             min_documents_met=document_count >= min_documents_required,
+            # Include counts so frontend can distinguish "none" vs "validated"
+            email_chain_count=email_chain_count,
+            email_chain_validated_count=email_chain_validated_count,
+            external_contact_count=external_contact_count,
+            external_contact_validated_count=external_contact_validated_count,
         )
 
         # Build pending items list

@@ -195,31 +195,55 @@ const FKFinalizeButton: React.FC<FKFinalizeButtonProps> = ({
                   secondary={requirements?.cross_validation_done ? 'Completado' : 'Pendiente'}
                 />
               </ListItem>
-              {/* Optional requirements */}
+              {/* Optional requirements - distinguish "no items" vs "all validated" */}
               <ListItem>
                 <ListItemIcon>
-                  {requirements?.email_chains_validated ? (
+                  {/* Email chains: Show different status based on count */}
+                  {(requirements?.email_chain_count ?? 0) === 0 ? (
+                    // No email chains uploaded - show as optional/not started
+                    <Warning color="warning" fontSize="small" />
+                  ) : requirements?.email_chains_validated ? (
+                    // Has items and all validated
                     <CheckCircle color="success" fontSize="small" />
                   ) : (
-                    <Warning color="warning" fontSize="small" />
+                    // Has items but not all validated
+                    <ErrorOutline color="error" fontSize="small" />
                   )}
                 </ListItemIcon>
                 <ListItemText
                   primary="Cadenas de correo validadas"
-                  secondary={requirements?.email_chains_validated ? 'Completado' : 'Opcional'}
+                  secondary={
+                    (requirements?.email_chain_count ?? 0) === 0
+                      ? 'Opcional - No hay cadenas'
+                      : requirements?.email_chains_validated
+                        ? 'Completado'
+                        : `Pendiente (${requirements?.email_chain_validated_count ?? 0}/${requirements?.email_chain_count ?? 0})`
+                  }
                 />
               </ListItem>
               <ListItem>
                 <ListItemIcon>
-                  {requirements?.external_contacts_validated ? (
+                  {/* External contacts: Show different status based on count */}
+                  {(requirements?.external_contact_count ?? 0) === 0 ? (
+                    // No external contacts uploaded - show as optional/not started
+                    <Warning color="warning" fontSize="small" />
+                  ) : requirements?.external_contacts_validated ? (
+                    // Has items and all validated
                     <CheckCircle color="success" fontSize="small" />
                   ) : (
-                    <Warning color="warning" fontSize="small" />
+                    // Has items but not all validated
+                    <ErrorOutline color="error" fontSize="small" />
                   )}
                 </ListItemIcon>
                 <ListItemText
                   primary="Contactos externos validados"
-                  secondary={requirements?.external_contacts_validated ? 'Completado' : 'Opcional'}
+                  secondary={
+                    (requirements?.external_contact_count ?? 0) === 0
+                      ? 'Opcional - No hay contactos'
+                      : requirements?.external_contacts_validated
+                        ? 'Completado'
+                        : `Pendiente (${requirements?.external_contact_validated_count ?? 0}/${requirements?.external_contact_count ?? 0})`
+                  }
                 />
               </ListItem>
             </List>
