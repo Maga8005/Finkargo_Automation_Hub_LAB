@@ -1010,10 +1010,23 @@ class CrossValidationService:
         return re.sub(r'[^\w]', '', id_num.upper())
 
     def _names_match(self, name1: str, name2: str, threshold: float = 0.85) -> bool:
-        """Check if two names match with fuzzy matching."""
+        """Check if two names match with fuzzy matching and name order tolerance.
+
+        Handles name reordering between documents, e.g.:
+        - "JOSE DAVID RAMOS DAZA" vs "RAMOS DAZA JOSE DAVID" (matches)
+        """
         if not name1 or not name2:
             return False
         if name1 == name2:
             return True
+
+        # Check for same name parts in different order
+        # Handles: "JOSE DAVID RAMOS DAZA" vs "RAMOS DAZA JOSE DAVID"
+        tokens1 = set(name1.split())
+        tokens2 = set(name2.split())
+        if tokens1 == tokens2:
+            return True
+
+        # Fuzzy matching for spelling variations
         similarity = SequenceMatcher(None, name1, name2).ratio()
         return similarity >= threshold
