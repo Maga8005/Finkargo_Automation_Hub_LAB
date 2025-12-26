@@ -333,7 +333,7 @@ export type ValidationType =
   | 'domain_existence'
   | 'domain_age';
 
-export type DiscrepancySeverity = 'low' | 'medium' | 'high' | 'critical';
+export type DiscrepancySeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
 export interface DocumentExtraction {
   id: string;
@@ -448,7 +448,7 @@ export const DOCUMENT_TYPE_CONFIG: Record<DocumentType, DocumentTypeConfig> = {
   certificado_existencia: {
     label: 'Certificado de Existencia',
     accepted_formats: ['pdf'],
-    max_size_mb: 10,
+    max_size_mb: 50,
     required: false,
   },
 };
@@ -461,6 +461,12 @@ export const EXTRACTION_STATUS_CONFIG: Record<ExtractionStatus, { label: string;
 };
 
 export const DISCREPANCY_SEVERITY_CONFIG: Record<DiscrepancySeverity, { label: string; color: 'success' | 'warning' | 'error' | 'default'; bgColor: string; textColor: string }> = {
+  info: {
+    label: 'Info',
+    color: 'success',
+    bgColor: '#E0F7E6',
+    textColor: '#2CA14D',
+  },
   low: {
     label: 'Bajo',
     color: 'success',
@@ -643,6 +649,7 @@ export interface EmailChainDiscrepancy {
 
 export interface EmailChainValidationResult {
   total_discrepancies: number;
+  info_count?: number;
   critical_count: number;
   high_count: number;
   medium_count: number;

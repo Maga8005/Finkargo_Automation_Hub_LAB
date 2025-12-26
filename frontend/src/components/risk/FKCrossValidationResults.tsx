@@ -530,8 +530,8 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
             {results.results
               .filter(r => r.is_discrepancy)
               .sort((a, b) => {
-                const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-                return (severityOrder[a.severity || 'low'] || 4) - (severityOrder[b.severity || 'low'] || 4);
+                const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+                return (severityOrder[a.severity || 'low'] || 5) - (severityOrder[b.severity || 'low'] || 5);
               })
               .map((result, index) => renderResult(result, index))}
 

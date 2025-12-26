@@ -852,3 +852,129 @@ class TestMultipleLegalRepresentatives:
         # Should match despite accent differences (normalization)
         assert name_result is not None
         assert name_result.is_discrepancy is False
+
+
+class TestNameOrderMatching:
+    """Test name order tolerance (Issue #36 - False positive for reordered names)
+
+    Colombian documents often show names in different orders:
+    - Cédula: "JOSE DAVID RAMOS DAZA" (first names + last names)
+    - Certificado: "RAMOS DAZA JOSE DAVID" (last names + first names)
+    """
+
+    @pytest.fixture
+    def service(self):
+        """Create CrossValidationService with dependencies"""
+        return CrossValidationService(
+            normalization_service=NormalizationService(),
+            typosquatting_service=TyposquattingService()
+        )
+
+    def test_same_name_different_order_cedula_vs_certificado(self, service):
+        """Test: Same name parts in different order → no discrepancy (BUG FIX)"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'JOSE DAVID RAMOS DAZA',
+                'document_number': '12345678'
+            },
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'legal_representative_name': 'RAMOS DAZA JOSE DAVID',
+                'legal_representative_id': '12345678'
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        # Should NOT flag as discrepancy - same name parts, different order
+        assert name_result is not None
+        assert name_result.is_discrepancy is False
+
+    def test_same_name_different_order_with_four_parts(self, service):
+        """Test: Four-part name in different order → no discrepancy"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'MARIA FERNANDA LOPEZ GARCIA',
+                'document_number': '87654321'
+            },
+            DocumentType.RUT: {
+                'legal_representative_name': 'LOPEZ GARCIA MARIA FERNANDA',
+                'legal_representative_id': '87654321'
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        assert name_result is not None
+        assert name_result.is_discrepancy is False
+
+    def test_different_name_parts_should_flag_discrepancy(self, service):
+        """Test: Different name parts → should flag discrepancy"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'JOSE RAMOS',
+                'document_number': '12345678'
+            },
+            DocumentType.RUT: {
+                'legal_representative_name': 'DAVID RAMOS',
+                'legal_representative_id': '12345678'
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        # SHOULD flag - different name parts (JOSE vs DAVID)
+        assert name_result is not None
+        assert name_result.is_discrepancy is True
+
+    def test_same_name_different_order_in_representatives_array(self, service):
+        """Test: Name reordering in representatives array → no discrepancy"""
+        extractions = {
+            DocumentType.CEDULA: {
+                'full_name': 'JOSE DAVID RAMOS DAZA',
+                'document_number': '12345678'
+            },
+            DocumentType.RUT: {
+                'legal_representative_name': 'RAMOS DAZA JOSE DAVID',
+                'legal_representative_id': '12345678',
+                'legal_representatives': [
+                    {
+                        'name': 'RAMOS DAZA JOSE DAVID',  # Last names first
+                        'id_number': '12345678',
+                        'role': 'principal'
+                    }
+                ]
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        name_result = next(
+            (r for r in results
+             if r.validation_type == ValidationType.LEGAL_REPRESENTATIVE
+             and r.field_compared == 'legal_representative_name'),
+            None
+        )
+
+        assert name_result is not None
+        assert name_result.is_discrepancy is False

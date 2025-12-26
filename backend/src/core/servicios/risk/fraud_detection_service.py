@@ -819,11 +819,15 @@ class FraudDetectionService:
 
         # Add cross-validation discrepancies as indicators
         for cv_result in cross_validation_results:
+            # Skip INFO-level items (positive indicators, not discrepancies)
+            severity_value = cv_result.get('severity', 'medium')
+            if severity_value == 'info':
+                continue
             if cv_result.get('is_discrepancy'):
                 indicators.append(FraudIndicator(
                     indicator_name=f"cross_validation_{cv_result.get('validation_type', 'unknown')}",
                     indicator_value=True,
-                    severity=RiskLevel(cv_result.get('severity', 'medium')),
+                    severity=RiskLevel(severity_value),
                     evidence=cv_result.get('description', 'Discrepancia en validación cruzada'),
                     score_impact=Decimal(str(cv_result.get('score_impact', 0))),
                 ))
@@ -833,10 +837,14 @@ class FraudDetectionService:
             for chain in email_chain_results:
                 validation_result = chain.get('validation_result', {})
                 for disc in validation_result.get('discrepancies', []):
+                    # Skip INFO-level items (positive indicators, not discrepancies)
+                    severity_value = disc.get('severity', 'medium')
+                    if severity_value == 'info':
+                        continue
                     indicators.append(FraudIndicator(
                         indicator_name=f"email_chain_{disc.get('field', 'unknown')}",
                         indicator_value=True,
-                        severity=RiskLevel(disc.get('severity', 'medium')),
+                        severity=RiskLevel(severity_value),
                         evidence=disc.get('description', 'Discrepancia en cadena de correo'),
                         score_impact=Decimal(str(disc.get('score_impact', 5))),  # Default 5 if not specified
                     ))

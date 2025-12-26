@@ -692,16 +692,18 @@ class CrossValidationService:
         if not domain:
             return results
 
-        company_name = rut_data.get('company_name', '')
-
-        # Build known domains list including company-specific
+        # Build known domains list - only use DEFAULT_KNOWN_DOMAINS
+        # NOTE: We do NOT derive a domain from company_name because the RUT email
+        # domain IS the official domain. Previously, deriving "company.com" from the
+        # company name caused false positives when the RUT had a different TLD like
+        # "company.com.co" (the actual official domain from the government document).
         known_domains = list(self.typosquatting.DEFAULT_KNOWN_DOMAINS)
 
-        # Check for typosquatting
+        # Check for typosquatting against known legitimate domains only
+        # Do NOT pass company_name - the RUT domain is authoritative
         typo_result = self.typosquatting.check_domain_typosquatting(
             domain,
-            known_domains=known_domains,
-            company_name=company_name
+            known_domains=known_domains
         )
 
         if typo_result.is_suspicious:
@@ -1008,10 +1010,23 @@ class CrossValidationService:
         return re.sub(r'[^\w]', '', id_num.upper())
 
     def _names_match(self, name1: str, name2: str, threshold: float = 0.85) -> bool:
-        """Check if two names match with fuzzy matching."""
+        """Check if two names match with fuzzy matching and name order tolerance.
+
+        Handles name reordering between documents, e.g.:
+        - "JOSE DAVID RAMOS DAZA" vs "RAMOS DAZA JOSE DAVID" (matches)
+        """
         if not name1 or not name2:
             return False
         if name1 == name2:
             return True
+
+        # Check for same name parts in different order
+        # Handles: "JOSE DAVID RAMOS DAZA" vs "RAMOS DAZA JOSE DAVID"
+        tokens1 = set(name1.split())
+        tokens2 = set(name2.split())
+        if tokens1 == tokens2:
+            return True
+
+        # Fuzzy matching for spelling variations
         similarity = SequenceMatcher(None, name1, name2).ratio()
         return similarity >= threshold

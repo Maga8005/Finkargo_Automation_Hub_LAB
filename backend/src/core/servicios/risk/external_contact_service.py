@@ -203,7 +203,7 @@ class ExternalContactService:
         # Update contact with validation result
         updates = {
             'validation_status': validation_status.value,
-            'validation_result': validation_result.model_dump(),
+            'validation_result': validation_result.model_dump(mode='json'),
             'validated_at': datetime.now(timezone.utc).isoformat(),
         }
 

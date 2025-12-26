@@ -45,6 +45,10 @@ class EmailChainParserService:
     # Colombian NIT pattern: XXX.XXX.XXX-X or XXXXXXXXX-X or XXX-XXX-XXX-X
     NIT_PATTERN = r'\b(\d{3}\.?\d{3}\.?\d{3}[-\s]?\d|\d{9}[-\s]?\d)\b'
 
+    # Colombian cellphone pattern: 10 digits starting with 3 (mobile prefixes 30x, 31x, 32x, 35x, 36x)
+    # May have country code prefix: +57 or 57
+    COLOMBIAN_CELLPHONE_PATTERN = r'(?:\+?57\s*)?(?:3[0-26-9]\d{8})\b'
+
     # Free email provider domains
     FREE_PROVIDERS = {
         'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com',
@@ -633,8 +637,15 @@ class EmailChainParserService:
         # Extract NITs
         nit_matches = re.findall(self.NIT_PATTERN, body)
         for nit in nit_matches:
-            # Normalize NIT format
+            # Normalize NIT format (remove dots and spaces)
             normalized = re.sub(r'[.\s]', '', nit)
+
+            # Filter out Colombian cellphone numbers (10 digits starting with 3)
+            # Cellphones look like NITs but have distinct patterns
+            if self.is_colombian_cellphone(normalized):
+                logger.debug(f"Filtered cellphone number from NIT matches: {normalized}")
+                continue
+
             if normalized not in mentions['nits']:
                 mentions['nits'].append(normalized)
 
@@ -682,3 +693,36 @@ class EmailChainParserService:
             bool: True if free email provider
         """
         return domain.lower() in self.FREE_PROVIDERS
+
+    def is_colombian_cellphone(self, number: str) -> bool:
+        """
+        Check if a number string is a Colombian cellphone number.
+
+        Colombian cellphones:
+        - 10 digits total
+        - Start with 3 followed by 0, 1, 2, 5, or 6 (mobile prefixes)
+        - May have +57 or 57 country code prefix
+
+        Args:
+            number: Normalized number string (digits only)
+
+        Returns:
+            bool: True if matches Colombian cellphone pattern
+        """
+        # Remove all non-digit characters
+        digits_only = re.sub(r'[^\d]', '', number)
+
+        # Check for country code prefix and remove it
+        if digits_only.startswith('57') and len(digits_only) == 12:
+            digits_only = digits_only[2:]
+
+        # Must be exactly 10 digits
+        if len(digits_only) != 10:
+            return False
+
+        # Must start with 3 followed by mobile prefix (0, 1, 2, 5, 6)
+        # Mobile prefixes: 300-309, 310-319, 320-329, 350-359, 360-369
+        if digits_only[0] == '3' and digits_only[1] in '01256':
+            return True
+
+        return False

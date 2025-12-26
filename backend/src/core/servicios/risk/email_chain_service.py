@@ -233,12 +233,16 @@ class EmailChainService:
                 discrepancies.append(disc)
 
         # Build validation result
+        info_count = sum(1 for d in discrepancies if d['severity'] == DiscrepancySeverity.INFO.value)
         critical_count = sum(1 for d in discrepancies if d['severity'] == DiscrepancySeverity.CRITICAL.value)
         high_count = sum(1 for d in discrepancies if d['severity'] == DiscrepancySeverity.HIGH.value)
         medium_count = sum(1 for d in discrepancies if d['severity'] == DiscrepancySeverity.MEDIUM.value)
         low_count = sum(1 for d in discrepancies if d['severity'] == DiscrepancySeverity.LOW.value)
 
-        # Determine overall status
+        # Count only actual discrepancies (exclude INFO which is informational/positive status)
+        actual_discrepancy_count = critical_count + high_count + medium_count + low_count
+
+        # Determine overall status (INFO discrepancies don't affect status negatively)
         if critical_count > 0:
             validation_status = EmailChainValidationStatus.CRITICAL
             summary = f"ALERTA CRÍTICA: {critical_count} discrepancia(s) crítica(s) detectada(s). Posible intento de fraude."
@@ -253,7 +257,8 @@ class EmailChainService:
             summary = "Validación completada. No se encontraron discrepancias significativas."
 
         validation_result = {
-            'total_discrepancies': len(discrepancies),
+            'total_discrepancies': actual_discrepancy_count,
+            'info_count': info_count,
             'critical_count': critical_count,
             'high_count': high_count,
             'medium_count': medium_count,
@@ -333,10 +338,13 @@ class EmailChainService:
             for field in ['nit', 'nit_empresa', 'numero_identificacion']:
                 value = extracted.get(field)
                 if value:
-                    # Normalize NIT for comparison
-                    normalized = self.normalization_service.normalize_nit(str(value))
-                    if normalized and normalized not in doc_data['nits']:
-                        doc_data['nits'].append(normalized)
+                    # Normalize NIT for comparison - normalize_nit returns (base_digits, check_digit) tuple
+                    base, check = self.normalization_service.normalize_nit(str(value))
+                    if base:
+                        # Join base and check digit into a single string
+                        normalized = f"{base}-{check}" if check else base
+                        if normalized not in doc_data['nits']:
+                            doc_data['nits'].append(normalized)
 
             # Representative names
             for field in ['representante_legal', 'nombre_representante', 'gerente']:
@@ -626,15 +634,19 @@ class EmailChainService:
         known_nits = doc_data.get('nits', [])
         client_nit = client_snapshot.get('nit')
         if client_nit:
-            normalized_client_nit = self.normalization_service.normalize_nit(str(client_nit))
-            if normalized_client_nit and normalized_client_nit not in known_nits:
-                known_nits.append(normalized_client_nit)
+            # normalize_nit returns (base_digits, check_digit) tuple
+            base, check = self.normalization_service.normalize_nit(str(client_nit))
+            if base:
+                normalized_client_nit = f"{base}-{check}" if check else base
+                if normalized_client_nit not in known_nits:
+                    known_nits.append(normalized_client_nit)
 
         if not known_nits:
             return None
 
-        # Normalize the mentioned NIT
-        normalized_mention = self.normalization_service.normalize_nit(nit)
+        # Normalize the mentioned NIT - normalize_nit returns (base_digits, check_digit) tuple
+        base_mention, check_mention = self.normalization_service.normalize_nit(nit)
+        normalized_mention = f"{base_mention}-{check_mention}" if check_mention else base_mention
 
         # Check for exact match
         if normalized_mention in known_nits:
@@ -642,8 +654,9 @@ class EmailChainService:
 
         # Check for check digit mismatch (base digits same, check digit different)
         for known_nit in known_nits:
-            base_mention = normalized_mention[:-1] if len(normalized_mention) > 1 else normalized_mention
-            base_known = known_nit[:-1] if len(known_nit) > 1 else known_nit
+            # Extract base from known_nit (format: "base-check" or just "base")
+            known_parts = known_nit.split('-')
+            base_known = known_parts[0] if known_parts else known_nit
 
             if base_mention == base_known:
                 return {
@@ -830,5 +843,25 @@ class EmailChainService:
                     'domain_registrar': age_result.registrar,
                 }
 
-        # Domain is old enough or age is unknown - no issue
-        return None
+        # Domain exists and is old enough - return positive status (INFO severity)
+        if age_result.lookup_status == 'success' and age_result.age_days is not None:
+            description = (
+                f"Dominio '{domain}' verificado correctamente. "
+                f"Existe y tiene {age_result.age_days} días de antigüedad."
+            )
+        else:
+            description = f"Dominio '{domain}' existe (DNS verificado). Antigüedad no disponible."
+
+        return {
+            'field': 'domain_age',
+            'email_value': domain,
+            'document_value': None,
+            'severity': DiscrepancySeverity.INFO.value,
+            'description': description,
+            'is_typosquatting': False,
+            'similarity_score': None,
+            'domain_age_days': age_result.age_days if age_result.lookup_status == 'success' else None,
+            'domain_exists': True,
+            'domain_creation_date': age_result.creation_date.isoformat() if age_result.creation_date else None,
+            'domain_registrar': age_result.registrar if age_result.lookup_status == 'success' else None,
+        }
