@@ -313,3 +313,98 @@ class TestEmailNormalization:
         assert service.extract_email_domain("invalid-email") is None
         assert service.extract_email_domain("") is None
         assert service.extract_email_domain(None) is None
+
+
+class TestStringSimilarity:
+    """Test string similarity calculation"""
+
+    @pytest.fixture
+    def service(self):
+        """Create NormalizationService instance"""
+        return NormalizationService()
+
+    def test_identical_strings_return_one(self, service):
+        """Test identical strings return similarity of 1.0"""
+        result = service.calculate_similarity("AZELIS", "AZELIS")
+        assert result == 1.0
+
+    def test_identical_strings_case_insensitive(self, service):
+        """Test identical strings with different case return 1.0"""
+        result = service.calculate_similarity("Azelis", "AZELIS")
+        assert result == 1.0
+
+    def test_completely_different_strings(self, service):
+        """Test completely different strings return low similarity"""
+        result = service.calculate_similarity("ABCD", "WXYZ")
+        assert result < 0.5
+
+    def test_similar_strings_typosquatting(self, service):
+        """Test similar strings return medium-high similarity (e.g., AZELIS vs ACELIS)"""
+        result = service.calculate_similarity("AZELIS", "ACELIS")
+        # Single character difference should yield ~0.8-0.9 similarity
+        assert 0.8 <= result <= 0.95
+
+    def test_empty_first_string(self, service):
+        """Test empty first string returns 0.0"""
+        result = service.calculate_similarity("", "AZELIS")
+        assert result == 0.0
+
+    def test_empty_second_string(self, service):
+        """Test empty second string returns 0.0"""
+        result = service.calculate_similarity("AZELIS", "")
+        assert result == 0.0
+
+    def test_both_empty_strings(self, service):
+        """Test both empty strings return 0.0"""
+        result = service.calculate_similarity("", "")
+        assert result == 0.0
+
+    def test_none_first_string(self, service):
+        """Test None first string returns 0.0"""
+        result = service.calculate_similarity(None, "AZELIS")
+        assert result == 0.0
+
+    def test_none_second_string(self, service):
+        """Test None second string returns 0.0"""
+        result = service.calculate_similarity("AZELIS", None)
+        assert result == 0.0
+
+    def test_partial_match(self, service):
+        """Test partial match returns medium similarity"""
+        result = service.calculate_similarity("AZELIS COLOMBIA", "AZELIS MEXICO")
+        # Partial match should be between 0.5 and 0.9
+        assert 0.5 < result < 0.9
+
+
+class TestNormalizeNameAlias:
+    """Test normalize_name alias method"""
+
+    @pytest.fixture
+    def service(self):
+        """Create NormalizationService instance"""
+        return NormalizationService()
+
+    def test_normalize_name_same_as_normalize_person_name(self, service):
+        """Test normalize_name returns same result as normalize_person_name"""
+        test_names = [
+            "MARÍA JOSÉ GARCÍA",
+            "  Juan   Carlos  ",
+            "juan carlos rodriguez",
+            "",
+            None,
+        ]
+
+        for name in test_names:
+            result_alias = service.normalize_name(name)
+            result_original = service.normalize_person_name(name)
+            assert result_alias == result_original, f"Results differ for: '{name}'"
+
+    def test_normalize_name_with_accents(self, service):
+        """Test normalize_name handles accents correctly"""
+        result = service.normalize_name("JOSÉ PÉREZ MUÑOZ")
+        assert result == "JOSE PEREZ MUNOZ"
+
+    def test_normalize_name_with_special_chars(self, service):
+        """Test normalize_name removes special characters"""
+        result = service.normalize_name("Juan Carlos Jr.")
+        assert result == "JUAN CARLOS JR"

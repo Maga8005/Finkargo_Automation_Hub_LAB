@@ -11,6 +11,7 @@ Based on the Azelis fraud case analysis:
 """
 import re
 import unicodedata
+from difflib import SequenceMatcher
 from typing import Tuple, Optional
 
 
@@ -319,6 +320,18 @@ class NormalizationService:
 
         return normalized
 
+    def normalize_name(self, name: str) -> str:
+        """
+        Alias for normalize_person_name() for backward compatibility.
+
+        Args:
+            name: Raw person name
+
+        Returns:
+            Normalized name (uppercase, no accents, clean whitespace)
+        """
+        return self.normalize_person_name(name)
+
     def normalize_email(self, email: str) -> str:
         """
         Normalize email address for comparison.
@@ -379,3 +392,22 @@ class NormalizationService:
         result = ''.join(c for c in normalized if not unicodedata.combining(c))
 
         return result
+
+    def calculate_similarity(self, s1: str, s2: str) -> float:
+        """
+        Calculate string similarity using SequenceMatcher.
+
+        Used for comparing normalized strings (company names, person names)
+        to detect potential fraud through name variations.
+
+        Args:
+            s1: First string (normalized)
+            s2: Second string (normalized)
+
+        Returns:
+            Similarity ratio between 0.0 and 1.0
+        """
+        if not s1 or not s2:
+            return 0.0
+
+        return SequenceMatcher(None, s1.lower(), s2.lower()).ratio()
