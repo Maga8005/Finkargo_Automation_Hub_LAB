@@ -141,11 +141,17 @@ class NormalizationService:
         Colombian NIT format: XXX.XXX.XXX-X or XXXXXXXXX-X
         The check digit is the last digit after the separator.
 
+        Colombian NITs are always structured as 9 base digits + 1 check digit.
+        When a 10-digit NIT is provided without a separator (e.g., from AI extraction
+        of Certificados de Existencia where NITs appear as "901854687 2" and get
+        concatenated to "9018546872"), the last digit is inferred as the check digit.
+
         Examples:
             "830.027.231-3" → ("830027231", "3")
             "830027231 3" → ("830027231", "3")
             "830027231-1" → ("830027231", "1")
             "830027231" → ("830027231", None)
+            "8300272313" → ("830027231", "3")  # 10 digits: infer last as check digit
 
         Args:
             nit: Raw NIT string
@@ -174,6 +180,12 @@ class NormalizationService:
 
         # Extract only digits from the base part
         base_digits = re.sub(r'[^\d]', '', base_part)
+
+        # Handle 10-digit NITs without separator: infer last digit as check digit
+        # Colombian NITs are always 9 base digits + 1 check digit
+        if check_digit is None and len(base_digits) == 10:
+            check_digit = base_digits[-1]
+            base_digits = base_digits[:-1]
 
         return (base_digits, check_digit)
 
