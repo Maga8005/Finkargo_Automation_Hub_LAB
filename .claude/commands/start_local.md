@@ -1,1 +1,1 @@
-stop processes on ports 5173 and 8000 and start the app on localhost please 
+stop processes on ports 5173 and 8000 and start the app on localhost please using UV
