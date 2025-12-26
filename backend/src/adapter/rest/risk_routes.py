@@ -579,7 +579,8 @@ def _compute_verification_info(assessment_id: str, assessment_data: dict = None)
 
     Priority:
     1. If assessment has stored verification_status (from finalization), use it
-    2. Otherwise, compute from both fraud indicators AND cross-validation discrepancies
+    2. If assessment is not finalized (status is pending_documents), return PENDING
+    3. Otherwise, compute from both fraud indicators AND cross-validation discrepancies
 
     Args:
         assessment_id: The assessment ID to look up
@@ -597,6 +598,15 @@ def _compute_verification_info(assessment_id: str, assessment_data: dict = None)
                 'verification_status': VerificationStatus(stored_status),
                 'has_discrepancies': assessment_data.get('has_discrepancies', False),
                 'discrepancy_count': assessment_data.get('discrepancy_count', 0),
+            }
+
+        # Check if assessment is not finalized (pending_documents status)
+        assessment_status = assessment_data.get('status')
+        if assessment_status == AssessmentStatus.PENDING_DOCUMENTS.value:
+            return {
+                'verification_status': VerificationStatus.PENDING,
+                'has_discrepancies': False,
+                'discrepancy_count': 0,
             }
 
     import asyncio
@@ -639,6 +649,15 @@ def _compute_verification_info(assessment_id: str, assessment_data: dict = None)
         # If there's a running loop, we can't use run_until_complete
         # Compute synchronously from assessment data only (fraud indicators)
         if assessment_data:
+            # Check if assessment is not finalized
+            assessment_status = assessment_data.get('status')
+            if assessment_status == AssessmentStatus.PENDING_DOCUMENTS.value:
+                return {
+                    'verification_status': VerificationStatus.PENDING,
+                    'has_discrepancies': False,
+                    'discrepancy_count': 0,
+                }
+
             fraud_indicators = assessment_data.get('fraud_indicators', [])
             if isinstance(fraud_indicators, list):
                 fraud_alert_count = sum(
@@ -653,7 +672,7 @@ def _compute_verification_info(assessment_id: str, assessment_data: dict = None)
                     }
         # Return default values - the async endpoint will handle cross-validation
         return {
-            'verification_status': VerificationStatus.PASS,
+            'verification_status': VerificationStatus.PENDING,
             'has_discrepancies': False,
             'discrepancy_count': 0,
         }
@@ -668,7 +687,8 @@ async def _compute_verification_info_async(assessment_id: str, assessment_data: 
 
     Priority:
     1. If assessment has stored verification_status (from finalization), use it
-    2. Otherwise, compute from both fraud indicators AND cross-validation discrepancies
+    2. If assessment is not finalized (status is pending_documents), return PENDING
+    3. Otherwise, compute from both fraud indicators AND cross-validation discrepancies
 
     Args:
         assessment_id: The assessment ID to look up
@@ -686,6 +706,15 @@ async def _compute_verification_info_async(assessment_id: str, assessment_data: 
                 'verification_status': VerificationStatus(stored_status),
                 'has_discrepancies': assessment_data.get('has_discrepancies', False),
                 'discrepancy_count': assessment_data.get('discrepancy_count', 0),
+            }
+
+        # Check if assessment is not finalized (pending_documents status)
+        assessment_status = assessment_data.get('status')
+        if assessment_status == AssessmentStatus.PENDING_DOCUMENTS.value:
+            return {
+                'verification_status': VerificationStatus.PENDING,
+                'has_discrepancies': False,
+                'discrepancy_count': 0,
             }
 
     # Count triggered fraud indicators from assessment data
@@ -726,10 +755,10 @@ def _map_to_response(data: dict, verification_info: dict = None) -> RiskAssessme
     if isinstance(indicators, list):
         indicators = [_map_indicator(ind) for ind in indicators]
 
-    # Use provided verification info or defaults
+    # Use provided verification info or defaults (PENDING is safe default for incomplete evaluations)
     if verification_info is None:
         verification_info = {
-            'verification_status': VerificationStatus.PASS,
+            'verification_status': VerificationStatus.PENDING,
             'has_discrepancies': False,
             'discrepancy_count': 0,
         }
@@ -768,10 +797,10 @@ def _map_to_detail(data: dict, verification_info: dict = None) -> RiskAssessment
             cupo_plataforma=snapshot.get('cupo_plataforma'),
         )
 
-    # Use provided verification info or defaults
+    # Use provided verification info or defaults (PENDING is safe default for incomplete evaluations)
     if verification_info is None:
         verification_info = {
-            'verification_status': VerificationStatus.PASS,
+            'verification_status': VerificationStatus.PENDING,
             'has_discrepancies': False,
             'discrepancy_count': 0,
         }

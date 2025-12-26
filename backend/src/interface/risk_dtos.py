@@ -69,7 +69,8 @@ class RuleType(str, Enum):
 
 
 class VerificationStatus(str, Enum):
-    """Binary verification status for risk assessments"""
+    """Verification status for risk assessments"""
+    PENDING = "pending"  # Evaluation not finalized, documents pending
     PASS = "pass"
     REQUIRES_MANUAL_VERIFICATION = "requires_manual_verification"
 
