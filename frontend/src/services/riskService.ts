@@ -231,6 +231,15 @@ export const riskService = {
     return response.data;
   },
 
+  /**
+   * Delete a document extraction
+   * Allows users to remove incorrect documents and reupload new ones.
+   * Also clears cross-validation results since they may be based on incorrect data.
+   */
+  deleteExtraction: async (evaluationId: string, extractionId: string): Promise<void> => {
+    await apiClient.delete(`/risk/evaluations/${evaluationId}/extractions/${extractionId}`);
+  },
+
   // ==================== Cross-Validation ====================
 
   /**

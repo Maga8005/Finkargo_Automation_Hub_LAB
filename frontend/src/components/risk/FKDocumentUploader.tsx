@@ -29,6 +29,7 @@ import {
   ExpandLess,
   Info,
   Download,
+  Delete,
 } from '@mui/icons-material';
 import { riskService } from '../../services/riskService';
 import type {
@@ -79,6 +80,8 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
   const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
+  const [deleting, setDeleting] = useState<{ [key: string]: boolean }>({});
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
 
   // File input refs for each document type
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
@@ -235,6 +238,39 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
 
     if (extraction && state?.file) {
       await processExtraction(docType, extraction.id, state.file);
+    }
+  };
+
+  // Handle delete document extraction
+  const handleDeleteDocument = async (docType: DocumentType) => {
+    const extraction = getExtraction(docType);
+    if (!extraction) return;
+
+    // Set deleting state
+    setDeleting(prev => ({ ...prev, [docType]: true }));
+    setError(null);
+
+    try {
+      await riskService.deleteExtraction(evaluationId, extraction.id);
+
+      // Clear upload state for this document type
+      setUploadState(prev => {
+        const newState = { ...prev };
+        delete newState[docType];
+        return newState;
+      });
+
+      // Reload extractions list
+      await loadExtractions();
+
+      // Show success message
+      setDeleteSuccess(true);
+      setTimeout(() => setDeleteSuccess(false), 3000);
+    } catch (err) {
+      console.error('Delete error:', err);
+      setError('Error al eliminar documento. Por favor intente nuevamente.');
+    } finally {
+      setDeleting(prev => ({ ...prev, [docType]: false }));
     }
   };
 
@@ -486,6 +522,24 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
                             </IconButton>
                           </Tooltip>
                         )}
+
+                        {/* Delete button - always visible when extraction exists */}
+                        <Tooltip title="Eliminar documento y subir otro">
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeleteDocument(docType)}
+                              disabled={deleting[docType] || isUploading || isExtracting}
+                              color="error"
+                            >
+                              {deleting[docType] ? (
+                                <CircularProgress size={16} color="inherit" />
+                              ) : (
+                                <Delete />
+                              )}
+                            </IconButton>
+                          </span>
+                        </Tooltip>
                       </Box>
                     ) : (
                       <Box>
@@ -569,6 +623,18 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
         >
           <Alert severity="success" variant="filled" onClose={() => setExportSuccess(false)}>
             Archivo Excel descargado exitosamente
+          </Alert>
+        </Snackbar>
+
+        {/* Delete success snackbar */}
+        <Snackbar
+          open={deleteSuccess}
+          autoHideDuration={3000}
+          onClose={() => setDeleteSuccess(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert severity="info" variant="filled" onClose={() => setDeleteSuccess(false)}>
+            Documento eliminado. La validación cruzada debe ejecutarse nuevamente.
           </Alert>
         </Snackbar>
       </CardContent>
