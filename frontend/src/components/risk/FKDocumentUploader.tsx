@@ -16,6 +16,7 @@ import {
   Grid,
   LinearProgress,
   Collapse,
+  Snackbar,
 } from '@mui/material';
 import {
   CloudUpload,
@@ -27,6 +28,7 @@ import {
   ExpandMore,
   ExpandLess,
   Info,
+  Download,
 } from '@mui/icons-material';
 import { riskService } from '../../services/riskService';
 import type {
@@ -38,10 +40,15 @@ import {
   DOCUMENT_TYPE_CONFIG,
   EXTRACTION_STATUS_CONFIG,
 } from '../../types/risk';
+import {
+  exportDocumentExtractionsToExcel,
+  hasExportableExtractions,
+} from '../../utils/riskExcelExport';
 
 interface FKDocumentUploaderProps {
   evaluationId: string;
   evaluationStatus?: string;
+  clientNit?: string;
   onExtractionComplete?: (extractions: DocumentExtraction[]) => void;
   onValidationReady?: (ready: boolean) => void;
 }
@@ -58,6 +65,7 @@ interface UploadState {
 const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
   evaluationId,
   evaluationStatus,
+  clientNit,
   onExtractionComplete,
   onValidationReady,
 }) => {
@@ -69,6 +77,8 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportSuccess, setExportSuccess] = useState(false);
 
   // File input refs for each document type
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
@@ -233,6 +243,38 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
     setExpandedDoc(prev => (prev === docType ? null : docType));
   };
 
+  // Handle export to Excel
+  const handleExportToExcel = () => {
+    if (!extractions) return;
+
+    setExporting(true);
+    setExportSuccess(false);
+
+    try {
+      const success = exportDocumentExtractionsToExcel(
+        extractions,
+        evaluationId,
+        clientNit
+      );
+
+      if (success) {
+        setExportSuccess(true);
+        // Clear success message after 3 seconds
+        setTimeout(() => setExportSuccess(false), 3000);
+      } else {
+        setError('No hay datos extraídos para exportar');
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      setError('Error al exportar datos a Excel');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Check if export is available
+  const canExport = hasExportableExtractions(extractions);
+
   // Format value for display based on type
   const formatValueForDisplay = (value: unknown): string => {
     if (value === null || value === undefined) {
@@ -309,14 +351,31 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
           <Typography variant="h6">
             Documentos para Validación Cruzada
           </Typography>
-          <Button
-            size="small"
-            startIcon={<Refresh />}
-            onClick={loadExtractions}
-            disabled={loading}
-          >
-            Actualizar
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Tooltip
+              title={canExport ? 'Exportar datos extraídos a Excel' : 'No hay datos extraídos para exportar'}
+            >
+              <span>
+                <Button
+                  size="small"
+                  startIcon={exporting ? <CircularProgress size={16} /> : <Download />}
+                  onClick={handleExportToExcel}
+                  disabled={!canExport || exporting}
+                  color={exportSuccess ? 'success' : 'primary'}
+                >
+                  {exportSuccess ? 'Exportado' : 'Exportar a Excel'}
+                </Button>
+              </span>
+            </Tooltip>
+            <Button
+              size="small"
+              startIcon={<Refresh />}
+              onClick={loadExtractions}
+              disabled={loading}
+            >
+              Actualizar
+            </Button>
+          </Box>
         </Box>
 
         {isPendingDocuments && (
@@ -500,6 +559,18 @@ const FKDocumentUploader: React.FC<FKDocumentUploaderProps> = ({
             </Typography>
           </Box>
         )}
+
+        {/* Export success snackbar */}
+        <Snackbar
+          open={exportSuccess}
+          autoHideDuration={3000}
+          onClose={() => setExportSuccess(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert severity="success" variant="filled" onClose={() => setExportSuccess(false)}>
+            Archivo Excel descargado exitosamente
+          </Alert>
+        </Snackbar>
       </CardContent>
     </Card>
   );
