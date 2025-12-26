@@ -854,6 +854,107 @@ class TestMultipleLegalRepresentatives:
         assert name_result.is_discrepancy is False
 
 
+class TestNit10DigitNormalization:
+    """Test 10-digit NIT normalization (Issue #38 - False positive for spaced format)
+
+    Certificados de Existencia from Cámara de Comercio Bogotá display NITs as
+    "901854687 2" (base + space + check digit). AI extraction may concatenate
+    to "9018546872", causing false positive "NITs base diferentes" alerts.
+
+    The fix infers the check digit for 10-digit NITs without separator.
+    """
+
+    @pytest.fixture
+    def normalization_service(self):
+        """Create NormalizationService"""
+        return NormalizationService()
+
+    @pytest.fixture
+    def service(self):
+        """Create CrossValidationService with dependencies"""
+        return CrossValidationService(
+            normalization_service=NormalizationService(),
+            typosquatting_service=TyposquattingService()
+        )
+
+    def test_nit_10_digits_no_separator_extracts_check_digit(
+        self, normalization_service
+    ):
+        """Test: 10-digit NIT without separator → infer check digit"""
+        base, check = normalization_service.normalize_nit('9018546872')
+        assert base == '901854687'
+        assert check == '2'
+
+    def test_nit_10_digits_no_separator_matches_with_dash(
+        self, normalization_service
+    ):
+        """Test: 10-digit NIT matches NIT with dash separator"""
+        base1, check1 = normalization_service.normalize_nit('9018546872')
+        base2, check2 = normalization_service.normalize_nit('901854687-2')
+        assert base1 == base2
+        assert check1 == check2
+
+    def test_nit_10_digits_no_separator_matches_with_space(
+        self, normalization_service
+    ):
+        """Test: 10-digit NIT matches NIT with space separator"""
+        base1, check1 = normalization_service.normalize_nit('8300272313')
+        base2, check2 = normalization_service.normalize_nit('830027231 3')
+        assert base1 == base2
+        assert check1 == check2
+
+    def test_nit_9_digits_no_check_digit_unchanged(
+        self, normalization_service
+    ):
+        """Test: 9-digit NIT without check digit → no check digit inferred"""
+        base, check = normalization_service.normalize_nit('830027231')
+        assert base == '830027231'
+        assert check is None
+
+    def test_nit_10_digits_formatted_with_dots(
+        self, normalization_service
+    ):
+        """Test: 10-digit NIT with dots (830.027.231.3) → infer check digit"""
+        base, check = normalization_service.normalize_nit('830.027.231.3')
+        assert base == '830027231'
+        assert check == '3'
+
+    def test_are_nits_equivalent_10_digit_vs_dash_format(
+        self, normalization_service
+    ):
+        """Test: are_nits_equivalent with 10-digit vs dash format → True"""
+        is_match, reason, discrepancy = normalization_service.are_nits_equivalent(
+            '901854687-2', '9018546872'
+        )
+        assert is_match is True
+        assert 'equivalentes' in reason.lower()
+        assert discrepancy is None
+
+    def test_cross_validation_10_digit_nit_no_discrepancy(self, service):
+        """Integration test: Cross-validation with 10-digit NIT → no discrepancy"""
+        extractions = {
+            DocumentType.RUT: {
+                'company_name': 'EMPRESA TEST',
+                'nit': '901854687-2'  # Standard format
+            },
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'company_name': 'EMPRESA TEST',
+                'nit': '9018546872'  # 10-digit concatenated format
+            }
+        }
+
+        results = service.validate_documents(extractions)
+
+        nit_result = next(
+            (r for r in results if r.validation_type == ValidationType.NIT),
+            None
+        )
+
+        assert nit_result is not None
+        assert nit_result.is_discrepancy is False
+        assert 'consistente' in nit_result.description.lower()
+
+
 class TestNameOrderMatching:
     """Test name order tolerance (Issue #36 - False positive for reordered names)
 
