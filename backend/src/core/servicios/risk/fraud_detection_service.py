@@ -946,23 +946,30 @@ class FraudDetectionService:
 
         # Default requirements (can be extended to fetch from config table)
         require_cross_validation = True
-        require_email_chain_validation = False  # Optional
+        require_email_chain_validation = True  # Mandatory when chains exist
         require_external_contact_validation = False  # Optional
         min_documents_required = 2
         allow_force_complete = True
 
         # Build requirements status
+        # FIX: Only mark as validated if items exist AND all are validated
+        # "No items" (count == 0) should NOT be treated as "validated"
         requirements = FinalizationRequirements(
             cross_validation_done=cross_validation_count > 0,
             email_chains_validated=(
-                email_chain_count == 0 or  # None required
+                email_chain_count > 0 and  # Must have items
                 email_chain_validated_count >= email_chain_count  # All validated
             ),
             external_contacts_validated=(
-                external_contact_count == 0 or  # None required
+                external_contact_count > 0 and  # Must have items
                 external_contact_validated_count >= external_contact_count  # All validated
             ),
             min_documents_met=document_count >= min_documents_required,
+            # Include counts so frontend can distinguish "none" vs "validated"
+            email_chain_count=email_chain_count,
+            email_chain_validated_count=email_chain_validated_count,
+            external_contact_count=external_contact_count,
+            external_contact_validated_count=external_contact_validated_count,
         )
 
         # Build pending items list
@@ -981,9 +988,11 @@ class FraudDetectionService:
             pending_items.append(f"Validar contactos externos ({external_contact_validated_count}/{external_contact_count})")
 
         # Can finalize if all required items are done
+        # Email chains: if any exist, ALL must be validated
         can_finalize = (
             requirements.cross_validation_done and
-            requirements.min_documents_met
+            requirements.min_documents_met and
+            (email_chain_count == 0 or requirements.email_chains_validated)
         )
 
         current_status = AssessmentStatus(assessment.get('status', 'pending_documents'))

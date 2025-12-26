@@ -718,6 +718,11 @@ class FinalizationRequirements(BaseModel):
     email_chains_validated: bool = Field(default=False, description="Whether all email chains have been validated")
     external_contacts_validated: bool = Field(default=False, description="Whether all external contacts have been validated")
     min_documents_met: bool = Field(default=False, description="Whether minimum document count has been met")
+    # Count fields to distinguish "none exist" vs "all validated"
+    email_chain_count: int = Field(default=0, description="Total number of email chains")
+    email_chain_validated_count: int = Field(default=0, description="Number of validated email chains")
+    external_contact_count: int = Field(default=0, description="Total number of external contacts")
+    external_contact_validated_count: int = Field(default=0, description="Number of validated external contacts")
 
 
 class FinalizationStatusResponse(BaseModel):

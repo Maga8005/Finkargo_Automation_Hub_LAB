@@ -739,6 +739,11 @@ export interface FinalizationRequirements {
   email_chains_validated: boolean;
   external_contacts_validated: boolean;
   min_documents_met: boolean;
+  // Count fields to distinguish "none exist" vs "all validated"
+  email_chain_count?: number;
+  email_chain_validated_count?: number;
+  external_contact_count?: number;
+  external_contact_validated_count?: number;
 }
 
 export interface FinalizationStatus {
