@@ -17,9 +17,9 @@ So that the generated document contains the correct contract code with the prope
 
 ## Test Credentials
 
-Use test account (configure in test environment):
-- Email: test-operations@finkargo.com
-- Password: [configured test password]
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: operations or comercial_paga_local
 
 ## Test Steps

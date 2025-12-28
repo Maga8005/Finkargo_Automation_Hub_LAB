@@ -18,9 +18,9 @@ So that I can process image-based documents that standard text extraction cannot
 
 ## Test Credentials
 
-Use test account with alianzas role:
-- Email: test-alianzas@finkargo.com
-- Password: [configured test password]
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: alianzas
 
 ## Test Steps

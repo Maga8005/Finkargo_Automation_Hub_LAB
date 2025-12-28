@@ -19,13 +19,13 @@ So that I can review and approve/reject the disbursement request
 ## Test Credentials
 
 Operations user:
-- Email: test-operations@finkargo.com
-- Password: [configured test password]
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: operations
 
 Legal user (for review):
-- Email: test-legal@finkargo.com
-- Password: [configured test password]
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: legal
 
 ## Test Steps

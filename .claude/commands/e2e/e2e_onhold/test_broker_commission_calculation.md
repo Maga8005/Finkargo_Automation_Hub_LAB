@@ -18,9 +18,9 @@ So that I can accurately determine how much to pay each broker for referrals and
 
 ## Test Credentials
 
-Use test account with alianzas role:
-- Email: test-alianzas@finkargo.com (or your configured test account)
-- Password: [configured test password]
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com) (or your configured test account)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: alianzas
 
 ## API Endpoints Under Test

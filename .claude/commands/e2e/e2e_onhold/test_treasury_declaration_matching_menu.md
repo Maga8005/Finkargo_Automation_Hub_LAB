@@ -16,9 +16,9 @@ So that I can easily access the Declaration-Historial matching workflow
 
 ## Test Credentials
 
-Use test account (configure in test environment):
-- Email: admin@finkargo.com
-- Password: [configured test password]
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: admin
 
 ## Test Steps

@@ -20,9 +20,9 @@ So that I can quickly authorize Finkargo to make payments to DIAN on behalf of c
 
 ## Test Credentials
 
-Use test account:
-- Email: test-operations@finkargo.com
-- Password: [configured test password]
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: operations
 
 ## Test Steps

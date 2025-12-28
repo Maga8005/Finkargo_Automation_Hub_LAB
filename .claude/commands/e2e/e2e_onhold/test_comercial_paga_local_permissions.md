@@ -19,12 +19,12 @@ So that I can create Paga Local contracts without having access to other contrac
 
 ### User 1: comercial_paga_local role
 - Email: test-comercial-paga-local@finkargo.com
-- Password: [configured test password]
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: comercial_paga_local
 
 ### User 2: operations role (for comparison)
-- Email: test-operations@finkargo.com
-- Password: [configured test password]
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: operations
 
 ## Test Steps

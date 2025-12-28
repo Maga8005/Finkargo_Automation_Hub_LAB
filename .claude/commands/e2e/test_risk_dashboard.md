@@ -18,9 +18,9 @@ So that I can prevent financial losses from fraudulent applications
 
 ## Test Credentials
 
-Use admin account (has access to all modules including risk):
-- Email: admin@finkargo.com
-- Password: Automation2025*_2026
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: admin (can access all risk features)
 
 Note: Admin role has full access to risk module including:
@@ -35,8 +35,8 @@ Note: Admin role has full access to risk module including:
 
 1. Navigate to the `Application URL` (http://localhost:5173)
 2. **Verify** login page is displayed
-3. Enter admin email (admin@finkargo.com) in email field
-4. Enter admin password (Automation2025*_2026) in password field
+3. Enter admin email (`$TEST_ADMIN_EMAIL`) in email field
+4. Enter admin password (`$TEST_ADMIN_PASSWORD`) in password field
 5. Click "Iniciar sesión" button
 6. **Verify** login succeeds and redirects to homepage
 7. Navigate to `/risk/dashboard`

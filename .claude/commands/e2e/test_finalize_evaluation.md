@@ -18,10 +18,10 @@ So that the final risk score is calculated with all fraud checks and the evaluat
 
 ## Test Credentials
 
-Use test account:
-- Email: test-risk@finkargo.com
-- Password: [configured test password]
-- Expected Role: risk_analyst or risk_manager
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
+- Expected Role: admin (has access to all risk features)
 
 ## Test Steps
 

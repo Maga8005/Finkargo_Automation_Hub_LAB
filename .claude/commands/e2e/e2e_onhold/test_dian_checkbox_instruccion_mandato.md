@@ -20,9 +20,9 @@ So that I can generate a unified document for mixed DIAN and non-DIAN creditors 
 
 ## Test Credentials
 
-Use test account:
-- Email: test-operations@finkargo.com
-- Password: [configured test password]
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: operations
 
 ## Test Steps

@@ -17,9 +17,9 @@ So that I can share the data with stakeholders, create reports, or analyze contr
 
 ## Test Credentials
 
-Use test account (configure in test environment):
-- Email: test-operations@finkargo.com
-- Password: [configured test password]
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: operations
 
 ## Test Steps

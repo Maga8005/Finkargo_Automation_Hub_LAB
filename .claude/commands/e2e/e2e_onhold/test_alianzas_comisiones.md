@@ -18,9 +18,9 @@ So that I can track referral partners, calculate commissions, and process paymen
 
 ## Test Credentials
 
-Use test account (configure in test environment):
-- Email: test-alianzas@finkargo.com (or admin account)
-- Password: [configured test password]
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com) (or admin account)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: alianzas or admin
 
 ## Test Data
