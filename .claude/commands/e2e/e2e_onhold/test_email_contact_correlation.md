@@ -17,9 +17,9 @@ So that I can detect potential typosquatting fraud attempts before approving a r
 
 ## Test Credentials
 
-Use test account (configure in test environment):
-- Email: test-risk@finkargo.com
-- Password: [configured test password]
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: risk_analyst
 
 ## Test Steps

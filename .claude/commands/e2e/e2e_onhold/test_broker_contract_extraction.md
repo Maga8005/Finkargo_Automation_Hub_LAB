@@ -16,9 +16,9 @@ So that I can quickly populate broker information without manual data entry and 
 
 ## Test Credentials
 
-Use test account (configure in test environment):
-- Email: test-alianzas@finkargo.com or test-admin@finkargo.com
-- Password: [configured test password]
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: alianzas or admin
 
 ## Test Steps

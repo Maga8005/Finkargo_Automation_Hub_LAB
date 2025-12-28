@@ -17,9 +17,9 @@ So that the NIT validation and cross-document verification works correctly
 
 ## Test Credentials
 
-Use test account (configure in test environment):
+Use credentials from `backend/.env`:
 - Email: test-riesgos@finkargo.com
-- Password: [configured test password]
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: analyst or riesgos
 
 ## Test Steps

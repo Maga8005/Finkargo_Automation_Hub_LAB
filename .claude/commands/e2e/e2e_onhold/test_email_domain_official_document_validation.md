@@ -17,9 +17,9 @@ So that I can detect potential fraud attempts where attackers use similar-lookin
 
 ## Test Credentials
 
-Use test account with appropriate role:
-- Email: test-risk@finkargo.com
-- Password: [configured test password]
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: risk_analyst or risk_manager
 
 ## Test Steps

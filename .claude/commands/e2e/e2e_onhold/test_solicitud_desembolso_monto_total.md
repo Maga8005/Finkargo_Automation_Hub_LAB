@@ -28,8 +28,8 @@ So that the disbursement request shows accurate financial totals
 ## Test Credentials
 
 Use test account for operations role:
-- Email: test-operations@finkargo.com
-- Password: [configured test password]
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
 - Expected Role: operations
 
 ## Test Steps

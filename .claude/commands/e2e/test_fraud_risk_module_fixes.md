@@ -19,10 +19,10 @@ So that I can complete comprehensive risk evaluations without encountering file 
 
 ## Test Credentials
 
-Use test account with appropriate role:
-- Email: test-risk@finkargo.com
-- Password: [configured test password]
-- Expected Role: risk_analyst or risk_manager
+Use credentials from `backend/.env`:
+- Email: `$TEST_ADMIN_EMAIL` (admin@finkargo.com)
+- Password: `$TEST_ADMIN_PASSWORD`
+- Expected Role: admin (has access to all risk features)
 
 ## Test Steps
 
