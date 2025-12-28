@@ -66,7 +66,7 @@ cd frontend
 # Install dependencies
 npm install
 
-# Development server (http://localhost:5173)
+# Development server (http://localhost:5175)
 npm run dev
 
 # Production build
@@ -80,7 +80,7 @@ npm run preview
 ```
 
 **Important Frontend Notes:**
-- Dev server runs on port 5173 (strict)
+- Dev server runs on port 5175 (strict)
 - Path alias: `@/` → `src/`
 - HMR (Hot Module Replacement) enabled
 - Output directory: `dist/`
@@ -103,8 +103,8 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Development server (http://localhost:8000)
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Development server (http://localhost:8003)
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8003
 
 # Production server (Render command)
 uvicorn main:app --host 0.0.0.0 --port $PORT
@@ -114,7 +114,7 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 - API routes prefixed with `/api`
 - Auto-generated docs at `/docs` (Swagger UI)
 - Health check endpoint: `/api/health`
-- Backend runs on port 8000
+- Backend runs on port 8003
 
 ### Testing Commands
 
@@ -222,7 +222,7 @@ backend/src/
 ## API Endpoints
 
 ### Base URLs
-- **Development**: `http://localhost:8000/api`
+- **Development**: `http://localhost:8003/api`
 - **Production**: `https://api-sandbox.finkargo.com.co/fkhub`
 
 ### Authentication Headers
@@ -260,7 +260,7 @@ All API requests to the production endpoint must include:
 - `POST /api/operations/imports/validate` - Validate import
 
 **API Documentation:**
-- Swagger UI: http://localhost:8000/docs
+- Swagger UI: http://localhost:8003/docs
 - Auto-generated from FastAPI
 - Interactive testing available
 
@@ -499,7 +499,7 @@ ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # CORS (MUST be JSON array format!)
-CORS_ORIGINS=["http://localhost:5173","https://finkargo-automation-hub.vercel.app","https://*.vercel.app"]
+CORS_ORIGINS=["http://localhost:5175","https://finkargo-automation-hub.vercel.app","https://*.vercel.app"]
 
 # Database
 DATABASE_URL=postgresql://[connection-string]
@@ -633,9 +633,9 @@ cd frontend && npm run dev  # Terminal 1
 cd backend && python -m uvicorn main:app --reload  # Terminal 2
 
 # Access points
-# Frontend: http://localhost:5173
-# Backend API: http://localhost:8000/api
-# API Docs: http://localhost:8000/docs
+# Frontend: http://localhost:5175
+# Backend API: http://localhost:8003/api
+# API Docs: http://localhost:8003/docs
 
 # Build production
 cd frontend && npm run build  # Creates dist/

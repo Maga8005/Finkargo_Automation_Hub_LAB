@@ -44,15 +44,15 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # Kill existing processes on ports
-echo -e "${YELLOW}Clearing ports 5173 and 8000...${NC}"
-lsof -ti:5173 | xargs -r kill -9 2>/dev/null || true
-lsof -ti:8000 | xargs -r kill -9 2>/dev/null || true
+echo -e "${YELLOW}Clearing ports 5175 and 8003...${NC}"
+lsof -ti:5175 | xargs -r kill -9 2>/dev/null || true
+lsof -ti:8003 | xargs -r kill -9 2>/dev/null || true
 sleep 1
 
 # Start backend using uv (handles dependencies automatically)
 echo -e "${GREEN}Starting backend server (uv)...${NC}"
 cd "$PROJECT_ROOT/backend"
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 8003 &
 BACKEND_PID=$!
 
 # Wait for backend to start
@@ -88,9 +88,9 @@ if ! kill -0 $FRONTEND_PID 2>/dev/null; then
 fi
 
 echo -e "${GREEN}✓ Services started successfully!${NC}"
-echo -e "${BLUE}Frontend: http://localhost:5173${NC}"
-echo -e "${BLUE}Backend:  http://localhost:8000${NC}"
-echo -e "${BLUE}API Docs: http://localhost:8000/docs${NC}"
+echo -e "${BLUE}Frontend: http://localhost:5175${NC}"
+echo -e "${BLUE}Backend:  http://localhost:8003${NC}"
+echo -e "${BLUE}API Docs: http://localhost:8003/docs${NC}"
 echo ""
 echo "Press Ctrl+C to stop all services..."
 
