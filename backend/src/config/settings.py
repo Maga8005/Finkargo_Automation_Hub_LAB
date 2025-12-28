@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     OPENAI_MAX_TOKENS: int = 2000
     OPENAI_TIMEOUT: int = 30  # seconds
 
+    # Test Credentials (E2E Tests)
+    TEST_ADMIN_EMAIL: str = ""
+    TEST_ADMIN_PASSWORD: str = ""
+    TEST_OPERATIONS_EMAIL: str = ""
+    TEST_OPERATIONS_PASSWORD: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = True
