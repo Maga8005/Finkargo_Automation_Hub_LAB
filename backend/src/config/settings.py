@@ -65,6 +65,12 @@ class Settings(BaseSettings):
     # Banxico API Configuration (Mexico exchange rates)
     BANXICO_API_TOKEN: str = ""
 
+    # OpenAI Configuration (for AI-powered entity extraction)
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_MAX_TOKENS: int = 2000
+    OPENAI_TIMEOUT: int = 30  # seconds
+
     class Config:
         env_file = ".env"
         case_sensitive = True

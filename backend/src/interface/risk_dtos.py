@@ -631,6 +631,10 @@ class ExtractedMentions(BaseModel):
     nits: List[str] = Field(default_factory=list, description="NITs mentioned in email body")
     representative_names: List[str] = Field(default_factory=list, description="Representative names mentioned")
     domains: List[str] = Field(default_factory=list, description="All email domains found")
+    extraction_method: Optional[str] = Field(
+        default="regex",
+        description="Method used for extraction: 'ai', 'regex', or 'regex_fallback'"
+    )
 
 
 class EmailChainParsedData(BaseModel):
@@ -654,6 +658,7 @@ class EmailChainDiscrepancy(BaseModel):
 class EmailChainValidationResult(BaseModel):
     """Full validation result for an email chain"""
     total_discrepancies: int = 0
+    info_count: int = Field(default=0, description="Count of informational findings")
     critical_count: int = 0
     high_count: int = 0
     medium_count: int = 0
@@ -661,6 +666,14 @@ class EmailChainValidationResult(BaseModel):
     discrepancies: List[EmailChainDiscrepancy] = Field(default_factory=list)
     summary: str = Field(default="", description="Summary of validation results")
     validated_at: Optional[datetime] = None
+    extraction_method: Optional[str] = Field(
+        default="regex",
+        description="Method used for entity extraction: 'ai', 'regex', or 'regex_fallback'"
+    )
+    ai_assisted: bool = Field(
+        default=False,
+        description="True if AI was involved in extraction (extraction_method is 'ai' or 'regex_fallback')"
+    )
 
 
 class EmailChainUploadRequest(BaseModel):

@@ -18,6 +18,7 @@ from src.repositorio.risk_repository import (
     ExternalContactRepository,
     EmailChainRepository,
 )
+from src.repositorio.risk_settings_repository import RiskSettingsRepository
 from src.repositorio.client_repository import ClientRepository
 from src.core.servicios.risk.fraud_detection_service import FraudDetectionService
 from src.core.servicios.risk.risk_scoring_service import RiskScoringService
@@ -174,13 +175,102 @@ def get_email_chain_repo():
     return EmailChainRepository(supabase.admin_client)
 
 
+def get_settings_repo():
+    """Get risk settings repository"""
+    supabase = get_supabase()
+    return RiskSettingsRepository(supabase.admin_client)
+
+
 def get_email_chain_service():
-    """Get email chain service"""
+    """Get email chain service with settings repo for AI extraction toggle"""
     return EmailChainService(
         chain_repo=get_email_chain_repo(),
         assessment_repo=get_risk_repo(),
         extraction_repo=get_extraction_repo(),
+        settings_repo=get_settings_repo(),
     )
+
+
+# ==================== Settings Endpoints ====================
+
+@router.get("/settings")
+async def get_risk_settings(
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin']))
+):
+    """
+    Get all risk module settings.
+    Requires risk_analyst, risk_manager, or admin role.
+    """
+    logger.info(f"Getting risk settings for user {current_user.get('id')}")
+
+    settings_repo = get_settings_repo()
+    settings = await settings_repo.get_all_settings()
+
+    return {"settings": settings}
+
+
+@router.get("/settings/{key}")
+async def get_risk_setting(
+    key: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin']))
+):
+    """
+    Get a specific risk module setting.
+    Requires risk_analyst, risk_manager, or admin role.
+    """
+    logger.info(f"Getting risk setting '{key}' for user {current_user.get('id')}")
+
+    settings_repo = get_settings_repo()
+    setting = await settings_repo.get_setting(key)
+
+    if not setting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Setting '{key}' not found"
+        )
+
+    return setting
+
+
+@router.put("/settings/{key}")
+async def update_risk_setting(
+    key: str,
+    value: bool,
+    current_user: dict = Depends(require_roles(['risk_manager', 'admin']))
+):
+    """
+    Update a risk module setting.
+    Only risk_manager or admin can update settings.
+
+    Args:
+        key: Setting key (e.g., 'ai_email_extraction_enabled')
+        value: New boolean value
+    """
+    logger.info(f"Updating risk setting '{key}' to {value} by user {current_user.get('id')}")
+
+    settings_repo = get_settings_repo()
+
+    # Verify setting exists
+    existing = await settings_repo.get_setting(key)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Setting '{key}' not found"
+        )
+
+    user_id = current_user.get('id')
+
+    updated = await settings_repo.update_setting(key, value, user_id)
+
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update setting '{key}'"
+        )
+
+    logger.info(f"Risk setting '{key}' updated to {value}")
+
+    return updated
 
 
 # ==================== Dashboard Endpoints ====================
@@ -2004,6 +2094,7 @@ def _map_to_email_chain_response(data: dict) -> EmailChainResponse:
             nits=mentions_data.get('nits', []),
             representative_names=mentions_data.get('representative_names', []),
             domains=mentions_data.get('domains', []),
+            extraction_method=mentions_data.get('extraction_method', 'regex'),
         )
 
         parsed_data = EmailChainParsedData(
@@ -2031,6 +2122,7 @@ def _map_to_email_chain_response(data: dict) -> EmailChainResponse:
 
         validation_result = EmailChainValidationResult(
             total_discrepancies=vr.get('total_discrepancies', 0),
+            info_count=vr.get('info_count', 0),
             critical_count=vr.get('critical_count', 0),
             high_count=vr.get('high_count', 0),
             medium_count=vr.get('medium_count', 0),
@@ -2038,6 +2130,8 @@ def _map_to_email_chain_response(data: dict) -> EmailChainResponse:
             discrepancies=discrepancies,
             summary=vr.get('summary', ''),
             validated_at=_parse_datetime(vr.get('validated_at')),
+            extraction_method=vr.get('extraction_method', 'regex'),
+            ai_assisted=vr.get('ai_assisted', False),
         )
 
     return EmailChainResponse(
