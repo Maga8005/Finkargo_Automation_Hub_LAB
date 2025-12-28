@@ -100,7 +100,7 @@ class OpenAIExtractionService:
         """
         return self._get_client() is not None
 
-    async def extract_entities(self, email_text: str) -> Optional[dict]:
+    def extract_entities(self, email_text: str) -> Optional[dict]:
         """
         Extract entities from email text using OpenAI GPT-4o.
 

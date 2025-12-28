@@ -697,17 +697,8 @@ class EmailChainParserService:
             return None
 
         try:
-            import asyncio
-
-            # Run the async extraction
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                result = loop.run_until_complete(
-                    self._openai_service.extract_entities(body)
-                )
-            finally:
-                loop.close()
+            # Call the synchronous OpenAI extraction
+            result = self._openai_service.extract_entities(body)
 
             if result is None:
                 return None
