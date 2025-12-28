@@ -49,6 +49,9 @@ extract-msg>=0.40.0
 # Google Drive API
 google-api-python-client>=2.111.0
 
+# OpenAI (for AI-powered entity extraction)
+openai>=1.0.0
+
 # Domain WHOIS Lookup
 python-whois>=0.8.0
 google-auth>=2.25.2

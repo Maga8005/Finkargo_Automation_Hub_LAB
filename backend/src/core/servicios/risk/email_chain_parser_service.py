@@ -6,13 +6,17 @@ Supports:
 - .msg files (Outlook format) - requires extract-msg library
 - .pdf files (exported email correspondence) - requires PyMuPDF
 - Raw text email content (copy-paste from email client)
+
+Extraction Modes:
+- AI extraction (OpenAI GPT-4o) - enabled via database setting
+- Regex extraction - fallback or default mode
 """
 import re
 import logging
 from email import policy
 from email.parser import BytesParser, Parser
 from email.utils import parseaddr, parsedate_to_datetime
-from typing import List
+from typing import List, Optional
 
 import fitz  # PyMuPDF
 
@@ -27,7 +31,37 @@ class EmailChainParserService:
     - Sender information (email, name, domain)
     - Email headers (date, subject)
     - Body content analysis (company names, NITs, representative names)
+
+    Supports two extraction modes:
+    - AI extraction (OpenAI GPT-4o) - more accurate, handles varied formats
+    - Regex extraction - fallback mode, uses pattern matching
     """
+
+    def __init__(self, use_ai_extraction: bool = False):
+        """
+        Initialize the email chain parser service.
+
+        Args:
+            use_ai_extraction: If True, use OpenAI for entity extraction.
+                               Falls back to regex if OpenAI fails.
+        """
+        self.use_ai_extraction = use_ai_extraction
+        self._openai_service: Optional['OpenAIExtractionService'] = None
+
+        if use_ai_extraction:
+            try:
+                from src.core.servicios.risk.openai_extraction_service import (
+                    OpenAIExtractionService
+                )
+                self._openai_service = OpenAIExtractionService()
+                if not self._openai_service.is_available():
+                    logger.warning(
+                        "OpenAI service not available, will use regex extraction"
+                    )
+                    self._openai_service = None
+            except ImportError as e:
+                logger.error(f"Failed to import OpenAI service: {e}")
+                self._openai_service = None
 
     # Common Spanish keywords that precede representative names
     REP_KEYWORDS = [
@@ -618,6 +652,75 @@ class EmailChainParserService:
         """
         Extract company names, NITs, and representative names from email body.
 
+        Uses AI extraction if enabled and available, falls back to regex otherwise.
+
+        Args:
+            body: Email body text
+
+        Returns:
+            dict: Extracted mentions with extraction_method field
+        """
+        if not body:
+            return {
+                'company_names': [],
+                'nits': [],
+                'representative_names': [],
+                'domains': [],
+                'extraction_method': 'regex',
+            }
+
+        # Try AI extraction if enabled
+        if self.use_ai_extraction and self._openai_service is not None:
+            mentions = self._extract_mentions_with_ai(body)
+            if mentions is not None:
+                return mentions
+            # AI extraction failed, fall back to regex
+            logger.info("AI extraction failed, falling back to regex")
+            mentions = self._extract_mentions_with_regex(body)
+            mentions['extraction_method'] = 'regex_fallback'
+            return mentions
+
+        # Use regex extraction
+        return self._extract_mentions_with_regex(body)
+
+    def _extract_mentions_with_ai(self, body: str) -> Optional[dict]:
+        """
+        Extract mentions using OpenAI GPT-4o.
+
+        Args:
+            body: Email body text
+
+        Returns:
+            Optional[dict]: Extracted mentions or None if extraction fails
+        """
+        if self._openai_service is None:
+            return None
+
+        try:
+            # Call the synchronous OpenAI extraction
+            result = self._openai_service.extract_entities(body)
+
+            if result is None:
+                return None
+
+            # Add extraction method
+            result['extraction_method'] = 'ai'
+
+            logger.info(
+                f"AI extraction successful: {len(result.get('company_names', []))} companies, "
+                f"{len(result.get('nits', []))} NITs"
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"AI extraction error: {e}", exc_info=True)
+            return None
+
+    def _extract_mentions_with_regex(self, body: str) -> dict:
+        """
+        Extract mentions using regex patterns.
+
         Args:
             body: Email body text
 
@@ -629,6 +732,7 @@ class EmailChainParserService:
             'nits': [],
             'representative_names': [],
             'domains': [],
+            'extraction_method': 'regex',
         }
 
         if not body:

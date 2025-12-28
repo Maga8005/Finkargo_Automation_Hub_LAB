@@ -25,8 +25,8 @@ echo -e "${GREEN}Killing webhook server...${NC}"
 pkill -f "trigger_webhook.py" 2>/dev/null
 
 # Kill processes on specific ports
-echo -e "${GREEN}Killing processes on ports 5173 and 8000...${NC}"
-lsof -ti:5173 | xargs -r kill -9 2>/dev/null || true
-lsof -ti:8000 | xargs -r kill -9 2>/dev/null || true
+echo -e "${GREEN}Killing processes on ports 5175 and 8003...${NC}"
+lsof -ti:5175 | xargs -r kill -9 2>/dev/null || true
+lsof -ti:8003 | xargs -r kill -9 2>/dev/null || true
 
 echo -e "${GREEN}✓ Services stopped successfully!${NC}"

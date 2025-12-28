@@ -6,6 +6,7 @@ Handles:
 - Parsing email content
 - Cross-validation against document-extracted data
 - Discrepancy detection with severity levels
+- AI-powered extraction (when enabled via settings)
 """
 from typing import Optional, List
 from datetime import datetime, timezone
@@ -16,6 +17,7 @@ from src.repositorio.risk_repository import (
     RiskAssessmentRepository,
     DocumentExtractionRepository,
 )
+from src.repositorio.risk_settings_repository import RiskSettingsRepository
 from src.core.servicios.risk.email_chain_parser_service import EmailChainParserService
 from src.core.servicios.risk.typosquatting_service import TyposquattingService
 from src.core.servicios.risk.normalization_service import NormalizationService
@@ -44,6 +46,7 @@ class EmailChainService:
         chain_repo: EmailChainRepository,
         assessment_repo: RiskAssessmentRepository,
         extraction_repo: DocumentExtractionRepository,
+        settings_repo: Optional[RiskSettingsRepository] = None,
     ):
         """
         Initialize service with repository dependencies.
@@ -52,14 +55,40 @@ class EmailChainService:
             chain_repo: Repository for email chain CRUD
             assessment_repo: Repository for assessment data
             extraction_repo: Repository for document extractions
+            settings_repo: Optional repository for risk settings (AI extraction toggle)
         """
         self.chain_repo = chain_repo
         self.assessment_repo = assessment_repo
         self.extraction_repo = extraction_repo
+        self.settings_repo = settings_repo
+        # Default parser (no AI) - will be created dynamically per-request if settings_repo available
         self.parser_service = EmailChainParserService()
         self.typosquatting_service = TyposquattingService()
         self.normalization_service = NormalizationService()
         self.domain_validator = DomainValidationService()
+
+    async def _get_parser_service(self) -> EmailChainParserService:
+        """
+        Get a parser service instance with appropriate AI extraction setting.
+
+        Checks the database setting for AI extraction and returns a parser
+        configured accordingly.
+
+        Returns:
+            EmailChainParserService: Parser with AI extraction enabled/disabled
+        """
+        use_ai = False
+
+        if self.settings_repo is not None:
+            try:
+                use_ai = await self.settings_repo.is_ai_extraction_enabled()
+                if use_ai:
+                    logger.info("AI extraction is enabled via settings")
+            except Exception as e:
+                logger.warning(f"Failed to check AI extraction setting: {e}")
+                use_ai = False
+
+        return EmailChainParserService(use_ai_extraction=use_ai)
 
     async def upload_email_chain(
         self,
@@ -89,20 +118,23 @@ class EmailChainService:
         if not assessment:
             raise ValueError(f"Assessment {assessment_id} not found")
 
+        # Get parser service with appropriate AI extraction setting
+        parser_service = await self._get_parser_service()
+
         # Parse the email content
         if file_content:
             if filename and filename.lower().endswith('.msg'):
                 logger.info(f"Parsing .msg file: {filename}")
-                parsed_data = self.parser_service.parse_msg_file(file_content)
+                parsed_data = parser_service.parse_msg_file(file_content)
             elif filename and filename.lower().endswith('.pdf'):
                 logger.info(f"Parsing .pdf file: {filename}")
-                parsed_data = self.parser_service.parse_pdf_file(file_content)
+                parsed_data = parser_service.parse_pdf_file(file_content)
             else:
                 logger.info(f"Parsing .eml file: {filename}")
-                parsed_data = self.parser_service.parse_eml_file(file_content)
+                parsed_data = parser_service.parse_eml_file(file_content)
             raw_content = None  # Don't store raw bytes for files
         elif text_content:
-            parsed_data = self.parser_service.parse_raw_text(text_content)
+            parsed_data = parser_service.parse_raw_text(text_content)
             raw_content = text_content
         else:
             raise ValueError("Either file_content or text_content must be provided")
@@ -256,6 +288,10 @@ class EmailChainService:
             validation_status = EmailChainValidationStatus.VALIDATED
             summary = "Validación completada. No se encontraron discrepancias significativas."
 
+        # Extract AI extraction info from parsed data
+        extraction_method = mentions.get('extraction_method', 'regex')
+        ai_assisted = extraction_method in ('ai', 'regex_fallback')
+
         validation_result = {
             'total_discrepancies': actual_discrepancy_count,
             'info_count': info_count,
@@ -266,6 +302,8 @@ class EmailChainService:
             'discrepancies': discrepancies,
             'summary': summary,
             'validated_at': datetime.now(timezone.utc).isoformat(),
+            'extraction_method': extraction_method,
+            'ai_assisted': ai_assisted,
         }
 
         # Update the record

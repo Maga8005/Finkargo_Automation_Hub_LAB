@@ -46,3 +46,12 @@ This prompt helps you determine what documentation you should read based on the 
     - When working with Colombian cellphone number filtering
     - When implementing domain validation or typosquatting detection
     - When modifying cross-validation discrepancy severity levels
+
+- app_docs/feature-ea0d75d8-llm-email-extraction-riesgos.md
+  - Conditions:
+    - When working with AI/LLM-powered entity extraction in the Riesgos module
+    - When modifying or troubleshooting OpenAI integration for email parsing
+    - When working with risk_settings or AI extraction toggle
+    - When implementing entity extraction from email chains (company names, NITs, representatives)
+    - When troubleshooting extraction_method or ai_assisted tracking
+    - When adding new settings to the risk module
