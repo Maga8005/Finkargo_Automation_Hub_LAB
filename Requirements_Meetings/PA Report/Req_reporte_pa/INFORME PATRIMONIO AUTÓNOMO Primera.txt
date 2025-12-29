@@ -1,0 +1,23 @@
+INFORME PATRIMONIO AUTÓNOMO Primera Parte
+Antes de iniciar este reporte se debe tener en cuenta una serie de condiciones que deben pasar para poder crear este reporte,  estas condiciones pueden ser reportes de otros departamentos o ajustes y consolidado de cuentas.  Todo esto se puede revisar en el checklist ubicado en la hoja “ lista tareas”,  que existe en el archivo maestro de este reporte.
+Luego de tener estos pasos anteriores se inicia con el siguiente proceso:
+ARREGLO DE DATOS
+Se descargan los movimientos detallados del mes en el que se va a trabajar este reporte se descarga de Netsuite.
+Se abre este archivo en Excel y se clasifica la información.  El objetivo es clasificar las cuentas contables del patrimonio autónomo y extraer esta Data.
+Primer paso:
+Identificar las cuentas del patrimonio autónomo PA: esto se realiza cruzando una serie de columnas.  Las columnas que se van a cruzar se encuentran en la columna “Cuenta (línea)” en el archivo de Netsuite y la información del “Catálogo de cuentas”, con la columna “Cuenta”. Esta información se encuentra en la hoja “Cta Contables PA” del excel maestro (CONSOLIDADO Operac FK PA (mes)_(Anio) NET.xlxb.
+Actualizar hoja “Mov (Mes)”:
+En el excel maestro, en la hoja “Mov (Mes)” que existe previamente, se copia esta información filtrada de las cuentas (PA). (Esta información en general va de la columna A a la columna Z.
+Se crean luego la columna PA, que se llena automáticamente con una X para identificar que las cuentas son  de Patrimonio autónomo. Luego se crean las columnas. Categoria, Subcategoria, Clasificacion, Nexo, Comprobacion saldos, Cuenta Homologacion y Nombre Homologacion.
+Teniendo en cuenta el catálogo de cuentas, de la hoja “Cta Contables PA”, se diligencian las columnas: Cuenta Homologacion y Nombre Homologacion, teniendo en cuenta la columna A, “Cuenta (linea):Número, de la hoja “Mov (Mes)”.
+Se cambia el nombre de las siguientes columnas:
+Columna Q:  “Saldo” por  “Valor COP”.
+Columna U:  “Importes moneda extranjera” por “ Valor USD”
+Se valida que la sumatoria de la columna “Débito” sea igual a la sumatoria de la columna columna “Crédito”. Esto se hace con la fórmula: SUBTOTALES(9,O2:O(numfilafinal), SUBTOTALES(9,P2:P(numfilafinal) y SUBTOTALES(9,Q2:Q(numfilafinal).
+La sumatoria de los valores de la columna Q “Valor COP” debe ser igual a cero. Se deben tener como referencia los valores de las columnas O y P. Teniendo en cuenta que los valores Débito son positivos y Crédito son negativos.
+Luego en la columna S  “Moneda:nombre”, Se filtra por el valor USD y luego por la columna Débito, para verificar si el resultado de la columna “Valor USD” es positivo, luego se filtra de nuevo por la columna S “Moneda:nombre” y la columna Crédito y se verifica que los valores de la columna “Valor USD” sean negativos.
+Luego se utiliza la misma formula de subtotales pero aplicada a la columna U, SUBTOTALES(9,U2:U(numfilafinal). La sumatoria de estos valores debe dar cero o -.
+CLASIFICACIÓN
+Esta clasificación se realizará en la hoja “Mov (Mes)”, del excel maestro. Antes de iniciar la clasificación de items, se debe revisar la columna AG, “ Cuenta Homologación” no tenga un valor cero, porque de lo contrario estas operaciones (filas) van a tener que ser validadas manualmente,  ya que se debe revisar por qué no tienen valor. Para iniciar la clasificación todos los valores de la columna “homologación de cuenta” deben tener un valor y ser diferente a 0”.
+La clasificación de operaciones, se realiza en la hoja “Mov (Mes)”, en las columnas: (AB) Categoría, (AC) Subcategoria, (AD) Clasificación, (AE) Nexo, (AF) Comprobacion saldos, (AG) Cuenta Homologacion y (AH) Nombre Homologacion.
+Las reglas de clasificación se pueden ver en el excel Reglas PA Clasificación.
