@@ -53,11 +53,17 @@ from adw_modules.workflow_ops import format_issue_message, create_commit, ensure
 # Agent name constants
 AGENT_TESTER = "test_runner"
 AGENT_E2E_TESTER = "e2e_test_runner"
+AGENT_API_TESTER = "api_integration_tester"
 AGENT_BRANCH_GENERATOR = "branch_generator"
 
 # Maximum number of test retry attempts after resolution
 MAX_TEST_RETRY_ATTEMPTS = 4
 MAX_E2E_TEST_RETRY_ATTEMPTS = 2  # E2E ui tests
+MAX_API_TEST_RETRY_ATTEMPTS = 2  # API integration tests
+
+# API test configuration
+API_TEST_BASE_URL = os.getenv("API_TEST_BASE_URL", "http://localhost:8000")
+API_TEST_SERVER_TIMEOUT = 30  # seconds to wait for server startup
 
 
 def check_env_vars(logger: Optional[logging.Logger] = None) -> None:
@@ -98,36 +104,43 @@ def check_env_vars(logger: Optional[logging.Logger] = None) -> None:
 def parse_args(
     state: Optional[ADWState] = None,
     logger: Optional[logging.Logger] = None,
-) -> Tuple[Optional[str], Optional[str], bool]:
+) -> Tuple[Optional[str], Optional[str], bool, bool]:
     """Parse command line arguments.
-    Returns (issue_number, adw_id, skip_e2e) where issue_number and adw_id may be None."""
+    Returns (issue_number, adw_id, skip_e2e, skip_api) where issue_number and adw_id may be None."""
     skip_e2e = False
-    
+    skip_api = False
+
     # Check for --skip-e2e flag in args
     if "--skip-e2e" in sys.argv:
         skip_e2e = True
         sys.argv.remove("--skip-e2e")
-    
+
+    # Check for --skip-api flag in args
+    if "--skip-api" in sys.argv:
+        skip_api = True
+        sys.argv.remove("--skip-api")
+
     # If we have state from stdin, we might not need issue number from args
     if state:
         # In piped mode, we might have no args at all
         if len(sys.argv) >= 2:
             # If an issue number is provided, use it
-            return sys.argv[1], None, skip_e2e
+            return sys.argv[1], None, skip_e2e, skip_api
         else:
             # Otherwise, we'll get issue from state
-            return None, None, skip_e2e
-    
+            return None, None, skip_e2e, skip_api
+
     # Standalone mode - need at least issue number
     if len(sys.argv) < 2:
         usage_msg = [
             "Usage:",
-            "  Standalone: uv run adw_test.py <issue-number> [adw-id] [--skip-e2e]",
-            "  Chained: ... | uv run adw_test.py [--skip-e2e]",
+            "  Standalone: uv run adw_test.py <issue-number> [adw-id] [--skip-e2e] [--skip-api]",
+            "  Chained: ... | uv run adw_test.py [--skip-e2e] [--skip-api]",
             "Examples:",
             "  uv run adw_test.py 123",
             "  uv run adw_test.py 123 abc12345",
             "  uv run adw_test.py 123 --skip-e2e",
+            "  uv run adw_test.py 123 --skip-api",
             "  echo '{\"issue_number\": \"123\"}' | uv run adw_test.py",
         ]
         if logger:
@@ -141,7 +154,7 @@ def parse_args(
     issue_number = sys.argv[1]
     adw_id = sys.argv[2] if len(sys.argv) > 2 else None
 
-    return issue_number, adw_id, skip_e2e
+    return issue_number, adw_id, skip_e2e, skip_api
 
 
 def git_branch(
@@ -531,6 +544,212 @@ def run_tests_with_resolution(
     return results, passed_count, failed_count, test_response
 
 
+# ============================================================================
+# API Integration Tests (curl-based endpoint testing)
+# ============================================================================
+
+def check_route_files_changed(logger: logging.Logger) -> List[str]:
+    """Check if any route files have been modified in the current branch."""
+    try:
+        result = subprocess.run(
+            ["git", "diff", "origin/main", "--name-only"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            logger.warning(f"Git diff failed: {result.stderr}")
+            return []
+
+        changed_files = result.stdout.strip().split("\n")
+        route_files = [
+            f for f in changed_files
+            if f.startswith("backend/src/adapter/rest/") and f.endswith("_routes.py")
+        ]
+        return route_files
+    except Exception as e:
+        logger.warning(f"Error checking route files: {e}")
+        return []
+
+
+def start_test_server(logger: logging.Logger) -> Optional[subprocess.Popen]:
+    """Start the backend server for API testing."""
+    try:
+        env = os.environ.copy()
+        env["TESTING"] = "true"
+
+        # Start uvicorn in background
+        proc = subprocess.Popen(
+            ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"],
+            cwd="backend",
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        logger.info(f"Started test server (PID: {proc.pid})")
+        return proc
+    except Exception as e:
+        logger.error(f"Failed to start test server: {e}")
+        return None
+
+
+def wait_for_server(base_url: str, timeout: int = API_TEST_SERVER_TIMEOUT) -> bool:
+    """Wait for the server to be ready."""
+    import time
+
+    health_url = f"{base_url}/api/health"
+    start = time.time()
+
+    while time.time() - start < timeout:
+        try:
+            result = subprocess.run(
+                ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", health_url],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.stdout.strip() == "200":
+                return True
+        except Exception:
+            pass
+        time.sleep(1)
+
+    return False
+
+
+def stop_test_server(proc: Optional[subprocess.Popen], logger: logging.Logger) -> None:
+    """Stop the test server gracefully."""
+    if proc is None:
+        return
+
+    try:
+        proc.terminate()
+        proc.wait(timeout=5)
+        logger.info("Test server stopped")
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        logger.warning("Test server killed (did not terminate gracefully)")
+    except Exception as e:
+        logger.error(f"Error stopping test server: {e}")
+
+
+def run_api_integration_tests(
+    adw_id: str,
+    issue_number: str,
+    logger: logging.Logger,
+) -> Tuple[List[TestResult], int, int]:
+    """
+    Run curl-based API integration tests for new/modified endpoints.
+
+    This catches bugs like API response format issues that unit tests miss
+    because they mock external API responses.
+
+    Returns (results, passed_count, failed_count).
+    """
+    # Check if any route files changed
+    changed_routes = check_route_files_changed(logger)
+    if not changed_routes:
+        logger.info("No route files changed, skipping API integration tests")
+        return [], 0, 0
+
+    logger.info(f"Found {len(changed_routes)} changed route files: {changed_routes}")
+
+    # Start the backend server
+    logger.info("Starting backend server for API integration tests...")
+    server_proc = start_test_server(logger)
+
+    if server_proc is None:
+        return [TestResult(
+            test_name="server_startup",
+            passed=False,
+            execution_command="uv run uvicorn main:app --host 0.0.0.0 --port 8000",
+            test_purpose="Start backend server for API testing",
+            error="Failed to start backend server",
+        )], 0, 1
+
+    try:
+        # Wait for server to be ready
+        logger.info(f"Waiting for server at {API_TEST_BASE_URL}...")
+        if not wait_for_server(API_TEST_BASE_URL):
+            logger.error("Server did not become ready in time")
+            return [TestResult(
+                test_name="server_health_check",
+                passed=False,
+                execution_command=f"curl {API_TEST_BASE_URL}/api/health",
+                test_purpose="Verify server is ready to accept requests",
+                error=f"Server health check failed after {API_TEST_SERVER_TIMEOUT}s",
+            )], 0, 1
+
+        logger.info("Server is ready, running API integration tests...")
+
+        # Execute /test_api command via Claude
+        request = AgentTemplateRequest(
+            agent_name=AGENT_API_TESTER,
+            slash_command="/test_api",
+            args=[API_TEST_BASE_URL],
+            adw_id=adw_id,
+            model="sonnet",  # Use faster model for API tests
+        )
+
+        response = execute_template(request)
+
+        if not response.success:
+            logger.error(f"API integration tests failed: {response.output}")
+            return [TestResult(
+                test_name="api_test_execution",
+                passed=False,
+                execution_command="/test_api",
+                test_purpose="Execute API integration test suite",
+                error=response.output[:500],
+            )], 0, 1
+
+        # Parse results
+        results, passed_count, failed_count = parse_test_results(response.output, logger)
+        return results, passed_count, failed_count
+
+    finally:
+        # Always stop the server
+        stop_test_server(server_proc, logger)
+
+
+def format_api_test_results_comment(
+    results: List[TestResult], passed_count: int, failed_count: int
+) -> str:
+    """Format API integration test results for GitHub issue comment."""
+    if not results:
+        return "ℹ️ No API integration tests executed (no route files changed)"
+
+    comment_parts = []
+
+    # Summary
+    comment_parts.append(f"**Total:** {len(results)} | **Passed:** {passed_count} | **Failed:** {failed_count}")
+    comment_parts.append("")
+
+    # Failed tests first
+    failed_tests = [t for t in results if not t.passed]
+    if failed_tests:
+        comment_parts.append("### ❌ Failed Tests")
+        comment_parts.append("")
+        for test in failed_tests:
+            comment_parts.append(f"- **{test.test_name}**")
+            if test.error:
+                comment_parts.append(f"  - Error: {test.error[:200]}")
+            comment_parts.append(f"  - Command: `{test.execution_command[:100]}...`")
+        comment_parts.append("")
+
+    # Passed tests
+    passed_tests = [t for t in results if t.passed]
+    if passed_tests:
+        comment_parts.append("### ✅ Passed Tests")
+        comment_parts.append("")
+        for test in passed_tests:
+            comment_parts.append(f"- {test.test_name}")
+
+    return "\n".join(comment_parts)
+
+
 def run_e2e_tests(
     adw_id: str,
     issue_number: str,
@@ -884,7 +1103,7 @@ def main():
     load_dotenv()
 
     # Parse arguments
-    arg_issue_number, arg_adw_id, skip_e2e = parse_args(None)
+    arg_issue_number, arg_adw_id, skip_e2e, skip_api = parse_args(None)
     
     # Initialize state and issue number
     issue_number = arg_issue_number
@@ -988,13 +1207,54 @@ def main():
     # Log summary
     logger.info(f"Final test results: {passed_count} passed, {failed_count} failed")
 
-    # If unit tests failed or skip_e2e flag is set, skip E2E tests
+    # Initialize API test results
+    api_results = []
+    api_passed_count = 0
+    api_failed_count = 0
+
+    # Run API integration tests if unit tests passed
     if failed_count > 0:
-        logger.warning("Skipping E2E tests due to unit test failures")
+        logger.warning("Skipping API integration tests due to unit test failures")
+    elif skip_api:
+        logger.info("Skipping API integration tests as requested via --skip-api flag")
         make_issue_comment(
             issue_number,
             format_issue_message(
-                adw_id, "ops", "⚠️ Skipping E2E tests due to unit test failures"
+                adw_id, "ops", "⚠️ Skipping API integration tests as requested via --skip-api flag"
+            ),
+        )
+    else:
+        logger.info("\n=== Running API integration tests ===")
+        make_issue_comment(
+            issue_number,
+            format_issue_message(adw_id, AGENT_API_TESTER, "🔌 Running API integration tests..."),
+        )
+
+        api_results, api_passed_count, api_failed_count = run_api_integration_tests(
+            adw_id, issue_number, logger
+        )
+
+        # Format and post API test results
+        api_results_comment = format_api_test_results_comment(
+            api_results, api_passed_count, api_failed_count
+        )
+        make_issue_comment(
+            issue_number,
+            format_issue_message(
+                adw_id, AGENT_API_TESTER, f"📊 API integration test results:\n{api_results_comment}"
+            ),
+        )
+
+        logger.info(f"API integration test results: {api_passed_count} passed, {api_failed_count} failed")
+
+    # If unit tests or API tests failed, skip E2E tests
+    if failed_count > 0 or api_failed_count > 0:
+        skip_reason = "unit test failures" if failed_count > 0 else "API integration test failures"
+        logger.warning(f"Skipping E2E tests due to {skip_reason}")
+        make_issue_comment(
+            issue_number,
+            format_issue_message(
+                adw_id, "ops", f"⚠️ Skipping E2E tests due to {skip_reason}"
             ),
         )
         e2e_results = []
@@ -1091,12 +1351,14 @@ def main():
     state.to_stdout()
     
     # Exit with appropriate code
-    total_failures = failed_count + e2e_failed_count
+    total_failures = failed_count + api_failed_count + e2e_failed_count
     if total_failures > 0:
         logger.info(f"Test suite completed with failures for issue #{issue_number}")
         failure_msg = f"❌ Test suite completed with failures:\n"
         if failed_count > 0:
             failure_msg += f"- Unit tests: {failed_count} failures\n"
+        if api_failed_count > 0:
+            failure_msg += f"- API integration tests: {api_failed_count} failures\n"
         if e2e_failed_count > 0:
             failure_msg += f"- E2E tests: {e2e_failed_count} failures"
         make_issue_comment(
@@ -1108,6 +1370,8 @@ def main():
         logger.info(f"Test suite completed successfully for issue #{issue_number}")
         success_msg = f"✅ All tests passed successfully!\n"
         success_msg += f"- Unit tests: {passed_count} passed\n"
+        if api_results:
+            success_msg += f"- API integration tests: {api_passed_count} passed\n"
         if e2e_results:
             success_msg += f"- E2E tests: {e2e_passed_count} passed"
         make_issue_comment(
