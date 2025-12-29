@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from src.config.settings import get_settings
-from src.adapter.rest import legal_routes, operations_routes, auth_routes, finance_routes, tesoreria_routes, alianzas_routes, treasury_matching_routes, risk_routes
+from src.adapter.rest import legal_routes, operations_routes, auth_routes, finance_routes, tesoreria_routes, alianzas_routes, treasury_matching_routes, risk_routes, pa_routes
 from src.adapter.rest.declaraciones import directory_scanner as treasury_directory_scanner
 import json
 import logging
@@ -78,6 +78,7 @@ app.include_router(alianzas_routes.router)
 app.include_router(treasury_matching_routes.router)
 app.include_router(treasury_directory_scanner.router)
 app.include_router(risk_routes.router)
+app.include_router(pa_routes.router)
 
 @app.get("/api/health")
 async def health_check():

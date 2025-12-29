@@ -10,9 +10,9 @@ So that I can detect potential fraud through name variations and mismatches with
 
 ## Prerequisites
 
-- Backend server running at http://localhost:8000
-- Frontend server running at http://localhost:5173
-- Test user account exists with risk_analyst or risk_manager role
+- Backend server running at http://localhost:8003
+- Frontend server running at http://localhost:5175
+- Test user account exists with risk_analyst or risk_manager role (admin also works)
 - An existing risk evaluation in progress with at least one document uploaded (preferably Certificado de Existencia or RUT)
 
 ## Test Credentials
@@ -26,7 +26,7 @@ Use credentials from `backend/.env`:
 
 ### Setup
 
-1. Navigate to the `Application URL` (http://localhost:5173)
+1. Navigate to the `Application URL` (http://localhost:5175)
 2. **Verify** redirect to login page if not authenticated
 3. Log in with test credentials
 4. Wait for redirect to dashboard

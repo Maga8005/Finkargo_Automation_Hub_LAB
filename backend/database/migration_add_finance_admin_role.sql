@@ -39,10 +39,29 @@
 -- </RoleProtectedRoute>
 
 -- ============================================================================
--- VERIFICATION QUERY
+-- EXECUTABLE MIGRATION
 -- ============================================================================
--- Check existing roles in user_profiles:
--- SELECT DISTINCT role FROM user_profiles ORDER BY role;
+
+-- Step 1: Verify current roles in the system
+SELECT DISTINCT role FROM user_profiles ORDER BY role;
+
+-- Step 2: View all users to find the one you want to update
+SELECT id, email, full_name, role FROM user_profiles ORDER BY email;
+
+-- Step 3: Assign finance_admin role to a specific user (replace the email)
+-- Uncomment and modify the following line with the target user's email:
+
+-- UPDATE user_profiles
+-- SET role = 'finance_admin', updated_at = NOW()
+-- WHERE email = 'user@example.com';
+
+-- Or by user ID:
+-- UPDATE user_profiles
+-- SET role = 'finance_admin', updated_at = NOW()
+-- WHERE id = 'your-user-uuid-here';
+
+-- Step 4: Verify the update
+-- SELECT id, email, full_name, role FROM user_profiles WHERE role = 'finance_admin';
 
 -- ============================================================================
 -- NOTE
