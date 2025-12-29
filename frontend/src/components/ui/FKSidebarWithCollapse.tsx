@@ -90,6 +90,18 @@ const financeModules: FinanceModule[] = [
     route: '/finance/reporteria-automatica-mx',
     icon: <Description fontSize="small" />,
   },
+  {
+    id: 'reporte-pa',
+    name: 'Reporte PA',
+    route: '/finance/reporte-pa',
+    icon: <Assessment fontSize="small" />,
+  },
+  {
+    id: 'reglas-clasificacion-pa',
+    name: 'Reglas Clasificación PA',
+    route: '/finance/reglas-clasificacion-pa',
+    icon: <Settings fontSize="small" />,
+  },
 ];
 
 // Operations sub-modules (direct navigation, country-specific contracts)

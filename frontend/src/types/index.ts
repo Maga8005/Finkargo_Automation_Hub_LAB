@@ -81,7 +81,9 @@ export type UserRole =
   | 'alianzas' // Partnerships department role
   | 'comercial_paga_local' // Commercial team with limited access to Paga Local only
   | 'risk_analyst' // Risk department analyst role
-  | 'risk_manager'; // Risk department manager role
+  | 'risk_manager' // Risk department manager role
+  | 'finance' // Finance department role
+  | 'finance_admin'; // Finance admin role for PA classification rules
 
 export const UserRole = {
   ADMIN: 'admin' as const,
@@ -98,6 +100,8 @@ export const UserRole = {
   COMERCIAL_PAGA_LOCAL: 'comercial_paga_local' as const, // Commercial team with limited access to Paga Local only
   RISK_ANALYST: 'risk_analyst' as const, // Risk department analyst role
   RISK_MANAGER: 'risk_manager' as const, // Risk department manager role
+  FINANCE: 'finance' as const, // Finance department role
+  FINANCE_ADMIN: 'finance_admin' as const, // Finance admin role for PA classification rules
 };
 
 /**

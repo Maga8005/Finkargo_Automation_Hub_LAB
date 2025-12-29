@@ -55,3 +55,12 @@ This prompt helps you determine what documentation you should read based on the 
     - When implementing entity extraction from email chains (company names, NITs, representatives)
     - When troubleshooting extraction_method or ai_assisted tracking
     - When adding new settings to the risk module
+
+- app_docs/feature-550a54d1-pa-report-classification.md
+  - Conditions:
+    - When working with PA (Patrimonio Autonomo) report classification
+    - When implementing or modifying Finance module PA features
+    - When working with pa_account_catalog, pa_classification_rules, or related tables
+    - When implementing NetSuite file processing for PA accounts
+    - When troubleshooting PA classification or homologation logic
+    - When working with finance_admin role or PA-related RBAC

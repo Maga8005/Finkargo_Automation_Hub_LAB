@@ -29,6 +29,8 @@ import DirectoryScannerPage from './pages/treasury/DirectoryScannerPage';
 import RiskDashboard from './pages/risk/RiskDashboard';
 import RiskEvaluationDetail from './pages/risk/RiskEvaluationDetail';
 import RiskConfiguration from './pages/risk/RiskConfiguration';
+import ReglasClasificacionPA from './pages/finance/ReglasClasificacionPA';
+import ReportePA from './pages/finance/ReportePA';
 import { UserRole } from './types';
 
 function App() {
@@ -64,6 +66,24 @@ function App() {
               {/* Finance Routes - Reportería Automática */}
               <Route path="finance/reporteria-automatica-co" element={<ReporteriaAutomaticaCO />} />
               <Route path="finance/reporteria-automatica-mx" element={<ReporteriaAutomaticaMX />} />
+
+              {/* Finance Routes - PA Classification */}
+              <Route
+                path="finance/reporte-pa"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.FINANCE, UserRole.FINANCE_ADMIN, UserRole.ADMIN]}>
+                    <ReportePA />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="finance/reglas-clasificacion-pa"
+                element={
+                  <RoleProtectedRoute allowedRoles={[UserRole.FINANCE_ADMIN, UserRole.ADMIN]}>
+                    <ReglasClasificacionPA />
+                  </RoleProtectedRoute>
+                }
+              />
 
               {/* Treasury Routes - Plantillas NetSuite */}
               <Route path="tesoreria/plantillas-netsuite" element={<PlantillasNetSuite />} />
@@ -209,6 +229,12 @@ function App() {
               <Route
                 path="department/risk"
                 element={<Navigate to="/risk/dashboard" replace />}
+              />
+
+              {/* Finance department route - Redirect to PA report (most common use case) */}
+              <Route
+                path="department/finance"
+                element={<Navigate to="/finance/reporte-pa" replace />}
               />
 
               <Route path="department/:departmentId" element={<DepartmentPage />} />

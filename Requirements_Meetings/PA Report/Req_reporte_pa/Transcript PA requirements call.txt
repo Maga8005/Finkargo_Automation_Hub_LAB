@@ -1,0 +1,1070 @@
+ 
+  
+ 
+ 
+Maria Alejandra Gaitán - 00:00
+ 
+  Necesitamos nada más, sino en el reporte de netsuite no necesitamos detalles de movimiento ni nada, o sea, ya 
+se clarificó ese tema del recaudo en dólares y en pesos y ya las tenemos todas, o sea, yo ya tengo un cuadrito, 
+solamente lo muestro, no sé si lo que necesitemos es convertir este cuadro en un pere, qué sí esto oculta, ya está 
+todo, o sea, ya tengo todas las reglas, las observaciones de cada una de las, o sea, de cada una de las 
+clasificaciones puntuales, las observaciones generales. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 01:10
+ 
+  Listo. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 01:13
+ 
+  Listo Dani, entonces ya lo tengo todo, no sé si esto lo que quieras que lo convierta o bueno, en un requerimiento. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 01:21
+ 
+  OK, ¿Cómo funciona? ¿Ir a qué? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 01:26
+ 
+  Y ya tendríamos pues para poder hacerlo, para poder generar la funcionalidad. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 01:33
+ 
+  Entonces, ¿Cómo funciona este archivo? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 01:39
+ 
+  Bueno, hay otra cosa, esperando un segundo que antes yo había creado un documento chiquitito en un Word, tan, 
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+1 / 20
+tan, tan, espérame María Claris, la resolución de ¿Será que esto o informe? ¿No, espérame un segundo, esto es 
+informe? ¿Espérame que yo, o sea, antes de poder hacer esto tenemos que arreglar el archivo de netsuite, 
+entonces yo tenía aquí un bla bla, primera. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 02:19
+ 
+  Parte. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 02:22
+ 
+  Aquí sé qué es lo que se tiene que hacer, entonces se descarga el documento, se identifican las cuentas de ese 
+documento, se identifican las cuentas de patrimonio autónomo, aquí dice cómo se identifican y aquí es cómo se 
+copian y se pegan estas, o sea, después de identificar estas cuentas del patrimonio autónomo se ve, bueno, en 
+ese caso copiar y pegar o generar esta hoja de movimiento mes con esas cuentas, pero qué es lo que se debe 
+hacer antes? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 03:02
+ 
+  Entonces aquí dice que, bueno, entonces primero pues se pegan de la A a la Z, después de esto se crea una 
+columna PA como para dejarlo igual y se le coloca una X, se crean las otras columnas de categoría, subcategoría y 
+clasificación, todo esto es para la clasificación que ellas necesitan, después de esto, Según unas reglas, entonces 
+se pueden llenar las columnas de cuenta, homologación y nombre de homologación y se cambian estos valores 
+que vienen la cuenta Netflix, se cambian estos nombres, después también dice que los débitos, los créditos vienen 
+con una. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 04:01
+ 
+  En valores positivos, se tienen que colocar en negativos y ya, o sea, esto es como el antes de y después ya viene el 
+tema de la clasificación, que es lo de esta clasificación, o sea, esto es lo primero que se tiene que hacer, que 
+básicamente es copiar, pegar y arreglar de la A la Z estas columnas. Yo creo que, yo creo que podríamos 
+solamente generar esta hoja de movimientos y que después ellas, bueno, no se pueden copiar y pegar esa hoja y 
+no meternos con el archivo pues que tiene todo lo de tesorería y eso. ¿Tú qué opinas? 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 04:45
+ 
+  ¿El ejercicio era, yo no he visto ningún vídeo ni nada por ahora, pero es sintiendo bien, tengo un archivo, ese 
+archivo tengo que aplicar una clasificación según las reglas cierto? ¿Cuando tú hablas de estos otros archivos, 
+cuáles son eso, o sea es todo lo que los cierres y demás que hacen los otros, eso no entra en esa clasificación? 
+  
+   
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+2 / 20
+ 
+Maria Alejandra Gaitán - 05:08
+ 
+  No, no dan, o sea, eso cierre, o sea, ellos tienen como un Excel maestro donde van alimentando con otros archivos 
+de otras áreas ese Excel maestro, pero según nos pueden ver, si yo tengo, yo puedo abrir este, pero bueno, el tema 
+para ellas esta hoja de movimientos es lo importante porque con tablas dinámicas que ellas van a actualizar 
+según estos datos es que empiezan a sacar todos los cuadres de todo el resto de movimientos de los otros 
+departamentos de cartera, de tesorería, no sé qué, pero todo depende de esta categorización. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 06:01
+ 
+  ¿Ok, entonces dónde está? Archivo de movimientos, ¿Cuál es? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 06:04
+ 
+  De momento yo ya abro ese. Consolida operaciones reporte ¿Será que este? Seguramente sí. OK, ¿Ellos qué hace 
+María Gladys y Diana Ellas bajan el reporte general de netsuite de todos los movimientos de fincargo del mes? 
+Este es el documento maestro que tiene una cantidad de, miremos el de movimientos. Exacto. Y ellas lo que 
+necesitan es que nosotros los ayudemos a generar esta clasificación que trabajemos en esta pestaña de 
+movimientos. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 07:00
+ 
+  Del mes, tiene 20 mil líneas. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 07:03
+ 
+  Exacto, entonces de la. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 07:07
+ 
+  Bajan esto y esto lo clasifican según esas reglas. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 07:11
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+3 / 20
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Exacto. Pero ellas bajan el movimiento de netsuite después de bajar ese movimiento de netsuites le hacen esto 
+que te, o sea ellas cuadran, ellas revisan. Espera un segundo, Entonces ellas bajan de netsuite después de bajar y 
+abren ese reporte de Netflix, entonces ellas lo que hacen es filtrar de todo eso de Netflix cuáles son las cuentas de 
+patrimonio autónomo. Entonces para poder filtrar esas cuentas de patrimonio autónomo, ellas van a seguir, ellas 
+revisan aquí una cosa que se llama, ¿Dónde está esto? 
+Maria Alejandra Gaitán - 08:06
+Como de estas líneas, ellas revisan esta, o tienen en cuenta una cosa acá, certificaciones, lista, cuentas contables, 
+PA, entonces todos los que tengan este numerito de ese reporte netsuite son las cuentas de patrimonio 
+Autónomo, entonces hacen esa búsqueda y pueden filtrar de todo ese reporte netsuite cuáles son las cuentas de 
+patrimonio Autónomo, lo que hacen es las filtran, las copian y las pegan en esa hoja de movimientos. Hoja de 
+movimientos. 
+Daniel Restrepo - 08:50
+Ellos necesitan también esto que se filtre, o sea ellos quisieran bajar en bruto lo de netsuite y que de una vez 
+identifique esto y aplique las reglas de clasificación. 
+Maria Alejandra Gaitán - 09:00
+Exactamente, entonces lo primero que necesitan es coger ese reporte y en ese reporte tienen que uno filtrar las 
+reglas, bueno según esas cuentas, filtrar para saber cuáles son las cuentas del patrimonio Autónomo, eso es lo 
+primero, después de eso, ya que tienen esas cuentas de patrimonio Autónomo entonces las copian en, o 
+empiezan a crear esta hoja de movimientos del mes, entonces después de crear, después de filtrar y entender 
+cuáles son las cuentas de patrimonio Autónomo cogen y crean esta hoja en este Excel maestro movimiento del 
+mes, aquí van a copiar toda esa data que es de la A a la Z, las columnas que copian va de la A a la Z, entonces ya 
+después de eso empiezan a limpiar los datos, entonces lo segundo que hacen ya con las cuentas de patrimonio 
+Autónomo entonces es primero van llenar estas, ya te muestro, van a llenar las columnas, bueno van a, bueno no, 
+más bien no, bueno, van a crear estas columnas que son PA, la columna AB que es de categoría, la columna AC, 
+subcategoría, clasificación, nexo, comprobación de saldos, cuenta de homologación y nombre homologación, 
+ellas crean estas cuentas y estas cuentas, estas columnas y después de esto entonces se puede llenar, o sea aquí 
+van a llegar y se van a llenar estas cuentas de homologación y nombre homologación que también viene filtradas 
+según esto o también se pueden filtrar por esto que ya nos pasaron aquí también está que son las cuentas, los 
+nombres de las cuentas del patrimonio Autónomo. 
+Maria Alejandra Gaitán - 11:26
+Luego de esto todavía no empiezan a hacer la clasificación hasta que hacen varias cosas, la primera que van a 
+hacer es cambiar nombres de columnas en el reporte de netsuite, la columna Q viene con nombre de saldo y 
+tienen que cambiarlo por valor copiado, la columna U que se llama importes de moneda extranjera la van a 
+cambiar por el valor USD. Después de esto lo que van a hacer es, bueno esta sumatoria se puede evitar, van a 
+mirar si la columna s, nombre, moneda, lo que tienen que hacer es saber si los débitos, o sea aquí este valor USD 
+es positivo y tienen que cambiarlo a negativo para que sean créditos, pero igual lo podríamos dejar y que ya los 
+cambien manualmente. 
+4 / 20
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Daniel Restrepo - 12:26
+Pero para qué lo podemos dejar, o sea, porque vamos a cambiar manualmente, lo podemos hacer. 
+Maria Alejandra Gaitán - 12:32
+Entonces tenemos que seguir, o sea, esto sería la limpieza de los datos inicialmente antes de la clasificación y 
+después entonces ya lo que tendrían que hacer después de limpiar esos datos y revisar, o sea, ellas lo que van a 
+hacer acá es entender que los créditos, Que estos créditos y estos débitos, o sea, la sumatoria de los créditos, de 
+los débitos con la sumatoria de los créditos debe ser, debe darse y este valor cop, todo esto debe ser positivo, o 
+sea, débito positivo, crédito negativo y el valor cop debe dar cero, entonces ya tienen digamos que validada que la 
+información está bien y lo mismo para el valor en dólares que es la columna u, también tienen que hacer lo 
+mismo, pero yo lo explico aquí en este documento, mira, se valía que la sumatoria de la columna débito sea igual a 
+la sumatoria de la columna crédito, esto se hace con una fórmula, bueno ella colocó subtotales, pero es fila de 
+todas las filas para que les den el subtotal del débito, no sé, 10 mil dólares y aquí el subtotal del crédito menos 10 
+mil dólares y esto debe ser igual a cero en la columna de valor cop y para el valor de dólares entonces se van a 
+tomar la moneda, nombre y qué más, hacen la misma verificación, la cosa es entender que los valores, hay unos 
+valores que vienen positivos y los tienen que cambiar a negativo y ya esto es para validar que estén los valores 
+bien y después ya se hace la clasificación que tiene todas estas, la clasificación depende del tipo de transacción 
+de la columna e, tipo de transacción, la columna f, tipo de comprobante, de la columna g, número de documento y 
+de la columna a y b, que esto es número de la línea, nombre de la línea y también de la columna c, que aquí vamos 
+a saber las fechas de las del movimiento, esas son las columnas de las que van a depender las clasificaciones y 
+aquí en la observación estoy colocando cómo se clasifican, digamos, a ver, por ejemplo acá entonces dice que 
+cuando tenga el tipo de transacción, sea porte, sesión, cartera y el tipo de comprobante sean sesiones. 
+Maria Alejandra Gaitán - 15:21
+Bueno, no va a haber nada. Cuando el asiento, el tipo de transacción sea asiento y el tipo de comprobante sea 
+provisiones, la categoría se va a llamar provisión de ingresos. ¿Cómo se clasifica? Se clasifica de forma 
+incremental. Entonces primero van a clasificar las categorías. Después de clasificar todas las categorías, 
+entonces se clasifican las subcategorías. Estas del mes de reversión al mes tienen que ver con la fecha, pero eso 
+está en las observaciones. Estas subcategorías también dependen mucho del tipo de transacción y tipo de 
+comprobante en las columnas. ¿Y qué más tenemos? Y aquí en la clasificación tiene que ver, o sea, tiene que ver, 
+esta clasificación tiene que ver con estas observaciones generales, pero están todas las reglas de la clasificación 
+y todo sale de los mismos datos de Netflix que se pegaron. 
+Daniel Restrepo - 16:27
+El archivo de movimientos del mes completo se sube y se le hace una limpieza inicial, que era la que está en el 
+Word, y luego de eso se hace una clasificación que es sobre las columnas adicionales, se le se mapean a la 
+clasificación. Según estas reglas. Yo imagino que habría como se puede hacer en dos pasos. Sube el Excel, listo, 
+procésalo y ya no se dice, ya se limpió la data, si quiere descargue, entonces descarga y tiene, lo puede ver, 
+digamos, limpia y luego es OK. Pero, o sea, no tiene que hacerlo, lo puede hacer si quiere. Luego es clasificar, 
+aplica las reglas y sale. Entonces nos toca dos, habría puesto dos cargues de información, el de movimientos que 
+5 / 20
+sería recurrente, y el de reglas que sería de vez en cuando varían las reglas, digamos un usuario con más 
+privilegios. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 17:29
+ 
+  Entonces yo creo que sería como dos ítems de menú de pronto uno que sería el reporte PA o clasificación del 
+reporte PA y el otro que es reglas para clasificación de reporte PA. Y así podemos darle acceso al usuario de 
+finanzas, administrador o como queramos llamarle. Las dos y el usuario de finanzas normal, solo la de generar. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 17:59
+ 
+  Sí, sí, Dani, porque en esa clasificación ellas podrían, o sea, después de hacerla, esa limpieza de datos, ellas 
+podrían, básicamente lo que se tiene que saber es que el débito y el crédito de los valores en pesos, esos valores 
+den cero, y el débito y crédito para los dólares también den cero. Entonces si esa limpieza de datos está bien 
+hecha, esos valores deberían todos darse y se lo podrían hacer anualmente. O también ellas. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 18:35
+ 
+  No, no, manualmente no, ¿Por qué manualmente? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 18:38
+ 
+  No, digo revisarlo, o sea, pero manualmente o podríamos generar una previsualización para. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 18:46
+ 
+  Eso me refería, en el primer paso genera la limpieza y se puede descargar si uno quisiera y luego o previsualizar, 
+yo iría descargar porque seguro es un Excel grande y luego clasificar sería el segundo paso, ese ya haría el 
+producto final, así me lo imagino, no sé. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 19:09
+ 
+  Perfecto, así es. Y ya, ¿Qué pasa? Espérate, te comparto. Entonces después de esa clasificación, ¿Y por qué es 
+importante? Porque resulta que esa clasificación entonces van a salir el resto de cosas, entonces digamos que 
+ajustes de cartera, creo, entonces estos ajustes de cartera, entonces si, es que aquí viene la subcategoría, 
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+6 / 20
+entonces dependiendo de la subcategoría se saca este informe, digamos que fuera, sí, ajustes de cartera, la 
+subcategoría, entonces aquí vendrían las sumatorias o yo no sé, las cuentas de ajustes de cartera. Entonces todas 
+estas tablas dependen de la clasificación que ellos la actualizan y ellas ya empiezan a mirar acá todos sus 
+movimientos, pero lo importante son esas clasificaciones de ese reporte. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 20:01
+ 
+  Listo, entonces montemos la clasificación. Pues el reporte, o sea todo el proceso dejarle clasificado creo que está 
+claro, lo único ese Excel de las reglas de clasificación, pues dejarlo, no sé si se lo pasamos a Cloud a ver si lo 
+entiende y ya con eso lo montamos, lo podríamos montar ahorita hoy mismo, podríamos correrle un flujo 
+agéntico. Y vemos cómo queda. Necesitaríamos el archivo de movimientos de Netsuit, creo que ya tienes una 
+copia y las reglas de clasificación que tiene la copia, entonces con esas dos creo que podemos montar ahorita, no 
+sé si ya mismo, pero podríamos hacer intento. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 20:56
+ 
+  Sí, sí, Dani, no sé qué quieras porque yo podría pasarle por NetSuite, todo, por Net, por Cloud, a ver si lo entiende el 
+Excel y si entiende lo del Word y si entiende más o menos como yo lo entendí. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 21:11
+ 
+  Entonces si quieres pásame la info, intentamos manejar. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 21:16
+ 
+  Ya te lo paso, yo ya dejé compartir un momento, entonces ya te la paso por el tractor. Entonces este es el 
+consolidado, Entonces consolidado, operaciones, Espérame, pero este es el consolidado. ¿Bueno, yo no sé si voy a 
+mirar a ver si Diana me compartió el netsuite, espérate, esto se llama reporte lineamientos? Esto fue también lo 
+que nos pasó Diana porque ese reporte de lineamientos van a sacar, van a salir varias reglas porque tiene ya las 
+cuentas según cuenta tal mi reporte de lineamientos que ya te lo descargo y el Word, el reporte de alineamientos 
+el que te acabo de pasar es lo que nos dio descargar, nos dio lo que. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 22:49
+ 
+  Mostraste cuál era el mío, ese primer. 
+  
+   
+Maria Alejandra Gaitán - 22:53
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+7 / 20
+ 
+ 
+  Reporte de alimentos que te acabo de compartir fue lo que nos pasó Diana de lo importante son dos momentos. 
+Descargar como Microsoft ok, Voy a colocar finas, Mi sistema me descargo abril. En forma patrimonio autónomo 
+primera parte porque no me los cargó como huerto, Listo. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 24:55
+ 
+  Voy da un momentico respondo que una pregunta, Listo, entonces me mandaste consolidado. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 26:01
+ 
+  Espérame yo voy a buscar ese consolidado es. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 26:03
+ 
+  Lo. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 26:06
+ 
+  Como el archivo completo o como el Excel maestro donde ellas trabajan. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 26:41
+ 
+  ¿Cuáles son los archivos entonces reglas y. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 26:45
+ 
+  Este sí el Word es el que te dice como la limpieza de datos el segundo ese final es las reglas. 
+  
+   
+Daniel Restrepo - 26:53
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+8 / 20
+ 
+ 
+ 
+  Finales finales y cuál es el archivo input? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 26:58
+ 
+  ¿El input, espérame, espérame solo el de. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 27:03
+ 
+  Movimientos no necesito sino el de movimientos. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 27:05
+ 
+  Espera un momento ese es No, espérame a ver si me mandó Diana consolidado reporte es que ese consolidado 
+cierre mes de cartera? ¿Espérame un segundo, si ese consolidado mes de cartera que me mandaron aquí una 
+cosa sí espérate, creo que este, si es el de Netsuit consolida operaciones, sí yo te mandé un consolidado de carta 
+de operaciones mes de cartera. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 27:48
+ 
+  Lo estoy proyectando este OK, pero si yo. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 27:55
+ 
+  No sé si sea el de netsuite final o es el porque ese ya está formulado o sea que Diana es que ella me envió el de 
+netsuite que descargan. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 28:10
+ 
+  No saben lo que se llamaba movimientos en algún lado Movimiento detallado. 
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+9 / 20
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 28:15
+ 
+  Cuenta, mira espérame un segundo, aquí dice. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 28:21
+ 
+  TD mov, td mov de semidea, cuál será movimiento noviembre será ese? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 28:29
+ 
+  ¿El movimiento de noviembre es el que nosotros tenemos que generar, Espérate un momento, mira no mentía ya 
+te descargo, creo que es el de netsuite, dice movimiento detallado por cuenta, ya te lo envío. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 28:44
+ 
+  Y para la limpieza necesitamos también el mapeo de esas cuentas del REA no? ¿Esa la tienes en algún lado? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 28:51
+ 
+  Si, espera un momento te envío esto, este creo que es el de netsuite. Movimiento detallado por cuenta, Espero que 
+sí, si lo puedes abrir por favor. Se está cargando, mira ese, pero mira, Movimiento detallado por cuenta, creo que 
+ese es el input de NetSuite. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 29:29
+ 
+  50. ¿Y dónde está el mapeo de las cuentas del PA? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 29:50
+ 
+  OK, listo, esto es lo que nos saca netsuite Ahora, el mapeo de las cuentas del PA está en ese otro que tú abriste. 
+ 
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+10 / 20
+ 
+  
+ 
+ 
+ 
+Daniel Restrepo - 30:00
+ 
+  Pero no lo tiene separado. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 30:01
+ 
+  No lo tiene separado, de pronto sabes en dónde puedes. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 30:06
+ 
+  Yo no puedo manejarle, o sea, solo se mapeó para pasárselo a Claudia. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 30:15
+ 
+  Si puedes abrir por favor el documento. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 30:20
+ 
+  Yo no tengo Excel, no lo puedo manipular. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 30:29
+ 
+  Pero espérame, ese que te mandé que se llama lineamientos, no sé qué lineamientos, ese logo se puede abrir en 
+Gmail, espérame. Reporte PE. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 30:55
+ 
+  ¿Lo tiene? Este es el mapeo. 
+ 
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+11 / 20
+ 
+  
+ 
+ 
+Maria Alejandra Gaitán - 30:59
+ 
+  Teniendo en cuenta esas cuentas de fincargo, ese número de cuenta por se filtran versus el de netsuite para saber 
+qué cuentas son del PA. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 31:12
+ 
+  ¿Entonces la cuenta es la cuenta origen y es la cuenta destino? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 31:20
+ 
+  No sé, creo que sí ya lo dije usted. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 31:27
+ 
+  Si me hago entender, o sea, cuando vea esta cuenta en el reporte del PA le va a poner esta cuenta, ¿Cierto? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 31:37
+ 
+  Sí, o sea el cuento es que en el reporte de netsuite tú vas a tener la cuenta que dice fin cargo creo, Mira , cuenta 
+línea, la primera. Sí, la columna A. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 31:58
+ 
+  Sí, de acuerdo, pero déjame revisar una cosa, Cuenta en línea, nombre, número. OK, este es el número, entonces el 
+mapeo esta cuenta a esta. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 32:15
+ 
+  Exacto, pero entonces tienes que cruzar en netsuite, o sea en el reporte netsuite. 
+  
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+12 / 20
+  
+ 
+ 
+ 
+Daniel Restrepo - 32:21
+ 
+  Tienes que cruzar esta acá esta, cuando encuentre esta, ponerle esta. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 32:27
+ 
+  No, no la vas a cambiar así, solamente vas a filtrarla, o sea. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 32:33
+ 
+  OK, filtre las cuentas, listo. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 32:35
+ 
+  Exacto, que filtre la columna A con la columna. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 32:40
+ 
+  Y. ¿Qué hacemos con esto? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 32:41
+ 
+  Y entonces después de filtrar eso, entonces ya sabes de ese reporte cuáles son las cuentas de patrimonio 
+autónomo. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 32:49
+ 
+  Y esas cuentas de patrimonio autónomo, ¿No hay que ponerlas en algún lado? 
+  
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+13 / 20
+  
+ 
+ 
+Maria Alejandra Gaitán - 32:54
+ 
+  Esas cuentas de patrimonio autónomo son las con las que iniciamos la hoja de movimientos del mes. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 33:04
+ 
+  Iniciamos la hoja, ¿A qué te refieres con iniciamos? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 33:08
+ 
+  Me refiero a que tienes ese Excel grandotote que tiene varias, ese Excel maestro, dice hay una hoja que se llama 
+MOF Mes Movimiento noviembre, digamos. Entonces me refiero es que con los datos ya filtrados por estas dos 
+cuentas, ya podemos empezar aquí a trabajar o a generar esta hoja, si no es en este, a generar esta hoja desde 
+cero. Lo que necesitamos inicialmente es filtrar cuáles son las cuentas del PEA. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 34:16
+ 
+  Perdón, otra vez. Entonces este de aquí ya se filtra con lo que está allá. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 34:23
+ 
+  Exacto. Filtraste las dos columnas, el número en línea y las cuentas de fin cargo. Y ya encontramos cuáles son las 
+cuentas del PA. Y con esa data empezamos esta hoja o este archivo en Excel que se llame Movimientos del mes. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 34:43
+ 
+  Listo. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 34:48
+ 
+  ¿Qué sucede? Tienes toda la razón. Ya existe o viene también la homologación amarillitas que se llama cuenta 
+homologación. Exacto. Entonces también automáticamente podríamos llenar estas filas. Lo que pasa es que no 
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+14 / 20
+existen. Entonces toca hacer. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 35:09
+ 
+  ¿Toca hacer que, perdón? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 35:11
+ 
+  Toca crear estas columnas. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 35:13
+ 
+  OK, listo. Listo. Entonces simplemente subimos Movimientos noviembre sin estas columnas que están acá. Y 
+luego el sistema va a votar la categoría, todo este tema aquí de categoría, su categoría, clasificación, nexo y la 
+cuenta homologación. Este comprobante, saldo. Comprobación Saldo es la suma de débitos y créditos, supongo. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 35:49
+ 
+  Yo, no sé, honestamente no sé. Pero con eso entonces sería filtramos, creamos las columnas y se llenan estas 
+columnas. Cuenta homologación y nombre homologación. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 36:15
+ 
+  Cuenta homologación, Nombre homologación. Listo, perfecto. Entonces, ¿Cómo hacemos aquí? Entonces 
+necesitamos sacar este movimiento noviembre, copiar, pegarlo en otro archivo. El tema es que no tenemos Excel 
+para pasarlo. Entonces necesitamos este. Las reglas que ya me lo pasaste. Y está. El movimiento de tareas de 
+noviembre. Esto llega hasta la Z. Ya tenemos eso en lineamientos. Aquí está el mapeo de. Para esas otras 
+columnas. Listo. Y Por último está. ¿Donde está tu archivo? Es este. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 37:07
+ 
+  Es que necesitamos esos dos. Ese es el de Diana, que tiene unas reglas. 
+  
+   
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+15 / 20
+ 
+ 
+Daniel Restrepo - 37:13
+ 
+  Si, tiene el mapeo, pero las reglas que tú identificaste. ¿Dónde está? 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 37:16
+ 
+  Final se llama. No sé si lo tiene. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 37:22
+ 
+  Entonces para pasárselo a Claude es pasarle una transcripción de esta reunión, Esto acá, pasarle esto con la 
+clasificación, la de Diana con el mapeo y el de movimientos. Y con eso pedirle que cree básicamente dos 
+funcionalidades grandes. Una es la parametrización de las reglas, la otra es la conversión del archivo. Entonces se 
+sube el archivo lo limpia, ¿Dónde están las reglas de limpieza? ¿Donde quedó eso? Eso es un Word, bueno, nos 
+falta el Word también. Lo limpia según este Word, le puede dar descargar y revisarlo si quiere el usuario y luego 
+continúa con el proceso. Y ya le saca el archivo clasificado y mapeado. Esos serían los dos grandes procesos a 
+configurar. Yo creo que con eso se puede pedir que lo monte. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 38:50
+ 
+  Exacto, entonces lo que necesita, o sea que entra y solamente entra el archivo de netsuite que se llama reporte 
+detallado, movimiento detallado por cuenta, que eso lo harían pues cada mes, ese movimiento detallado por 
+cuenta, co ta ta, subirían ese archivo que es el de netsuite. Y en la primera funcionalidad entonces lo que hace es 
+identificar cuáles son las cuentas de patrimonio autónomo según la tabla que contienen las cuentas y después de 
+eso tiene que crear las columnas adicionales pues identificadas en este archivo. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 39:43
+ 
+  La plantilla destino no tiene que crear eso, es una nueva plantilla. Lo que eso va a hacer es, lo que eso va a hacer 
+es toma los datos, los selecciona según ese mapeo y luego generan una nueva plantilla con las columnas. Pero es 
+una nueva plantilla para Cloud, pues Class lo que va a hacer es crear una nueva plantilla, va a crear, no es la misma 
+plantilla con columnas, no va a filtrar ni siquiera, simplemente lo toma, genera un nuevo archivo con la limpieza y 
+ese nuevo archivo también le genera otro nuevo archivo con la clasificación. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 40:23
+ 
+  Exacto, o sea generaría dos archivos. 
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+16 / 20
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 40:27
+ 
+  De acuerdo, listo, pues creo que podemos intentar montarlo, sino queda como poco tiempo. Aquí le sacamos una 
+cosa, abramos otra reunión. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 40:42
+ 
+  Uy sí Daniel, me encantaría ver cómo es aquí yo aprendería mucho de cómo sería un proyecto desde cero 
+utilizando agentes de código. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 40:54
+ 
+  Reporte, penaleta, Te mostrar un poquito de. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 41:09
+ 
+  La magia, te voy a. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 41:12
+ 
+  Mostrar algo aquí donde está. Lab Cashback, Este sí de los casos que, o sea, Lab Cashback como está montado 
+permite hacer mucho, o sea los agentes como que la entienden más fácil, ese fue el repo que monté después de 
+hacer el curso de TAC, entonces pues por eso está como más organizadito. Pero miremos aquí un caso, por 
+ejemplo este. Entonces arranca y dice listo, es un feature, crea el plan, lo guarda, listo, en cuenta el plan, empieza 
+la implementación, 62 mensajes, empieza la implementación, ¿Dónde está? 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 42:13
+ 
+  Aquí la empieza, listo, commit, crear, pull request, bueno, lo actualiza porque lo había creado antes, Starting Test 
+Suite, dice Running Application test found one found test, listo, aquí encuentro un error, va y lo resuelve, listo, ha 
+funcionado acá en LinkedIn, que es como que todo lo que se definió se llame que el estilo del código sea 
+consistente con el anterior, bueno todo eso lo que hace LinkedIn, listo, ya hizo aquí syntax, backend, LinkedIn, 
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+17 / 20
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+backend, test, typescript, frontend, build, listo, luego yo le metí una cosa nueva, estoy trabajando, estoy pidiéndole 
+que me haga revisión de integración de las APIs, que si hay APIs que las revise, particularmente las GET, en este 
+caso no hubo un cambio , listo, ya hizo las cinco pruebas, sigue todo, pasó es que esto lo mandé a hacer un 
+montón de pruebas adicionales. 
+Daniel Restrepo - 43:16
+¿Luego viene la fase de revisión que es donde revisa la pregunta que responde, a ver la pregunta que cómo es que 
+son las preguntas, la pregunta de planeación, qué vamos a construir, la de construcción es cómo lo vamos a hacer 
+realidad, la de pruebas funciona lo que hicimos, la de revisión es lo que hicimos, sí era lo que se pidió y la última 
+que la documentación, que después que un documento adicionalmente ya te voy a mostrar un slash command 
+que esto usa que se llama Conditional Documentation, que lo que hace es siempre que manda un requerimiento 
+nuevo va y revisa si hay algún documento adicional que debe revisar, porque cuando termina este flujo que es 
+desde la planeación hasta la documentación y crear una documentación que ahorita te muestro, pero bueno, 
+entonces aquí encontró un bloque, dice encontró no sé qué vaina, listo, un error, está la evidencia del error, esto me 
+pareció la locura pues. 
+Maria Alejandra Gaitán - 44:29
+Ay pero no lo puedo creer, hace screenshot? ¿En qué momento? Y antes no aceptaba ninguna imagen, si. 
+Daniel Restrepo - 44:41
+Este hace screenshots con Playwright y pues monté un bucket en R y por eso puede traerlo acá, listo, aquí guardo 
+un montón de screenshots y cosas, ya resolví el problema, creo un patch, resolví el problema, listo, continuó, 
+pruebas otra vez, listo, no pudo levantar esta vaina, el backend ya pudo y aquí me dice, listo, ya ahorita está 
+haciendo revisión otra vez, la implementación ya está según la especificación, va y mira y aquí está, le di clic aquí 
+habla de analiza, tiene descuento, o sea 5% off, ya tiene con su descuento la categoría y ya así pruebas hasta que 
+terminó de solucionar, entonces ese fue bonito, el que me funcionó bastante bien. El flujo desarrollo agéntico 
+completo no siempre me funciona tan bien. Son cosas que hay que ir afinando. Entonces yo ya. 
+Daniel Restrepo - 45:59
+Yo ya le estoy empezando a dedicar tiempo a la capa agéntica a la vez que le dedico tiempo a las aplicaciones 
+que montamos con eso. Pero llegará un momento que la recomendación que hace Indy Dev Dan es uno debería 
+estar gastando 70 por ciento del tiempo en la capa géntica, por decir, volviendo la mejor. Por ejemplo, eso del 
+probar las APIs era algo que no tenía y ya lo agregué pues porque antes lo que hacía era moquear la data de las 
+APIs. Entonces si la API no funcionaba, no me daba cuenta sino hasta que se reventaban las pruebas manuales. 
+Pero bueno, miremos la ahorita entonces en espacio a ver si logramos sacar esta. 
+18 / 20
+ 
+Maria Alejandra Gaitán - 46:49
+ 
+  Voy a mirar a ver si puedo generar un documento. Yo copio y pego las reglas de Diana que necesitamos para que 
+no de pronto pueda confundirse Claud, porque las reglas de Diana no son todas. Entonces voy a. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 47:11
+ 
+  Solamente necesitamos el mapeo, ¿No? Porque las reglas son las que tú tienes. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 47:15
+ 
+  Exactamente. Entonces lo que voy a hacer es voy a organizar esa información para que sea muy claro a dónde 
+tiene que ir a consultar. Mientras tanto, mientras que llegan las diez y media y ya dan. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 47:36
+ 
+  Lo que voy a hacer es primero un paso que no está aquí en esto, que lo hago antes, que es meter a Cloud en modo 
+planeación y darle toda la información. Vamos a hacer esto, aquí está la transcripción, aquí está los mapeos, no sé 
+qué, no sé qué, no sé qué. Documenteme cómo vamos a implementarlo considerando que vamos a usar este flujo 
+agéntico. Entonces él va, bueno, se queda un buen rato mientras tanto, no sé, avanzar en otras cosas hasta que ya 
+saca el documento. Revisamos el documento, vemos que esté bien y luego ese documento es el que le 
+mandamos a este flujo agéntico. Y la verdad no hay mucho que podamos hacer. Arranca y se queda dándole 
+como una hora. Entonces lo mandamos y luego cuando termine, pues te aviso y revisamos lo que hizo, si tiene 
+problemas, si tiene errores. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 48:37
+ 
+  Y luego qué se hace para que la. Digamos, idealmente uno quiere solucionarlo dentro del flujo agéntrico y no salir 
+y hacerlo por fuera directo con Cloud, sino usar el patch, el ADW patch y a menudo con eso se resuelve, si no ya 
+toca irse a lo manual y resolverlo manual, pero manuales usando los commands que ya hemos visto, usando esos 
+slash commands hasta que se solucione. ¿Por qué? Porque usando los slash commands todo queda 
+documentadito y sirve para después. Y luego de terminar todo eso, entonces lo subimos a GitHub a ver cómo 
+queda. 
+  
+  
+ 
+ 
+Maria Alejandra Gaitán - 49:30
+ 
+  Bueno, muchas gracias. Gracias, que estés bien. Chao, chao. 
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+19 / 20
+Meeting created at: 29th Dec, 2025 - 9:02 AM
+Meeting Title: daniel.restrepo@finkargo.com - Mon, 
+29 Dec 2025 14...
+20 / 20

@@ -162,6 +162,9 @@ const FKSidebar: React.FC = () => {
     // Tesoreria role has access to tesoreria department
     if (userRole === 'tesoreria' && departmentId === 'tesoreria') return true;
 
+    // Finance roles have access to finance department
+    if ((userRole === 'finance' || userRole === 'finance_admin') && departmentId === 'finance') return true;
+
     // For other roles, deny access (can be extended later)
     return false;
   };

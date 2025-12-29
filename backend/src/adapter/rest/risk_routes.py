@@ -288,21 +288,38 @@ async def get_dashboard_stats(
     repo = get_risk_repo()
     stats = await repo.get_stats()
 
-    # Compute pass/fail counts by checking each assessment's cross-validation results
-    validation_repo = get_validation_repo()
-    all_assessments = await repo.search({'limit': 1000})  # Get all assessments
+    # Get pass/fail counts directly from database using stored verification_status
+    # This avoids N+1 query problem (previously did 1000+ queries)
+    supabase = get_supabase()
 
-    pass_count = 0
-    requires_verification_count = 0
+    # Count assessments with 'pass' verification status
+    pass_response = supabase.admin_client.table('risk_assessments') \
+        .select('id', count='exact') \
+        .eq('verification_status', 'pass') \
+        .execute()
 
-    for assessment in all_assessments:
-        results = await validation_repo.get_by_assessment(assessment['id'])
-        has_discrepancy = any(r.get('is_discrepancy', False) for r in results)
+    # Count assessments with 'requires_manual_verification' status
+    requires_verification_response = supabase.admin_client.table('risk_assessments') \
+        .select('id', count='exact') \
+        .eq('verification_status', 'requires_manual_verification') \
+        .execute()
 
-        if has_discrepancy:
-            requires_verification_count += 1
-        else:
-            pass_count += 1
+    # For assessments without verification_status (not yet finalized), count based on has_discrepancies
+    # NULL verification_status means pending - count as pass if no discrepancies
+    pending_no_discrepancy_response = supabase.admin_client.table('risk_assessments') \
+        .select('id', count='exact') \
+        .is_('verification_status', 'null') \
+        .eq('has_discrepancies', False) \
+        .execute()
+
+    pending_with_discrepancy_response = supabase.admin_client.table('risk_assessments') \
+        .select('id', count='exact') \
+        .is_('verification_status', 'null') \
+        .eq('has_discrepancies', True) \
+        .execute()
+
+    pass_count = (pass_response.count or 0) + (pending_no_discrepancy_response.count or 0)
+    requires_verification_count = (requires_verification_response.count or 0) + (pending_with_discrepancy_response.count or 0)
 
     stats['pass_count'] = pass_count
     stats['requires_verification_count'] = requires_verification_count
