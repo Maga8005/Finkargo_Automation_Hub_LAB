@@ -31,8 +31,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
 
     # File Upload
-    MAX_UPLOAD_SIZE: int = 10485760
-    SUPPORTED_FILE_TYPES: str = '[".pdf",".jpg",".jpeg",".png",".xlsx",".xls"]'
+    # 50 MB max upload size (supports PA reports with ~50k rows)
+    MAX_UPLOAD_SIZE: int = 52428800
+    SUPPORTED_FILE_TYPES: str = '[".pdf",".jpg",".jpeg",".png",".xlsx",".xls",".csv"]'
 
     # Google Drive Configuration (shared credentials)
     # For production (Render): Use GOOGLE_DRIVE_CREDENTIALS_JSON with base64-encoded or raw JSON

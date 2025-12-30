@@ -160,6 +160,15 @@ const ReportePA: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Check file size client-side (50 MB limit)
+    const maxSizeMB = 50;
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > maxSizeMB) {
+      setError(`El archivo es demasiado grande (${fileSizeMB.toFixed(1)} MB). El tamaño máximo es ${maxSizeMB} MB.`);
+      event.target.value = '';
+      return;
+    }
+
     try {
       setUploading(true);
       setError(null);
@@ -177,7 +186,8 @@ const ReportePA: React.FC = () => {
         setError(response.message || 'Error al cargar archivo');
       }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      console.error('Upload error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido al cargar el archivo';
       setError(errorMessage);
     } finally {
       setUploading(false);

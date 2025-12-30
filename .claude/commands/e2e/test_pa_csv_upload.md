@@ -118,6 +118,30 @@ Use credentials from `backend/.env`:
 - CSV with missing required columns should show validation error
 - CSV with encoding issues should be handled gracefully
 - Malformed CSV should show clear error message
+- Files larger than 50 MB should show file size error before upload
+- Connection refused errors should show user-friendly message
+
+## Large File Handling
+
+The PA report system is designed to handle large files:
+- **Maximum file size**: 50 MB
+- **Maximum rows**: ~50,000 records
+- **Timeout**: 10 minutes for processing
+
+### Client-side validation
+- Files over 50 MB are rejected immediately with a clear error message
+- File size is displayed in the error: "El archivo es demasiado grande (XX.X MB). El tamaño máximo es 50 MB."
+
+### Server-side handling
+- Request body size is validated by middleware
+- Memory-efficient CSV parsing with error recovery
+- Proper error logging for debugging
+- Graceful handling of memory errors
+
+### Connection Error Handling
+If the backend server is unavailable:
+- User sees: "No se pudo conectar al servidor. Verifique que el servidor esté activo e intente nuevamente."
+- Original error is logged to console for debugging
 
 ## Expected Screenshots
 
