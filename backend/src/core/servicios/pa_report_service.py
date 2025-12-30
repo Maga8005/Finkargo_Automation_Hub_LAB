@@ -558,7 +558,8 @@ class PAReportService:
         """
         Parse CSV file with encoding and delimiter detection.
 
-        Tries multiple encodings and detects delimiter automatically.
+        Tries multiple encodings, detects delimiter automatically, and
+        auto-detects header row position (skipping title rows if present).
 
         Args:
             file_content: CSV file content as bytes.
@@ -572,8 +573,13 @@ class PAReportService:
         # Encoding priority order
         encodings = ["utf-8", "utf-8-sig", "latin-1", "iso-8859-1"]
 
-        # Detect delimiter from first line
+        # Detect delimiter from file content
         delimiter = self._detect_csv_delimiter(file_content)
+
+        # Detect header row (may have title rows before actual headers)
+        header_row = self._detect_header_row(file_content, delimiter)
+        if header_row > 0:
+            logger.info(f"Detected {header_row} title rows before header, will skip them")
 
         for encoding in encodings:
             try:
@@ -582,12 +588,13 @@ class PAReportService:
                     encoding=encoding,
                     delimiter=delimiter,
                     quotechar='"',
-                    thousands=None  # Don't interpret commas as thousands separators
+                    thousands=None,  # Don't interpret commas as thousands separators
+                    skiprows=header_row  # Skip title rows before header
                 )
 
                 # Validate that we got meaningful data
                 if len(df.columns) > 1 and len(df) > 0:
-                    logger.info(f"CSV parsed successfully with encoding={encoding}, delimiter='{delimiter}'")
+                    logger.info(f"CSV parsed successfully with encoding={encoding}, delimiter='{delimiter}', skiprows={header_row}")
                     return df
 
             except UnicodeDecodeError:
@@ -597,6 +604,55 @@ class PAReportService:
                 continue
 
         raise ValueError("Error de codificación en archivo CSV. Asegúrese de usar UTF-8.")
+
+    def _detect_header_row(self, file_content: bytes, delimiter: str) -> int:
+        """
+        Detect the row number where actual column headers are located.
+
+        Some files have title/header rows before the actual column headers.
+        This method scans the first 20 lines looking for the expected
+        header column "Cuenta (línea): Número" or variants.
+
+        Args:
+            file_content: CSV file content as bytes.
+            delimiter: CSV delimiter character.
+
+        Returns:
+            Row number (0-indexed) where headers are found, or 0 if not found.
+        """
+        # Header patterns to search for (handle encoding variations)
+        header_patterns = [
+            "Cuenta (línea): Número",
+            "Cuenta (linea): Numero",
+            "Cuenta (línea): Numero",
+            "Cuenta (linea): Número",
+        ]
+
+        # Try different encodings to decode the file
+        encodings = ["utf-8", "utf-8-sig", "latin-1", "iso-8859-1"]
+
+        for encoding in encodings:
+            try:
+                text = file_content.decode(encoding)
+                lines = text.split("\n")
+
+                # Scan first 20 lines
+                for row_idx, line in enumerate(lines[:20]):
+                    # Check if any header pattern is in this line
+                    for pattern in header_patterns:
+                        if pattern in line:
+                            logger.info(f"Found header pattern '{pattern}' at row {row_idx}")
+                            return row_idx
+
+                # If we decoded successfully but didn't find header in first 20 rows,
+                # return 0 (no skip) for backward compatibility
+                return 0
+
+            except UnicodeDecodeError:
+                continue
+
+        # If all encodings failed, return 0 (no skip)
+        return 0
 
     def _detect_csv_delimiter(self, file_content: bytes) -> str:
         """
