@@ -49,8 +49,9 @@ router = APIRouter(prefix="/api/finance/pa", tags=["Finance - Reporte PA"])
 
 def get_repository() -> PARulesRepository:
     """Get PA rules repository instance."""
-    client = get_supabase_client()
-    return get_pa_rules_repository(client)
+    supabase = get_supabase_client()
+    # Use admin_client to access the actual Supabase Client with .table() methods
+    return get_pa_rules_repository(supabase.admin_client)
 
 
 def get_rules_service(repo: PARulesRepository = Depends(get_repository)) -> PARulesService:

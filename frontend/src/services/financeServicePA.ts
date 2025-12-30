@@ -57,6 +57,7 @@ export const uploadAccountCatalog = async (
     {
       headers: { 'Content-Type': 'multipart/form-data' },
       params: { replace_existing: replaceExisting },
+      timeout: 120000, // 2 minutes for rules upload
     }
   );
   return response.data;
@@ -96,6 +97,7 @@ export const uploadClassificationRules = async (
     {
       headers: { 'Content-Type': 'multipart/form-data' },
       params: { replace_existing: replaceExisting },
+      timeout: 120000, // 2 minutes for rules upload
     }
   );
   return response.data;
@@ -134,6 +136,7 @@ export const uploadClasificacionCuentaRules = async (
     {
       headers: { 'Content-Type': 'multipart/form-data' },
       params: { replace_existing: replaceExisting },
+      timeout: 120000, // 2 minutes for rules upload
     }
   );
   return response.data;
@@ -172,6 +175,7 @@ export const uploadNexoRules = async (
     {
       headers: { 'Content-Type': 'multipart/form-data' },
       params: { replace_existing: replaceExisting },
+      timeout: 120000, // 2 minutes for rules upload
     }
   );
   return response.data;
@@ -206,7 +210,7 @@ export const uploadNetSuiteFile = async (file: File): Promise<PAUploadResponse> 
     formData,
     {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000, // 5 minute timeout for large files
+      timeout: 600000, // 10 minute timeout for large files (50K+ records)
     }
   );
   return response.data;
@@ -217,7 +221,9 @@ export const uploadNetSuiteFile = async (file: File): Promise<PAUploadResponse> 
  */
 export const cleanData = async (sessionId: string): Promise<PACleanedPreview> => {
   const response = await apiClient.post<PACleanedPreview>(
-    `${PA_API_BASE}/process/${sessionId}/clean`
+    `${PA_API_BASE}/process/${sessionId}/clean`,
+    {},
+    { timeout: 600000 } // 10 minutes for 50K+ records
   );
   return response.data;
 };
@@ -228,7 +234,7 @@ export const cleanData = async (sessionId: string): Promise<PACleanedPreview> =>
 export const downloadCleanedFile = async (sessionId: string): Promise<Blob> => {
   const response = await apiClient.get(
     `${PA_API_BASE}/process/${sessionId}/clean/download`,
-    { responseType: 'blob' }
+    { responseType: 'blob', timeout: 300000 } // 5 minutes for large file download
   );
   return response.data;
 };
@@ -238,7 +244,9 @@ export const downloadCleanedFile = async (sessionId: string): Promise<Blob> => {
  */
 export const classifyData = async (sessionId: string): Promise<PAClassifiedPreview> => {
   const response = await apiClient.post<PAClassifiedPreview>(
-    `${PA_API_BASE}/process/${sessionId}/classify`
+    `${PA_API_BASE}/process/${sessionId}/classify`,
+    {},
+    { timeout: 600000 } // 10 minutes for 50K+ records classification
   );
   return response.data;
 };
@@ -249,7 +257,7 @@ export const classifyData = async (sessionId: string): Promise<PAClassifiedPrevi
 export const downloadClassifiedFile = async (sessionId: string): Promise<Blob> => {
   const response = await apiClient.get(
     `${PA_API_BASE}/process/${sessionId}/classify/download`,
-    { responseType: 'blob' }
+    { responseType: 'blob', timeout: 300000 } // 5 minutes for large file download
   );
   return response.data;
 };
