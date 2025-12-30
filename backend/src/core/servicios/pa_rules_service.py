@@ -222,10 +222,13 @@ class PARulesService:
 
             df = df.rename(columns=column_mapping)
 
-            # Clean data
-            df = df.dropna(subset=["tipo_transaccion", "tipo_comprobante", "categoria"])
-            for col in ["tipo_transaccion", "tipo_comprobante", "categoria"]:
+            # Clean data - only require tipo_transaccion and categoria (tipo_comprobante can be empty)
+            df = df.dropna(subset=["tipo_transaccion", "categoria"])
+            for col in ["tipo_transaccion", "categoria"]:
                 df[col] = df[col].astype(str).str.strip()
+            # Handle tipo_comprobante separately - convert NaN to empty string
+            if "tipo_comprobante" in df.columns:
+                df["tipo_comprobante"] = df["tipo_comprobante"].fillna('').astype(str).str.strip()
 
             # Handle optional columns
             if "numero_documento_patron" not in df.columns:
@@ -236,6 +239,14 @@ class PARulesService:
                 df["clasificacion_default"] = None
             if "prioridad" not in df.columns:
                 df["prioridad"] = 100
+
+            # Replace NaN with None for optional columns to avoid "nan" strings
+            optional_cols = ["numero_documento_patron", "subcategoria_base", "clasificacion_default"]
+            for col in optional_cols:
+                if col in df.columns:
+                    df[col] = df[col].where(pd.notna(df[col]), None)
+                    # Also replace empty strings with None
+                    df[col] = df[col].replace('', None).replace('nan', None)
 
             # Convert to list of dicts
             rules = df[[
@@ -390,13 +401,16 @@ class PARulesService:
         for col in columns:
             col_lower = col.lower()
 
-            if ("cuenta" in col_lower and "patron" in col_lower) or col_lower == "cuenta_nombre_patron":
+            # Handle "Cuenta Nombre Patrón" with or without accents
+            if ("cuenta" in col_lower and ("patron" in col_lower or "patrón" in col_lower)) or \
+               col_lower in ["cuenta_nombre_patron", "cuenta nombre patrón", "cuenta nombre patron"]:
                 mapping[col] = "cuenta_nombre_patron"
                 required_found += 1
             elif col_lower in ["clasificacion", "clasificación"]:
                 mapping[col] = "clasificacion"
                 required_found += 1
-            elif "categoria" in col_lower and "aplicable" in col_lower:
+            # Handle "Categoría Aplicable" with or without accents
+            elif ("categoria" in col_lower or "categoría" in col_lower) and "aplicable" in col_lower:
                 mapping[col] = "categoria_aplicable"
             elif col_lower == "prioridad":
                 mapping[col] = "prioridad"
@@ -495,7 +509,9 @@ class PARulesService:
         for col in columns:
             col_lower = col.lower()
 
-            if ("cuenta" in col_lower and "patron" in col_lower) or col_lower == "cuenta_nombre_patron":
+            # Handle "Cuenta Nombre Patrón" with or without accents
+            if ("cuenta" in col_lower and ("patron" in col_lower or "patrón" in col_lower)) or \
+               col_lower in ["cuenta_nombre_patron", "cuenta nombre patrón", "cuenta nombre patron"]:
                 mapping[col] = "cuenta_nombre_patron"
                 required_found += 1
             elif col_lower == "nexo":
