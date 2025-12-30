@@ -101,8 +101,8 @@ class PAReportService:
             Upload response with session ID and stats.
         """
         try:
-            # Parse Excel file
-            df = pd.read_excel(BytesIO(file_content))
+            # Parse file based on extension
+            df = self._parse_file(file_content, filename)
             total_rows = len(df)
 
             # Validate required columns
@@ -531,6 +531,153 @@ class PAReportService:
 
         stats_data = session_data.get("stats", {})
         return PAProcessingStats(**stats_data)
+
+    def _parse_file(self, file_content: bytes, filename: str) -> pd.DataFrame:
+        """
+        Parse file based on extension (Excel or CSV).
+
+        Args:
+            file_content: File content as bytes.
+            filename: Original filename to detect extension.
+
+        Returns:
+            Parsed DataFrame.
+
+        Raises:
+            ValueError: If file cannot be parsed.
+        """
+        filename_lower = filename.lower()
+
+        if filename_lower.endswith(".csv"):
+            return self._parse_csv(file_content)
+        else:
+            # Excel file (.xlsx, .xls)
+            return pd.read_excel(BytesIO(file_content))
+
+    def _parse_csv(self, file_content: bytes) -> pd.DataFrame:
+        """
+        Parse CSV file with encoding and delimiter detection.
+
+        Tries multiple encodings, detects delimiter automatically, and
+        auto-detects header row position (skipping title rows if present).
+
+        Args:
+            file_content: CSV file content as bytes.
+
+        Returns:
+            Parsed DataFrame.
+
+        Raises:
+            ValueError: If CSV cannot be parsed with any encoding.
+        """
+        # Encoding priority order
+        encodings = ["utf-8", "utf-8-sig", "latin-1", "iso-8859-1"]
+
+        # Detect delimiter from file content
+        delimiter = self._detect_csv_delimiter(file_content)
+
+        # Detect header row (may have title rows before actual headers)
+        header_row = self._detect_header_row(file_content, delimiter)
+        if header_row > 0:
+            logger.info(f"Detected {header_row} title rows before header, will skip them")
+
+        for encoding in encodings:
+            try:
+                df = pd.read_csv(
+                    BytesIO(file_content),
+                    encoding=encoding,
+                    delimiter=delimiter,
+                    quotechar='"',
+                    thousands=None,  # Don't interpret commas as thousands separators
+                    skiprows=header_row  # Skip title rows before header
+                )
+
+                # Validate that we got meaningful data
+                if len(df.columns) > 1 and len(df) > 0:
+                    logger.info(f"CSV parsed successfully with encoding={encoding}, delimiter='{delimiter}', skiprows={header_row}")
+                    return df
+
+            except UnicodeDecodeError:
+                continue
+            except pd.errors.ParserError as e:
+                logger.warning(f"CSV parser error with encoding={encoding}: {e}")
+                continue
+
+        raise ValueError("Error de codificación en archivo CSV. Asegúrese de usar UTF-8.")
+
+    def _detect_header_row(self, file_content: bytes, delimiter: str) -> int:
+        """
+        Detect the row number where actual column headers are located.
+
+        Some files have title/header rows before the actual column headers.
+        This method scans the first 20 lines looking for the expected
+        header column "Cuenta (línea): Número" or variants.
+
+        Args:
+            file_content: CSV file content as bytes.
+            delimiter: CSV delimiter character.
+
+        Returns:
+            Row number (0-indexed) where headers are found, or 0 if not found.
+        """
+        # Header patterns to search for (handle encoding variations)
+        header_patterns = [
+            "Cuenta (línea): Número",
+            "Cuenta (linea): Numero",
+            "Cuenta (línea): Numero",
+            "Cuenta (linea): Número",
+        ]
+
+        # Try different encodings to decode the file
+        encodings = ["utf-8", "utf-8-sig", "latin-1", "iso-8859-1"]
+
+        for encoding in encodings:
+            try:
+                text = file_content.decode(encoding)
+                lines = text.split("\n")
+
+                # Scan first 20 lines
+                for row_idx, line in enumerate(lines[:20]):
+                    # Check if any header pattern is in this line
+                    for pattern in header_patterns:
+                        if pattern in line:
+                            logger.info(f"Found header pattern '{pattern}' at row {row_idx}")
+                            return row_idx
+
+                # If we decoded successfully but didn't find header in first 20 rows,
+                # return 0 (no skip) for backward compatibility
+                return 0
+
+            except UnicodeDecodeError:
+                continue
+
+        # If all encodings failed, return 0 (no skip)
+        return 0
+
+    def _detect_csv_delimiter(self, file_content: bytes) -> str:
+        """
+        Detect CSV delimiter by analyzing the first line.
+
+        Args:
+            file_content: CSV file content as bytes.
+
+        Returns:
+            Detected delimiter (comma or semicolon).
+        """
+        try:
+            # Try to decode first line
+            first_line = file_content.split(b"\n")[0].decode("utf-8", errors="ignore")
+
+            # Count occurrences
+            semicolons = first_line.count(";")
+            commas = first_line.count(",")
+
+            # If more semicolons than commas, use semicolon
+            if semicolons > commas:
+                return ";"
+            return ","
+        except Exception:
+            return ","
 
     def _validate_columns(self, columns: List[str]) -> List[str]:
         """

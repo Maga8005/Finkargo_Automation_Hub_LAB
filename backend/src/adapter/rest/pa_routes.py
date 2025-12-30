@@ -294,7 +294,7 @@ async def get_nexo_rules(
     description="Upload NetSuite movements file and create processing session."
 )
 async def upload_netsuite_file(
-    file: UploadFile = File(..., description="NetSuite movements Excel file"),
+    file: UploadFile = File(..., description="NetSuite movements Excel or CSV file"),
     service: PAReportService = Depends(get_report_service),
     current_user: dict = Depends(get_current_user)
 ):
@@ -302,8 +302,8 @@ async def upload_netsuite_file(
     if not file.filename:
         raise HTTPException(status_code=400, detail="Nombre de archivo es requerido")
 
-    if not file.filename.endswith((".xlsx", ".xls")):
-        raise HTTPException(status_code=400, detail="Formato no soportado. Use .xlsx o .xls")
+    if not file.filename.endswith((".xlsx", ".xls", ".csv")):
+        raise HTTPException(status_code=400, detail="Formato no soportado. Use .xlsx, .xls o .csv")
 
     content = await file.read()
     user_id = getattr(current_user, "id", None) or current_user.get("id")

@@ -86,7 +86,7 @@ function TabPanel(props: TabPanelProps) {
 
 // Processing steps
 const steps = [
-  { label: 'Cargar Archivo', description: 'Sube el archivo de movimientos de NetSuite' },
+  { label: 'Cargar Archivo', description: 'Sube el archivo de movimientos de NetSuite (Excel o CSV)' },
   { label: 'Limpiar Datos', description: 'Filtra cuentas PA y agrega columnas de homologación' },
   { label: 'Clasificar', description: 'Aplica reglas de clasificación' },
 ];
@@ -396,7 +396,7 @@ const ReportePA: React.FC = () => {
 
                   <input
                     type="file"
-                    accept=".xlsx,.xls"
+                    accept=".xlsx,.xls,.csv"
                     style={{ display: 'none' }}
                     id="netsuite-upload"
                     onChange={handleFileUpload}
