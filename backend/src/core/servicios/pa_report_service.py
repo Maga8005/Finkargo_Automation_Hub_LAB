@@ -101,8 +101,8 @@ class PAReportService:
             Upload response with session ID and stats.
         """
         try:
-            # Parse Excel file
-            df = pd.read_excel(BytesIO(file_content))
+            # Parse file based on extension
+            df = self._parse_file(file_content, filename)
             total_rows = len(df)
 
             # Validate required columns
@@ -531,6 +531,97 @@ class PAReportService:
 
         stats_data = session_data.get("stats", {})
         return PAProcessingStats(**stats_data)
+
+    def _parse_file(self, file_content: bytes, filename: str) -> pd.DataFrame:
+        """
+        Parse file based on extension (Excel or CSV).
+
+        Args:
+            file_content: File content as bytes.
+            filename: Original filename to detect extension.
+
+        Returns:
+            Parsed DataFrame.
+
+        Raises:
+            ValueError: If file cannot be parsed.
+        """
+        filename_lower = filename.lower()
+
+        if filename_lower.endswith(".csv"):
+            return self._parse_csv(file_content)
+        else:
+            # Excel file (.xlsx, .xls)
+            return pd.read_excel(BytesIO(file_content))
+
+    def _parse_csv(self, file_content: bytes) -> pd.DataFrame:
+        """
+        Parse CSV file with encoding and delimiter detection.
+
+        Tries multiple encodings and detects delimiter automatically.
+
+        Args:
+            file_content: CSV file content as bytes.
+
+        Returns:
+            Parsed DataFrame.
+
+        Raises:
+            ValueError: If CSV cannot be parsed with any encoding.
+        """
+        # Encoding priority order
+        encodings = ["utf-8", "utf-8-sig", "latin-1", "iso-8859-1"]
+
+        # Detect delimiter from first line
+        delimiter = self._detect_csv_delimiter(file_content)
+
+        for encoding in encodings:
+            try:
+                df = pd.read_csv(
+                    BytesIO(file_content),
+                    encoding=encoding,
+                    delimiter=delimiter,
+                    quotechar='"',
+                    thousands=None  # Don't interpret commas as thousands separators
+                )
+
+                # Validate that we got meaningful data
+                if len(df.columns) > 1 and len(df) > 0:
+                    logger.info(f"CSV parsed successfully with encoding={encoding}, delimiter='{delimiter}'")
+                    return df
+
+            except UnicodeDecodeError:
+                continue
+            except pd.errors.ParserError as e:
+                logger.warning(f"CSV parser error with encoding={encoding}: {e}")
+                continue
+
+        raise ValueError("Error de codificación en archivo CSV. Asegúrese de usar UTF-8.")
+
+    def _detect_csv_delimiter(self, file_content: bytes) -> str:
+        """
+        Detect CSV delimiter by analyzing the first line.
+
+        Args:
+            file_content: CSV file content as bytes.
+
+        Returns:
+            Detected delimiter (comma or semicolon).
+        """
+        try:
+            # Try to decode first line
+            first_line = file_content.split(b"\n")[0].decode("utf-8", errors="ignore")
+
+            # Count occurrences
+            semicolons = first_line.count(";")
+            commas = first_line.count(",")
+
+            # If more semicolons than commas, use semicolon
+            if semicolons > commas:
+                return ";"
+            return ","
+        except Exception:
+            return ","
 
     def _validate_columns(self, columns: List[str]) -> List[str]:
         """
