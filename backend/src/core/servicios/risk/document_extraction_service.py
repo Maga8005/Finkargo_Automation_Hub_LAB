@@ -36,7 +36,7 @@ EXTRACTION_SCHEMAS = {
             "signatory_id": {"type": ["string", "null"], "description": "ID of signatory"},
             "signatory_role": {"type": ["string", "null"], "description": "Role of signatory"},
             "signatories": {
-                "type": ["array", "null"],
+                "type": "array",
                 "description": "List of all signatories who signed the financial statement (Representante Legal, Contador, Revisor Fiscal, etc.)",
                 "items": {
                     "type": "object",
@@ -70,7 +70,7 @@ EXTRACTION_SCHEMAS = {
             "signatory_id": {"type": ["string", "null"], "description": "ID of signatory"},
             "signatory_role": {"type": ["string", "null"], "description": "Role of signatory"},
             "signatories": {
-                "type": ["array", "null"],
+                "type": "array",
                 "description": "List of all signatories who signed the financial statement (Representante Legal, Contador, Revisor Fiscal, etc.)",
                 "items": {
                     "type": "object",
