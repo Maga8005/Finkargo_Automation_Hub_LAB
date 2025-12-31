@@ -1,0 +1,662 @@
+ 
+  
+ 
+ 
+Camila Perdomo - 00:09
+ 
+  Hola Dani, buenas tardes. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 00:14
+ 
+  Bien, hola, Yo te escucho. 
+  
+  
+ 
+ 
+Camila Perdomo - 00:27
+ 
+  Bueno, te cuento que ya hicimos los ajustes con el equipo. Pues bueno, estamos haciendo como pruebas e 
+identificamos que de pronto hay un error con la validación de los correos. Pues espérame, yo te proyecto pantalla 
+completa. Entonces cuando hicimos la revisión inicial adjuntamos pues con este cliente ejemplo real. Entonces 
+vimos que rutibalsas con Snormal. Com y en la comercio está igual lo que en la abstracción me lo trajo con Z. Me 
+lo trajo con Z y pues bueno, obviamente me dio la alarma de que era una dominación gratuita, pero sin embargo 
+pues esa Z no me la alertó, no sé por qué lo extraería con. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 01:30
+ 
+  Si quieres me pasas ahorita los. Bueno, eso está ya. No, no está porque no los guardo, pero me pasan los 
+archivos. Un tema solo para que lo tengas en cuenta. Si quieres devuélvete. 
+  
+  
+ 
+ 
+Camila Perdomo - 01:41
+ 
+  OK, dale. Es que te iba a mostrar un ejemplo de hoy que me enviaron las chicas de un cliente a este. Este pasó con 
+un cliente que se llama Super Láminas Bogotá. Este, nos dijo que todo estaba bien, pero pues que simplemente el 
+dominio era Hotmail, sin embargo aquí le faltó extraer la A, acá dice LTD y en cámara de comercio es LTDA. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 02:15
+ 
+  OK, si quieres me puedes esos ejemplos y yo los miro con más detenimiento. 
+  
+   
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+1 / 12
+ 
+Camila Perdomo - 02:20
+ 
+  Listo, dale. Y espérame. Yo estaba en dónde Hasta aquí. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 02:25
+ 
+  Entonces este tema que te sale a la izquierda arriba aquí Sí, eso es cuando subes el del año digamos anterior en el 
+del año corriente y al revés. 
+  
+  
+ 
+ 
+Camila Perdomo - 02:37
+ 
+  OK, se subió mal. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 02:40
+ 
+  Exacto. OK, eso es todo. 
+  
+  
+ 
+ 
+Camila Perdomo - 02:42
+ 
+  Eso es lo que pasa y está. Lo que estábamos validando con el equipo era que cuando encontraba como 
+discrepancias decía que como confirme que la revisó, sin embargo era como modo de sugerencia si era posible 
+que. Porque puede ser, Puede tener una o dos o más discrepancias y de pronto nosotros revisamos dos que si 
+eran como de validar o algo así, que es la intención, mejor dicho, que sea como hace metama, que cuando nos 
+pide una revisión, que se requiere revisión, se pueda seleccionar que revisamos. Entonces en este caso se validó 
+manualmente o se verificó que no sé que el correo está correcto o se validó algo así que nos permita como que a 
+mesa de control darle como el. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 03:26
+ 
+  OK, es que no sé si me escuchas Ben. ¿Tú me escuchas? Hola. 
+  
+  
+ 
+ 
+Camila Perdomo - 03:33
+ 
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+2 / 12
+  Se te corta. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 03:35
+ 
+  Se me corta tan raro. ¿Bueno, bueno, a lo que me refería es, tú dices entonces que te abra un, que abra como un 
+campo de texto para describirlo o qué quieres que o que saque todas las cositas en una lista o qué? 
+  
+  
+ 
+ 
+Camila Perdomo - 03:53
+ 
+  Sí, o sea, es que aquí dice que digamos en este caso encontró dos discrepancias, el tema que era email gratuito y 
+el otro que identificó fue el error de los estados financieros. De acuerdo, Entonces era como que dice como que 
+confirme que revisó las discrepancias, pero no me permite seleccionar, digamos la discrepancia de los estados 
+financieros. Esta se revisó y fue que se cargó erradamente. Vuelven algo así. La discrepancia del correo 
+electrónico se validó y a pesar de ser gratuita, está registrado y tiene tanta antigüedad y se da check, algo así para 
+que poder descargar el certificado salga pues que se validó y que no salga como fallido, requiere validación, sino 
+que se encontraron estas diferencias y mesa de control hizo esto. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 04:44
+ 
+  Vale, perfecto. 
+  
+  
+ 
+ 
+Camila Perdomo - 04:46
+ 
+  Algo así. Y otra cosita que era una opción que nos dio las chicas era referente al cruce de contador fiscal con la 
+cámara y el rutina. ¿A esto a qué refiere? Uno es que en la Cámara de Comercio y en el RUT viene relacionado el 
+contador o revisor fiscal, quienes son los que firman también estados financieros. Entonces, cuál es la idea de que 
+se pueda hacer un cruce entre los estados financieros, ya sea el contador el que firme con los que están 
+registrados en Cámara de comercio y Ruth. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 05:21
+ 
+  Vale. 
+  
+  
+ 
+ 
+Camila Perdomo - 05:25
+ 
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+3 / 12
+  Otra cosa que se me olvide. No, pues nada y validar que los datos de la firma de los estados financieros, pues sí 
+esté el representante, o sea que aparezca como firma del representante en estados financieros. OK, o sea que sí 
+están OK. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 05:37
+ 
+  Así, así, cuando los. ¿Así sí, cómo decirlo? Cuando no está lo indica, pero dices que lo saca en verde como que 
+está. 
+  
+  
+ 
+ 
+Camila Perdomo - 05:47
+ 
+  Sí señor. ¿Listo, eso es como lo que hemos encontrado entonces te voy a juntar los documentos de los errores 
+con los correos, porque realmente el error que hemos encontrado es que no estás trayendo bien los, como lo digo 
+yo? ¿Las direcciones del correo, se dice así? Bueno, no sé, en ese caso está. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 06:05
+ 
+  Raro, que será que lo. Es como si se estuviera viviendo desde muy lejos, que lo viera más cerca. 
+  
+  
+ 
+ 
+Camila Perdomo - 06:12
+ 
+  Sí, porque en este caso nos puso una zona y en el otro caso de las chicas de hoy nos extrajo una letra que fue la A. 
+De acuerdo, entonces te envío. ¿Que te envío de ese, Dani? ¿La cámara y el RUT, todos los documentos o que te 
+envío? 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 06:28
+ 
+  Si quieres mándame todo, mándame los documentos completos de los casos y yo con eso lo voy probando. 
+  
+  
+ 
+ 
+Camila Perdomo - 06:35
+ 
+  Listo Dani, de una. Entonces ya me pongo en eso, ya. 
+  
+   
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+4 / 12
+ 
+ 
+Daniel Restrepo - 06:38
+ 
+  Te los envío y por lo demás entonces si lo ven útil, ¿No? 
+  
+  
+ 
+ 
+Camila Perdomo - 06:43
+ 
+  Bastante. ¿Sabes que me genera? Pues al igual. Bueno, menos mal me acordaste yo donde tengo mi cosita, Yo lo 
+tenía hace un instante, voy a volver a reiterar que ahora se me perdió el link. El tema de la validación de los 
+correos, en ese que nos permite como validar, pues nosotras no entraríamos porque a larga como no tenemos 
+contacto con el cliente y la validación de correo ya se hizo con la extracción inicial, no tendríamos que hacer 
+ninguna validación. No sé si. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 07:17
+ 
+  Eso me decía Valdés, que ustedes no revisan o no tienen la info para eso. 
+  
+  
+ 
+ 
+Camila Perdomo - 07:26
+ 
+  Digamos que el único correo actualmente pues que utilizamos o bueno, que para verificar que hacemos pues el 
+cruce, lo que está en Cámara de Comercio y en el rutina, pero de resto no es más. Entonces digamos, espérame, 
+creo que más abajo. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 07:43
+ 
+  Eso no hay otro. 
+  
+  
+ 
+ 
+Camila Perdomo - 07:46
+ 
+  Bueno, este fue el de un portadora multiválculas, pues nosotras lo que estamos haciendo es cuando, ya que aquí, 
+acá nos da la opción de finalizar evaluación y cuando venimos acá, pues esto es lo que nos permite descargar, 
+bueno, dejar el reporte, pero cuando descargamos el reporte dice que fallido, requiere revisión y cuando lo 
+descargamos pues la idea era que diga como validado por mesa de control, o sea, como que encontramos esto, 
+pero lo validó mesa de control. 
+  
+   
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+5 / 12
+ 
+ 
+Daniel Restrepo - 08:12
+ 
+  ¿De acuerdo? Sí. 
+  
+  
+ 
+ 
+Camila Perdomo - 08:14
+ 
+  Y este, el de contacto, Esto es lo que yo te decía, pues yo trataba acá de pegar el correo manual, pero pues daba la 
+misma porque me lo va a cruzar con lo que ya extrajo. Entonces este módulo pues digamos que no sería como 
+esto, el cargue, la validación cruzada y la evaluación. ¿Que nos pareció? 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 08:32
+ 
+  Dile. 
+  
+  
+ 
+ 
+Camila Perdomo - 08:32
+ 
+  Sí, pareció genial que nos dijera pues la antigüedad del dominio cuando en estos casos son gratuitos pues, pero 
+sin embargo mira este caso, en este caso nos dio la antigüedad del dominio y nos confirmó, pero acá le faltaba 
+una. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 08:47
+ 
+  El dominio no es la antigüedad del correo sino del dominio, por eso es tan antiguo. 
+  
+  
+ 
+ 
+Camila Perdomo - 08:53
+ 
+  OK, perdóname la ignorancia. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 08:56
+ 
+  ¿Entonces digamos que lo que la parte del correo como para qué es? Porque es que la gente, el tema de, por 
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+6 / 12
+ejemplo de esta gente, Azelis, ellos tenían información, digamos, pasaron el root y la cámara de comercio más y 
+fue a través del correo y las comunicaciones que no fueron, digamos, documentos oficiales que nos dimos cuenta 
+Y entonces cuando uno sube por ejemplo a Celis y el hilo de correos o lo que fuera, él identifica que ese dominio 
+no es el que está en cámara en el certificado de existencia de representación legal. Entonces es donde OK, estoy 
+hablando con el que es. Parece que no. Entonces para ese tipo de cosas es que funciona ese tema porque 
+digamos que esos dos documentos de ACELIS eran verídicos. 
+  
+  
+ 
+ 
+Camila Perdomo - 09:55
+ 
+  Sí. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 09:56
+ 
+  Y. Y el correo, ellos tenían ACERISM. CO y el correo registrado era. Y cuando subieron el. Cuando es el hilo de 
+California Davis, cuando subes ese hilo, dice que el dominio de CALIFORNIA. COM tiene 42 días de existir. 
+Entonces de una de eso es una alerta fuerte. Por eso es que para eso esa parte, esa sección. Entonces si uno 
+pudiera decirle a comercial, porque la otra es si tú te vas a ese correo, te vas al de correo un momentico. Arriba, 
+arriba, arriba. 
+  
+  
+ 
+ 
+Camila Perdomo - 10:35
+ 
+  Aquí, correcto. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 10:38
+ 
+  En contacto externo. Aquí la idea es subir el archivo, digamos que sea un PDF, no lo podría decir por decir, por 
+ejemplo, no sé si algo para revisar si quieren, si el comercial subiera, reenviara o mandara como PDF, imprimiera 
+como PDF los correos que cruzó con esta persona, uno sube eso aquí y te saca los correos que están usando y te 
+dice eso no cruza con lo que está en el certificado y es donde tienes una alerta fuerte. Si tú te das, por ejemplo, 
+vete uno de hacer de los que yo te hice al principio atrás, ve hacia abajo, coge cualquiera de estos, ese de 18, 
+bueno ese de 9, eso. Entonces vete a donde dice contacto externo y aquí abajo dice entonces CONTROLROXA. 
+COM. CO, dale clic en la flechita. Entonces aquí nos sacó las alertas advertencia ACERIS. COM. CO versus ACERIS. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 11:46
+ 
+  COM, entonces está distinto por el punto CO y más abajo dice dominio remitente a difiere el oficial del RUT. Aquí 
+abajo hay unas que no tienen que son unos falsos positivos que ya ajusté más abajo, más abajo que salieron las 
+cosas que nada que ver a este último. El dominio SOLIS. COM no existe NS, Entonces para eso fue, si nos vamos 
+solo si tú te vas al cruce, vete arriba, hacia arriba, sube, scroll arriba y vete a validación cruzada. En validación 
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+7 / 12
+cruzada todo salió bien, o sea, los documentos estaban con la información correcta. ¿Dónde estuvo, dónde saltó 
+el problema en el correo, comparando con los documentos, si hubiéramos tenido esta herramienta de entrada 
+cogíamos el problema? Entonces es por eso que existe este apartado. 
+  
+  
+ 
+ 
+Camila Perdomo - 12:46
+ 
+  Lo que a mí se me ocurriría, digamos que sería una buena opción, como la comunicación directa la tiene el 
+comercial, no sé si de la manera, Dani, no sé si sea buena idea, pero en la primera operación, obviamente cuando 
+se va a montar operación, el comercial se comunica con el cliente por medio de correos, como que mira, te 
+comparto la orden de compra, te comparto el nombre del proveedor. Bueno, todo sería que en la primera 
+operación, no sé si mesa de control, nosotros nos compartan el PDF de esa comunicación de correos y como aquí 
+ya se hizo una validación previa, seleccionar al cliente que ya le hicimos la verificación inicial porque ya nos cruzó, 
+ya nos extrajo pues el dominio oficial y lo que sea traerlo aquí. 
+  
+  
+ 
+ 
+Camila Perdomo - 13:29
+ 
+  Lo que sí me preocupa son los clientes que tienen Hotmail, porque pues a larga pues no habría como identificarlo , 
+pero sería una validación ya para una condición de primera operación que se haga una validación de ese correo, 
+de lo que solicitan por el correo versus el hacerlo en este módulo. No sé si de pronto me está haciendo entender. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 13:54
+ 
+  Sí, pues puede ser así en la primera operación o en algún, por ejemplo, con esta gente, creo que todo el tiempo 
+desde el inicio se comunicaron con ASALIS. COM CO. Y era la persona que estaba suplantando, entonces desde el 
+inicio hubieran podido, hubiera salido de esa alerta, pero pues en el momento que corresponda. Ahora, si quieres, 
+pues ustedes son buenas ideas a tener en cuenta, podemos sacarlas, las que a ustedes se les ocurra y vemos con 
+los otros interesados cómo lo implementamos. 
+  
+  
+ 
+ 
+Camila Perdomo - 14:29
+ 
+  Sí, sí, pues digamos de la manera en que se nos vea más fácil, porque pues también algo que hay que ser puntual 
+es como venga, cómo lo vamos a identificar en primera operación si prácticamente estaríamos perdiendo el 
+trabajo del onboarding del inicio y eso es tiempo y son cosas. Entonces entre más rápido lo podamos identificar, 
+pues mucho mejor. Entonces sería como poder identificar en qué momento, como en qué comentarios y como si 
+en el onboarding o en las cadenas de comunicación que el comercial tenga. 
+  
+  
+ 
+ 
+Camila Perdomo - 14:55
+ 
+  Ay, se me ocurre, no sé si no lo hacemos en la primera operación que sea como que comercial para enviar a 
+comité de crédito, que ya cuando mesa de control hace la evaluación y demás, nos comparta el PDF, los correos 
+cruzados con el cliente y ya esta validación, ya agendado comité, se dice, ya se hizo la validación de los correos en 
+el módulo de riesgos y no hay ningún problema. Cuando, de acuerdo. 
+  
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+8 / 12
+  
+ 
+ 
+ 
+Daniel Restrepo - 15:26
+ 
+  Yo, a mí me gusta esa idea, pues no sé si sea viable. Si quieres, pues la revisas con el equipo y me cuentan si la 
+viable para mí. Sí. Y fuerza un poco a que el comercial sea un poco más, cómo decirlo, formal en ciertas 
+comunicaciones. Porque es que a veces cuando yo me voy a buscar, estaban revisando unos nuevos que estaban 
+como parte de las pruebas hace un par de días y no encontraba los correos en HubSpot. Yo dije, pues ¿Dónde está 
+la comunicación con este cliente si no está por HubSpot? Entonces eso tendría varios beneficios. Probablemente 
+el comercial le escriba por WhatsApp al cliente y demás. Entonces que le toque en algún momento mandar el 
+correo que formalice, sería como. 
+  
+  
+ 
+ 
+Camila Perdomo - 16:20
+ 
+  Por WhatsApp, que haga el contacto inicial de hola, mucho gusto, bueno, como lo manejen. Pero ya al momento 
+segunda la conversación por WhatsApp, te comparto por correo y te escribo. Bueno, algo así, algo que le permita 
+al cliente respondernos lo que se le va a ofrecer, pues. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 16:37
+ 
+  Correcto. Y por ya ese hilo de correo lo pasamos por el proceso y nos dice, uy, saltó esto, y de pronto va a hacer 
+las preguntas que corresponde. No, lo que pasa es que yo, nosotros compramos todos los dominios y aquí está, 
+miren el hecho que nosotros compramos, no sé. Bueno, alguna explicación verídica debe tener generalmente. 
+  
+  
+ 
+ 
+Camila Perdomo - 16:57
+ 
+  Y sería genial tenerla, digamos, si encontramos esa discrepancia cuando montamos la validación en comité, decir, 
+bueno, mira, nos arrojó esta alarma, por favor valida con el cliente el tema del dominio porque no coincide y con 
+esa llame esa de control y pues se decida si esa justificación que al cliente es viable o no. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 17:22
+ 
+  De acuerdo, dale. Yo esa como está podría hacerse con esta funcionalidad como está ahorita. Entonces es nada 
+más que el comercial, porque si tú le das clic , subir archivo, más abajo, más abajo, vuelve contacto externo, arriba 
+contacto externo y darle hacia abajo, dale subir archivo, sube. 
+  
+  
+ 
+ 
+Camila Perdomo - 17:48
+ 
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+9 / 12
+  Un poquito. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 17:51
+ 
+  Es donde uno sube PDF, ML msg, no sé cómo pues lo puse en esas opciones porque a veces lo que hacen es que 
+uno puede en Outlook, por ejemplo, guardar el archivo y lo sube tal cual. 
+  
+  
+ 
+ 
+Camila Perdomo - 18:10
+ 
+  Sí, perdóname, no se me ocurre que es más fácil así porque ellos convertirían el hilo del correo en PDF y nosotras 
+pues no lo enviarían para la revisión y nosotras ya daríamos el OK y lo cargamos en KI en PDF. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 18:23
+ 
+  De acuerdo, ¿No? 
+  
+  
+ 
+ 
+Camila Perdomo - 18:26
+ 
+  Listo, entonces voy a hablar con Andrés para dar la opción y no sé cuando pues tengan reunión con comercial o 
+no sé cómo tú lo puedas de pronto escalar si les llama la atención, porque yo sé que eso involucra que no sea tan 
+rápido el contacto comercial o no sé, de pronto que les complique pronto a los comerciales hacerlo, pero pues 
+debido a la situación es mejor hacerlo. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 18:44
+ 
+  Pues para mí sí, porque imagínate, nos pueden estar metiendo pues quién sabe qué trampas por . Entonces pues 
+yo creo que ya somos target de algunas de estas bandas, entonces nos toca como estar más pilas con eso. 
+  
+  
+ 
+ 
+Camila Perdomo - 19:02
+ 
+  Y entonces yo le voy a proponer a Andrés en las reuniones que pasan que si le parece bien y que para hablarlo con 
+comercial, a ver qué opinan, si les es más fácil, me parece genial simplemente decirles vengan, formalicemos la 
+comunicación con el cliente, chévere, contacte por WhatsApp, pero cuando ya termine la propuesta, díganle según 
+lo hablado por WhatsApp, te comparto por correo esto, agradecemos tu confirmación. Ya con ese hilo que haya, 
+ya hay cómo verificar. 
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+10 / 12
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 19:25
+ 
+  De acuerdo, 100%. 
+  
+  
+ 
+ 
+Camila Perdomo - 19:27
+ 
+  Listo Dani, muchísimas gracias por el espacio. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 19:30
+ 
+  Que estén muy bien. Mil gracias por dedicarle a las pruebas. 
+  
+  
+ 
+ 
+Camila Perdomo - 19:34
+ 
+  Un abracito, que estés bien. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 19:35
+ 
+  Me llevo las observaciones, si quieren envíame un paquetico de esos quedó con. 
+  
+  
+ 
+ 
+Camila Perdomo - 19:41
+ 
+  Ya te los comparto. 
+  
+  
+ 
+ 
+ 
+Daniel Restrepo - 19:42
+ 
+  Muchas gracias. 
+  
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+11 / 12
+Meeting created at: 29th Dec, 2025 - 3:00 PM
+Meeting Title: Camila / Daniel Pruebas módulo 
+riesgo fraude
+Camila Perdomo - 19:42
+Un abracito. Adiós. 
+12 / 12
