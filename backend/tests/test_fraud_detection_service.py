@@ -515,7 +515,8 @@ class TestContadorRevisorFiscalValidation:
         assert current_result.validation_type == ValidationType.CONTADOR_REVISOR_FISCAL
         assert current_result.is_discrepancy is True
         assert current_result.severity == DiscrepancySeverity.HIGH
-        assert 'no coincide' in current_result.description.lower()
+        # New message format: "Ningún firmante (X) coincide con profesionales registrados"
+        assert 'coincide' in current_result.description.lower()
 
     def test_contador_revisor_fiscal_cedula_mismatch(self, cross_validation_service):
         """Test that matching name but different cedula produces MEDIUM severity"""
@@ -579,7 +580,8 @@ class TestContadorRevisorFiscalValidation:
         assert current_result.validation_type == ValidationType.CONTADOR_REVISOR_FISCAL
         assert current_result.is_discrepancy is True
         assert current_result.severity == DiscrepancySeverity.CRITICAL
-        assert 'no puede ser verificado' in current_result.description.lower()
+        # New message format: "Firmantes 'X' en estados financieros no pueden ser verificados"
+        assert 'no pueden ser verificados' in current_result.description.lower()
 
     def test_contador_revisor_fiscal_missing_data_graceful(self, cross_validation_service):
         """Test graceful handling when no signatory info in financial statement"""

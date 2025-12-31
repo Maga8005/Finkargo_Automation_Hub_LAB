@@ -34,7 +34,20 @@ EXTRACTION_SCHEMAS = {
             "revenue": {"type": ["number", "null"], "description": "Total revenue/sales"},
             "signatory_name": {"type": ["string", "null"], "description": "Name of person who signed"},
             "signatory_id": {"type": ["string", "null"], "description": "ID of signatory"},
-            "signatory_role": {"type": ["string", "null"], "description": "Role of signatory"}
+            "signatory_role": {"type": ["string", "null"], "description": "Role of signatory"},
+            "signatories": {
+                "type": ["array", "null"],
+                "description": "List of all signatories who signed the financial statement (Representante Legal, Contador, Revisor Fiscal, etc.)",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Name of the signatory"},
+                        "id": {"type": ["string", "null"], "description": "ID/cedula of the signatory"},
+                        "role": {"type": ["string", "null"], "description": "Role of the signatory (Representante Legal, Contador, Revisor Fiscal, etc.)"}
+                    },
+                    "required": ["name"]
+                }
+            }
         },
         "required": ["company_name", "nit", "fiscal_year"]
     },
@@ -55,7 +68,20 @@ EXTRACTION_SCHEMAS = {
             "revenue": {"type": ["number", "null"], "description": "Total revenue/sales"},
             "signatory_name": {"type": ["string", "null"], "description": "Name of person who signed"},
             "signatory_id": {"type": ["string", "null"], "description": "ID of signatory"},
-            "signatory_role": {"type": ["string", "null"], "description": "Role of signatory"}
+            "signatory_role": {"type": ["string", "null"], "description": "Role of signatory"},
+            "signatories": {
+                "type": ["array", "null"],
+                "description": "List of all signatories who signed the financial statement (Representante Legal, Contador, Revisor Fiscal, etc.)",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Name of the signatory"},
+                        "id": {"type": ["string", "null"], "description": "ID/cedula of the signatory"},
+                        "role": {"type": ["string", "null"], "description": "Role of the signatory (Representante Legal, Contador, Revisor Fiscal, etc.)"}
+                    },
+                    "required": ["name"]
+                }
+            }
         },
         "required": ["company_name", "nit", "fiscal_year"]
     },
