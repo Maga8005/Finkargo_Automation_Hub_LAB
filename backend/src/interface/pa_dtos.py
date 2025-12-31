@@ -5,11 +5,10 @@ This module contains all Pydantic models for request/response validation
 in the PA Report Classification endpoints.
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 from enum import Enum
-import uuid as uuid_lib
 
 
 # =============================================================================

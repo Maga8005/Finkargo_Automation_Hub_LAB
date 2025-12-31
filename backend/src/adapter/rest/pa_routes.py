@@ -28,7 +28,6 @@ from src.interface.pa_dtos import (
     PACleanedPreview,
     PAClassifiedPreview,
     PAProcessingHistoryResponse,
-    PAProcessingHistoryFilter,
     PAProcessingStats
 )
 from src.adapter.rest.dependencies import get_current_user

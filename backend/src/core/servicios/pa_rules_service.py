@@ -8,7 +8,7 @@ Handles:
 """
 
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Optional, Tuple
 from io import BytesIO
 import pandas as pd
 
@@ -17,8 +17,7 @@ from src.interface.pa_dtos import (
     PAClassificationRulesUploadResponse,
     PAClasificacionCuentaRulesUploadResponse,
     PANexoRulesUploadResponse,
-    PARulesSummary,
-    RuleUploadType
+    PARulesSummary
 )
 from src.repositorio.pa_rules_repository import PARulesRepository
 

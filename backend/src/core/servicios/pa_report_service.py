@@ -9,7 +9,7 @@ Handles:
 """
 
 import logging
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Optional, List
 from io import BytesIO
 from datetime import datetime, date
 import pandas as pd
@@ -24,7 +24,6 @@ from src.interface.pa_dtos import (
 )
 from src.repositorio.pa_rules_repository import PARulesRepository
 from src.core.servicios.pa_classification_engine import (
-    PAClassificationEngine,
     create_classification_engine
 )
 
