@@ -766,3 +766,74 @@ export interface EvaluationRequirementsConfig {
   updated_at?: string;
   updated_by?: string;
 }
+
+// ==================== Discrepancy Validation Types ====================
+
+export type DiscrepancyValidationReason =
+  | 'manual_validation'
+  | 'email_verification'
+  | 'loading_error'
+  | 'client_justification';
+
+export interface DiscrepancyValidationRequest {
+  is_validated: boolean;
+  validation_reason?: DiscrepancyValidationReason;
+  comments?: string;
+}
+
+export interface DiscrepancyValidation {
+  id: string;
+  cross_validation_result_id: string;
+  is_validated: boolean;
+  validation_reason?: DiscrepancyValidationReason;
+  comments?: string;
+  validated_by?: string;
+  validated_by_name?: string;
+  validated_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscrepancyValidationProgress {
+  assessment_id: string;
+  total_discrepancies: number;
+  validated_count: number;
+  pending_count: number;
+  all_validated: boolean;
+  validations: DiscrepancyValidation[];
+}
+
+export interface CrossValidationResultWithValidation extends CrossValidationResult {
+  validation?: DiscrepancyValidation;
+}
+
+export interface CrossValidationResponseWithValidations extends CrossValidationResponse {
+  results: CrossValidationResultWithValidation[];
+  validation_progress?: DiscrepancyValidationProgress;
+}
+
+// ==================== Discrepancy Validation UI Config ====================
+
+export interface DiscrepancyValidationReasonConfig {
+  label: string;
+  description: string;
+}
+
+export const DISCREPANCY_VALIDATION_REASON_CONFIG: Record<DiscrepancyValidationReason, DiscrepancyValidationReasonConfig> = {
+  manual_validation: {
+    label: 'Validación manual',
+    description: 'Se verificó manualmente contra documentos originales',
+  },
+  email_verification: {
+    label: 'Verificado por email',
+    description: 'Se confirmó mediante comunicación por correo electrónico',
+  },
+  loading_error: {
+    label: 'Error de carga',
+    description: 'La discrepancia fue causada por un error de carga o extracción',
+  },
+  client_justification: {
+    label: 'Justificación del cliente',
+    description: 'El cliente proporcionó una justificación válida',
+  },
+};

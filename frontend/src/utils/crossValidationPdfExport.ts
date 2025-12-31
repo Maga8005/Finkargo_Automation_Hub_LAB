@@ -15,6 +15,8 @@ import type {
   ExternalContact,
   VerificationStatus,
   RiskLevel,
+  DiscrepancyValidationProgress,
+  CrossValidationResponseWithValidations,
 } from '../types/risk';
 import {
   DISCREPANCY_SEVERITY_CONFIG,
@@ -23,6 +25,7 @@ import {
   VERIFICATION_STATUS_CONFIG,
   RISK_LEVEL_CONFIG,
   EXTERNAL_CONTACT_VALIDATION_STATUS_CONFIG,
+  DISCREPANCY_VALIDATION_REASON_CONFIG,
 } from '../types/risk';
 
 // Finkargo brand colors (consistent with pdfExport.ts)
@@ -87,13 +90,14 @@ interface AssessmentContext {
   client_info?: ClientInfo;
   finalized_by?: string;
   finalized_at?: string;
+  validation_progress?: DiscrepancyValidationProgress;
 }
 
 /**
  * Export cross-validation results to PDF
  */
 export const exportCrossValidationToPDF = (
-  results: CrossValidationResponse,
+  results: CrossValidationResponse | CrossValidationResponseWithValidations,
   assessment: AssessmentContext
 ): void => {
   try {
@@ -262,6 +266,35 @@ export const exportCrossValidationToPDF = (
       yPosition += 15;
     }
 
+    // ==================== VALIDATION PROGRESS BANNER ====================
+    const validationProgress = assessment.validation_progress ||
+      ('validation_progress' in results ? (results as CrossValidationResponseWithValidations).validation_progress : undefined);
+
+    if (validationProgress && validationProgress.total_discrepancies > 0) {
+      if (validationProgress.all_validated) {
+        // All validated - green banner
+        doc.setFillColor(224, 247, 230); // success green bg
+        doc.rect(14, yPosition, pageWidth - 28, 12, 'F');
+        doc.setFontSize(10);
+        doc.setTextColor(FINKARGO_COLORS.success);
+        doc.setFont('helvetica', 'bold');
+        doc.text('VALIDADO POR MESA DE CONTROL', 18, yPosition + 5);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Todas las ${validationProgress.total_discrepancies} discrepancias fueron validadas`, 18, yPosition + 10);
+        yPosition += 17;
+      } else if (validationProgress.validated_count > 0) {
+        // Partial validation - warning banner
+        doc.setFillColor(255, 244, 229); // warning bg
+        doc.rect(14, yPosition, pageWidth - 28, 10, 'F');
+        doc.setFontSize(9);
+        doc.setTextColor(FINKARGO_COLORS.warning);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Validación parcial: ${validationProgress.validated_count}/${validationProgress.total_discrepancies} discrepancias validadas`, 18, yPosition + 6);
+        yPosition += 15;
+      }
+    }
+
     yPosition += 5;
 
     // ==================== DISCREPANCIES TABLE ====================
@@ -279,16 +312,62 @@ export const exportCrossValidationToPDF = (
       doc.text(`Discrepancias Encontradas (${discrepancies.length})`, 14, yPosition);
       yPosition += 5;
 
-      const discrepancyData = discrepancies.map((r) => [
-        formatValidationType(r.validation_type),
-        r.field_compared || '-',
-        formatSeverity(r.severity).label,
-        `+${Number(r.score_impact).toFixed(0)}`,
-        r.description || '-',
-      ]);
+      // Check if we have validation data
+      const hasValidations = 'validation_progress' in results &&
+        (results as CrossValidationResponseWithValidations).validation_progress?.validations?.length;
+
+      // Build discrepancy data with optional validation column
+      const discrepancyData = discrepancies.map((r) => {
+        const baseData = [
+          formatValidationType(r.validation_type),
+          r.field_compared || '-',
+          formatSeverity(r.severity).label,
+          `+${Number(r.score_impact).toFixed(0)}`,
+          r.description || '-',
+        ];
+
+        // Add validation status if available
+        if (hasValidations) {
+          const resultsWithValidations = results as CrossValidationResponseWithValidations;
+          const resultWithValidation = resultsWithValidations.results.find(res => res.id === r.id);
+          if (resultWithValidation?.validation?.is_validated) {
+            const reasonConfig = resultWithValidation.validation.validation_reason
+              ? DISCREPANCY_VALIDATION_REASON_CONFIG[resultWithValidation.validation.validation_reason]
+              : null;
+            baseData.push(reasonConfig?.label || 'Validado');
+          } else {
+            baseData.push('Pendiente');
+          }
+        }
+
+        return baseData;
+      });
+
+      // Table headers
+      const headers = hasValidations
+        ? [['Tipo de Validación', 'Campo', 'Severidad', 'Impacto', 'Descripción', 'Estado']]
+        : [['Tipo de Validación', 'Campo', 'Severidad', 'Impacto', 'Descripción']];
+
+      // Column styles
+      const baseColumnStyles = {
+        0: { cellWidth: 35 },
+        1: { cellWidth: 25 },
+        2: { cellWidth: 20, halign: 'center' as const },
+        3: { cellWidth: 18, halign: 'center' as const, textColor: FINKARGO_COLORS.error },
+        4: { cellWidth: 'auto' as const },
+      };
+
+      const validationColumnStyles = {
+        0: { cellWidth: 30 },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 18, halign: 'center' as const },
+        3: { cellWidth: 15, halign: 'center' as const, textColor: FINKARGO_COLORS.error },
+        4: { cellWidth: 'auto' as const },
+        5: { cellWidth: 25, halign: 'center' as const },
+      };
 
       autoTable(doc, {
-        head: [['Tipo de Validación', 'Campo', 'Severidad', 'Impacto', 'Descripción']],
+        head: headers,
         body: discrepancyData,
         startY: yPosition,
         theme: 'grid',
@@ -309,13 +388,7 @@ export const exportCrossValidationToPDF = (
         alternateRowStyles: {
           fillColor: FINKARGO_COLORS.grey50,
         },
-        columnStyles: {
-          0: { cellWidth: 35 },
-          1: { cellWidth: 25 },
-          2: { cellWidth: 20, halign: 'center' },
-          3: { cellWidth: 18, halign: 'center', textColor: FINKARGO_COLORS.error },
-          4: { cellWidth: 'auto' },
-        },
+        columnStyles: hasValidations ? validationColumnStyles : baseColumnStyles,
         margin: { left: 14, right: 14 },
         didParseCell: (data) => {
           // Color-code severity column
@@ -334,6 +407,19 @@ export const exportCrossValidationToPDF = (
             } else if (severityLabel === 'Bajo') {
               data.cell.styles.fillColor = SEVERITY_PDF_COLORS.low.bg;
               data.cell.styles.textColor = SEVERITY_PDF_COLORS.low.text;
+            }
+          }
+
+          // Color-code validation status column (column 5 when validations present)
+          if (hasValidations && data.section === 'body' && data.column.index === 5) {
+            const statusLabel = data.cell.raw as string;
+            if (statusLabel === 'Pendiente') {
+              data.cell.styles.fillColor = [255, 244, 229]; // warning bg
+              data.cell.styles.textColor = [184, 110, 0]; // warning text
+            } else {
+              // Validated
+              data.cell.styles.fillColor = [224, 247, 230]; // success bg
+              data.cell.styles.textColor = [44, 161, 77]; // success text
             }
           }
         },

@@ -17,6 +17,7 @@ from src.repositorio.risk_repository import (
     CrossValidationRepository,
     ExternalContactRepository,
     EmailChainRepository,
+    DiscrepancyValidationRepository,
 )
 from src.repositorio.risk_settings_repository import RiskSettingsRepository
 from src.repositorio.client_repository import ClientRepository
@@ -70,6 +71,12 @@ from src.interface.risk_dtos import (
     FinalizeEvaluationRequest,
     FinalizationStatusResponse,
     FinalizationRequirements,
+    DiscrepancyValidationRequest,
+    DiscrepancyValidationResponse,
+    DiscrepancyValidationProgressResponse,
+    DiscrepancyValidationReason,
+    CrossValidationResultWithValidation,
+    CrossValidationResponseWithValidations,
 )
 
 logger = logging.getLogger(__name__)
@@ -189,6 +196,12 @@ def get_email_chain_service():
         extraction_repo=get_extraction_repo(),
         settings_repo=get_settings_repo(),
     )
+
+
+def get_discrepancy_validation_repo():
+    """Get discrepancy validation repository"""
+    supabase = get_supabase()
+    return DiscrepancyValidationRepository(supabase.admin_client)
 
 
 # ==================== Settings Endpoints ====================
@@ -2162,4 +2175,252 @@ def _map_to_email_chain_response(data: dict) -> EmailChainResponse:
         created_at=_parse_datetime(data.get('created_at')) or datetime.utcnow(),
         created_by=data.get('created_by'),
         is_active=data.get('is_active', True),
+    )
+
+
+# ==================== Discrepancy Validation Endpoints ====================
+
+@router.get("/evaluations/{id}/discrepancies-with-validations", response_model=CrossValidationResponseWithValidations)
+async def get_discrepancies_with_validations(
+    id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Get cross-validation discrepancies with their validation state.
+    Returns discrepancies along with any mesa de control validations.
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Getting discrepancies with validations for evaluation {id}")
+
+    validation_repo = get_validation_repo()
+    results = await validation_repo.get_by_assessment(id)
+
+    discrepancy_validation_repo = get_discrepancy_validation_repo()
+    validations = await discrepancy_validation_repo.get_by_assessment(id)
+
+    # Create a map of cross_validation_result_id to validation
+    validation_map = {v['cross_validation_result_id']: v for v in validations}
+
+    # Build results with validations
+    results_with_validations = []
+    discrepancy_count = 0
+    for r in results:
+        validation = validation_map.get(r['id'])
+        validation_response = None
+        if validation:
+            validation_response = _map_to_discrepancy_validation_response(validation)
+
+        result = CrossValidationResultWithValidation(
+            id=r.get('id'),
+            validation_type=ValidationType(r['validation_type']),
+            documents_compared=r.get('documents_compared', []),
+            field_compared=r.get('field_compared'),
+            values_found=r.get('values_found', {}),
+            is_discrepancy=r.get('is_discrepancy', False),
+            severity=DiscrepancySeverity(r['severity']) if r.get('severity') else None,
+            description=r.get('description'),
+            score_impact=r.get('score_impact', 0),
+            validation=validation_response,
+        )
+        results_with_validations.append(result)
+        if r.get('is_discrepancy'):
+            discrepancy_count += 1
+
+    # Get validation progress
+    progress = await discrepancy_validation_repo.get_validation_progress(id)
+
+    # Calculate counts
+    discrepancies = [r for r in results if r.get('is_discrepancy')]
+    critical_count = sum(1 for r in discrepancies if r.get('severity') == 'critical')
+    high_count = sum(1 for r in discrepancies if r.get('severity') == 'high')
+    medium_count = sum(1 for r in discrepancies if r.get('severity') == 'medium')
+    low_count = sum(1 for r in discrepancies if r.get('severity') == 'low')
+    total_impact = sum(float(r.get('score_impact', 0)) for r in discrepancies)
+
+    validation_progress = DiscrepancyValidationProgressResponse(
+        assessment_id=id,
+        total_discrepancies=progress['total_discrepancies'],
+        validated_count=progress['validated_count'],
+        pending_count=progress['pending_count'],
+        all_validated=progress['all_validated'],
+        validations=[_map_to_discrepancy_validation_response(v) for v in validations],
+    )
+
+    return CrossValidationResponseWithValidations(
+        assessment_id=id,
+        total_discrepancies=len(discrepancies),
+        critical_count=critical_count,
+        high_count=high_count,
+        medium_count=medium_count,
+        low_count=low_count,
+        total_score_impact=total_impact,
+        results=results_with_validations,
+        validated_at=_parse_datetime(results[0].get('created_at')) if results else None,
+        validation_progress=validation_progress,
+    )
+
+
+@router.get("/evaluations/{id}/discrepancy-validations", response_model=DiscrepancyValidationProgressResponse)
+async def get_discrepancy_validation_progress(
+    id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Get validation progress for an assessment's discrepancies.
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Getting discrepancy validation progress for evaluation {id}")
+
+    discrepancy_validation_repo = get_discrepancy_validation_repo()
+
+    # Get progress
+    progress = await discrepancy_validation_repo.get_validation_progress(id)
+
+    # Get all validations
+    validations = await discrepancy_validation_repo.get_by_assessment(id)
+
+    return DiscrepancyValidationProgressResponse(
+        assessment_id=id,
+        total_discrepancies=progress['total_discrepancies'],
+        validated_count=progress['validated_count'],
+        pending_count=progress['pending_count'],
+        all_validated=progress['all_validated'],
+        validations=[_map_to_discrepancy_validation_response(v) for v in validations],
+    )
+
+
+@router.put("/evaluations/{id}/discrepancy-validations/{result_id}", response_model=DiscrepancyValidationResponse)
+async def validate_discrepancy(
+    id: str,
+    result_id: str,
+    request: DiscrepancyValidationRequest,
+    current_user: dict = Depends(require_roles(['risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Validate or remove validation from a specific discrepancy.
+    Only mesa_control, risk_manager, or admin can validate discrepancies.
+
+    Args:
+        id: Assessment UUID
+        result_id: Cross-validation result UUID
+        request: Validation request with is_validated, validation_reason, comments
+    """
+    logger.info(f"Validating discrepancy {result_id} for evaluation {id}: validated={request.is_validated}")
+
+    # Verify assessment exists
+    risk_repo = get_risk_repo()
+    assessment = await risk_repo.get_by_id(id)
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Evaluation {id} not found"
+        )
+
+    # Verify cross-validation result exists and belongs to this assessment
+    validation_repo = get_validation_repo()
+    results = await validation_repo.get_by_assessment(id)
+    result = next((r for r in results if r['id'] == result_id), None)
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Cross-validation result {result_id} not found for evaluation {id}"
+        )
+
+    if not result.get('is_discrepancy'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Result {result_id} is not a discrepancy and cannot be validated"
+        )
+
+    user_id = current_user.get('id')
+
+    discrepancy_validation_repo = get_discrepancy_validation_repo()
+
+    if request.is_validated:
+        # Create or update validation
+        validation_data = {
+            'is_validated': True,
+            'validation_reason': request.validation_reason.value if request.validation_reason else None,
+            'comments': request.comments,
+            'validated_by': user_id,
+            'validated_at': datetime.utcnow().isoformat(),
+        }
+        validation = await discrepancy_validation_repo.upsert(result_id, validation_data)
+    else:
+        # Remove validation
+        existing = await discrepancy_validation_repo.get_by_cross_validation_result_id(result_id)
+        if existing:
+            validation_data = {
+                'is_validated': False,
+                'validation_reason': None,
+                'comments': request.comments,
+                'validated_by': None,
+                'validated_at': None,
+            }
+            validation = await discrepancy_validation_repo.update(existing['id'], validation_data)
+        else:
+            # Create unvalidated record
+            validation_data = {
+                'cross_validation_result_id': result_id,
+                'is_validated': False,
+                'validation_reason': None,
+                'comments': request.comments,
+            }
+            validation = await discrepancy_validation_repo.create(validation_data)
+
+    logger.info(f"Discrepancy {result_id} validation updated: validated={request.is_validated}")
+
+    return _map_to_discrepancy_validation_response(validation)
+
+
+@router.delete("/evaluations/{id}/discrepancy-validations/{result_id}")
+async def remove_discrepancy_validation(
+    id: str,
+    result_id: str,
+    current_user: dict = Depends(require_roles(['risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Remove validation from a specific discrepancy.
+    Only mesa_control, risk_manager, or admin can remove validations.
+    """
+    logger.info(f"Removing validation for discrepancy {result_id} in evaluation {id}")
+
+    discrepancy_validation_repo = get_discrepancy_validation_repo()
+
+    existing = await discrepancy_validation_repo.get_by_cross_validation_result_id(result_id)
+
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No validation found for discrepancy {result_id}"
+        )
+
+    await discrepancy_validation_repo.delete(existing['id'])
+
+    return {"message": "Discrepancy validation removed successfully"}
+
+
+# ==================== Discrepancy Validation Helper Functions ====================
+
+def _map_to_discrepancy_validation_response(data: dict) -> DiscrepancyValidationResponse:
+    """Map database record to discrepancy validation response model"""
+    validation_reason = None
+    if data.get('validation_reason'):
+        try:
+            validation_reason = DiscrepancyValidationReason(data['validation_reason'])
+        except ValueError:
+            validation_reason = None
+
+    return DiscrepancyValidationResponse(
+        id=data['id'],
+        cross_validation_result_id=data['cross_validation_result_id'],
+        is_validated=data.get('is_validated', False),
+        validation_reason=validation_reason,
+        comments=data.get('comments'),
+        validated_by=data.get('validated_by'),
+        validated_by_name=None,  # Could be enriched with user lookup if needed
+        validated_at=_parse_datetime(data.get('validated_at')),
+        created_at=_parse_datetime(data.get('created_at')) or datetime.utcnow(),
+        updated_at=_parse_datetime(data.get('updated_at')) or datetime.utcnow(),
     )

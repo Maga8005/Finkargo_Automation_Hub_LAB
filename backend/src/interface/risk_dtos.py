@@ -762,3 +762,78 @@ class EvaluationRequirementsConfig(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ==================== Discrepancy Validation DTOs ====================
+
+class DiscrepancyValidationReason(str, Enum):
+    """Reason for validating a discrepancy"""
+    MANUAL_VALIDATION = "manual_validation"
+    EMAIL_VERIFICATION = "email_verification"
+    LOADING_ERROR = "loading_error"
+    CLIENT_JUSTIFICATION = "client_justification"
+
+
+class DiscrepancyValidationRequest(BaseModel):
+    """Request to validate or remove validation from a discrepancy"""
+    is_validated: bool = Field(..., description="Whether the discrepancy is validated")
+    validation_reason: Optional[DiscrepancyValidationReason] = Field(
+        None,
+        description="Reason for validation (required if is_validated=True)"
+    )
+    comments: Optional[str] = Field(
+        None,
+        max_length=2000,
+        description="Optional comments from the validator"
+    )
+
+    @validator('validation_reason')
+    def require_reason_when_validated(cls, v, values):
+        """Validation reason is required when is_validated is True"""
+        if values.get('is_validated') and v is None:
+            raise ValueError('validation_reason is required when is_validated is True')
+        return v
+
+
+class DiscrepancyValidationResponse(BaseModel):
+    """Response for a discrepancy validation record"""
+    id: str
+    cross_validation_result_id: str
+    is_validated: bool
+    validation_reason: Optional[DiscrepancyValidationReason] = None
+    comments: Optional[str] = None
+    validated_by: Optional[str] = None
+    validated_by_name: Optional[str] = None
+    validated_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DiscrepancyValidationProgressResponse(BaseModel):
+    """Response containing validation progress for an assessment"""
+    assessment_id: str
+    total_discrepancies: int = 0
+    validated_count: int = 0
+    pending_count: int = 0
+    all_validated: bool = False
+    validations: List[DiscrepancyValidationResponse] = []
+
+
+class CrossValidationResultWithValidation(CrossValidationResult):
+    """Extended cross-validation result that includes validation state"""
+    validation: Optional[DiscrepancyValidationResponse] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CrossValidationResponseWithValidations(CrossValidationResponse):
+    """Extended cross-validation response with validation progress"""
+    results: List[CrossValidationResultWithValidation] = []
+    validation_progress: Optional[DiscrepancyValidationProgressResponse] = None
+
+    class Config:
+        from_attributes = True

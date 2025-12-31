@@ -22,12 +22,17 @@ import {
   Warning,
   HourglassEmpty,
 } from '@mui/icons-material';
-import type { VerificationStatus, FraudIndicator } from '../../types/risk';
+import type {
+  VerificationStatus,
+  FraudIndicator,
+  DiscrepancyValidationProgress,
+} from '../../types/risk';
 import { VERIFICATION_STATUS_CONFIG } from '../../types/risk';
 
 interface FKVerificationStatusCardProps {
   verificationStatus: VerificationStatus;
   discrepancyCount: number;
+  validationProgress?: DiscrepancyValidationProgress;
   onAcknowledge?: (acknowledged: boolean) => void;
   isAcknowledged?: boolean;
   isPreliminary?: boolean;
@@ -37,15 +42,32 @@ interface FKVerificationStatusCardProps {
 const FKVerificationStatusCard: React.FC<FKVerificationStatusCardProps> = ({
   verificationStatus,
   discrepancyCount,
+  validationProgress,
   onAcknowledge,
   isAcknowledged = false,
   isPreliminary = false,
   indicators = [],
 }) => {
-  // Override config to show pending status when evaluation is preliminary
+  // Check if all discrepancies are validated
+  const allValidated = validationProgress?.all_validated ?? false;
+
+  // Override display status based on validation progress
   const displayStatus = isPreliminary ? 'pending' : verificationStatus;
-  const config = VERIFICATION_STATUS_CONFIG[displayStatus];
-  const isPass = verificationStatus === 'pass' && !isPreliminary;
+
+  // Use validated styling when all discrepancies are validated by mesa de control
+  const showValidatedStatus = allValidated && discrepancyCount > 0;
+
+  const config = showValidatedStatus
+    ? {
+        label: 'VALIDADO POR MESA DE CONTROL',
+        bgColor: '#E0F7E6',
+        textColor: '#2CA14D',
+        color: 'success' as const,
+        icon: 'CheckCircle' as const,
+      }
+    : VERIFICATION_STATUS_CONFIG[displayStatus];
+
+  const isPass = (verificationStatus === 'pass' && !isPreliminary) || showValidatedStatus;
 
   // Get icon component based on display status
   const StatusIcon = displayStatus === 'pending' ? HourglassEmpty : (isPass ? CheckCircle : Warning);
@@ -93,16 +115,44 @@ const FKVerificationStatusCard: React.FC<FKVerificationStatusCardProps> = ({
             {config.label}
           </Typography>
 
-          {!isPass && !isPreliminary && discrepancyCount > 0 && (
-            <Chip
-              label={`${discrepancyCount} discrepancia${discrepancyCount > 1 ? 's' : ''} encontrada${discrepancyCount > 1 ? 's' : ''}`}
-              sx={{
-                mt: 2,
-                backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                color: config.textColor,
-                fontWeight: 600,
-              }}
-            />
+          {/* Show discrepancy count with validation progress */}
+          {!isPreliminary && discrepancyCount > 0 && (
+            <>
+              {showValidatedStatus ? (
+                <Chip
+                  label={`${validationProgress?.validated_count}/${validationProgress?.total_discrepancies} discrepancias validadas`}
+                  sx={{
+                    mt: 2,
+                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                    color: config.textColor,
+                    fontWeight: 600,
+                  }}
+                />
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                  <Chip
+                    label={`${discrepancyCount} discrepancia${discrepancyCount > 1 ? 's' : ''} encontrada${discrepancyCount > 1 ? 's' : ''}`}
+                    sx={{
+                      mt: 2,
+                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                      color: config.textColor,
+                      fontWeight: 600,
+                    }}
+                  />
+                  {validationProgress && validationProgress.validated_count > 0 && (
+                    <Chip
+                      label={`Validados: ${validationProgress.validated_count}/${validationProgress.total_discrepancies}`}
+                      size="small"
+                      sx={{
+                        backgroundColor: '#FFF4E5',
+                        color: '#B86E00',
+                        fontWeight: 500,
+                      }}
+                    />
+                  )}
+                </Box>
+              )}
+            </>
           )}
         </Box>
 
