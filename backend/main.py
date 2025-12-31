@@ -31,6 +31,10 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
     """
     Middleware to limit request body size for file uploads.
     Prevents memory exhaustion from extremely large uploads.
+
+    Note: This middleware runs before CORS middleware in the request chain,
+    so we must include CORS headers in our 413 responses to avoid misleading
+    CORS errors in the browser.
     """
 
     def __init__(self, app, max_upload_size: int = 52428800):  # 50 MB default
@@ -45,10 +49,16 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                 size = int(content_length)
                 if size > self.max_upload_size:
                     logger.warning(f"Request body too large: {size} bytes (max: {self.max_upload_size})")
+                    # Get the origin header for CORS
+                    origin = request.headers.get("origin", "*")
                     return JSONResponse(
                         status_code=413,
                         content={
                             "detail": f"El archivo es demasiado grande. Tamaño máximo: {self.max_upload_size // (1024 * 1024)} MB"
+                        },
+                        headers={
+                            "Access-Control-Allow-Origin": origin,
+                            "Access-Control-Allow-Credentials": "true",
                         }
                     )
             except ValueError:

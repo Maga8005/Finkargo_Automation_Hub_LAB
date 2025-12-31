@@ -4,6 +4,7 @@
  * Service for handling PA report classification and rule management.
  */
 
+import axios from 'axios';
 import apiClient from '../api/clients/apiClient';
 import type {
   PARulesSummary,
@@ -202,6 +203,24 @@ export const getNexoRules = async (
  * Helper to convert network errors to user-friendly messages
  */
 const getNetworkErrorMessage = (error: unknown): string => {
+  // Check for axios errors with response status
+  if (axios.isAxiosError(error)) {
+    // Check for 413 status (file too large)
+    if (error.response?.status === 413) {
+      // Try to get the message from the response, or use default
+      const detail = error.response?.data?.detail;
+      return detail || 'El archivo es demasiado grande. El tamaño máximo es 50 MB.';
+    }
+    // Check for connection refused errors
+    if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+      return 'No se pudo conectar al servidor. Verifique que el servidor esté activo e intente nuevamente.';
+    }
+    // Check for timeout errors
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      return 'La solicitud tardó demasiado tiempo. Por favor intente nuevamente.';
+    }
+  }
+
   if (error instanceof Error) {
     // Check for connection refused errors
     if (error.message.includes('ERR_CONNECTION_REFUSED') ||
@@ -213,7 +232,7 @@ const getNetworkErrorMessage = (error: unknown): string => {
     if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
       return 'La solicitud tardó demasiado tiempo. Por favor intente nuevamente.';
     }
-    // Check for file too large errors (HTTP 413)
+    // Check for file too large errors (HTTP 413) in message
     if (error.message.includes('413') || error.message.includes('too large')) {
       return 'El archivo es demasiado grande. El tamaño máximo es 50 MB.';
     }
