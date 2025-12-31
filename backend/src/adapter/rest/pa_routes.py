@@ -291,7 +291,7 @@ async def get_nexo_rules(
     "/process/upload",
     response_model=PAUploadResponse,
     summary="Upload NetSuite file",
-    description="Upload NetSuite movements file and create processing session."
+    description="Upload NetSuite movements file and create processing session. Supports files up to 50 MB."
 )
 async def upload_netsuite_file(
     file: UploadFile = File(..., description="NetSuite movements Excel or CSV file"),
@@ -305,16 +305,36 @@ async def upload_netsuite_file(
     if not file.filename.endswith((".xlsx", ".xls", ".csv")):
         raise HTTPException(status_code=400, detail="Formato no soportado. Use .xlsx, .xls o .csv")
 
-    content = await file.read()
-    user_id = getattr(current_user, "id", None) or current_user.get("id")
-    user_email = getattr(current_user, "email", None) or current_user.get("email")
+    try:
+        content = await file.read()
+        file_size_mb = len(content) / (1024 * 1024)
+        logger.info(f"Processing upload: {file.filename} ({file_size_mb:.2f} MB)")
 
-    return await service.upload_netsuite_file(
-        file_content=content,
-        filename=file.filename,
-        user_id=user_id,
-        user_email=user_email
-    )
+        user_id = getattr(current_user, "id", None) or current_user.get("id")
+        user_email = getattr(current_user, "email", None) or current_user.get("email")
+
+        return await service.upload_netsuite_file(
+            file_content=content,
+            filename=file.filename,
+            user_id=user_id,
+            user_email=user_email
+        )
+    except MemoryError:
+        logger.error(f"Memory error processing file: {file.filename}")
+        raise HTTPException(
+            status_code=413,
+            detail="El archivo es demasiado grande para procesar. Intente con un archivo más pequeño o divídalo en partes."
+        )
+    except Exception as e:
+        logger.error(f"Error processing upload {file.filename}: {e}", exc_info=True)
+        # Re-raise HTTPExceptions as-is
+        if isinstance(e, HTTPException):
+            raise
+        # Return a user-friendly error for other exceptions
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al procesar el archivo: {str(e)}"
+        )
 
 
 @router.post(

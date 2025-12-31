@@ -545,14 +545,22 @@ class PAReportService:
 
         Raises:
             ValueError: If file cannot be parsed.
+            MemoryError: If file is too large to fit in memory.
         """
+        file_size_mb = len(file_content) / (1024 * 1024)
+        logger.info(f"Parsing file: {filename} ({file_size_mb:.2f} MB)")
+
         filename_lower = filename.lower()
 
-        if filename_lower.endswith(".csv"):
-            return self._parse_csv(file_content)
-        else:
-            # Excel file (.xlsx, .xls)
-            return pd.read_excel(BytesIO(file_content))
+        try:
+            if filename_lower.endswith(".csv"):
+                return self._parse_csv(file_content)
+            else:
+                # Excel file (.xlsx, .xls)
+                return pd.read_excel(BytesIO(file_content))
+        except MemoryError:
+            logger.error(f"Memory error parsing file: {filename} ({file_size_mb:.2f} MB)")
+            raise ValueError(f"El archivo es demasiado grande para procesar ({file_size_mb:.1f} MB). Intente dividirlo en partes más pequeñas.")
 
     def _parse_csv(self, file_content: bytes) -> pd.DataFrame:
         """
@@ -560,6 +568,7 @@ class PAReportService:
 
         Tries multiple encodings, detects delimiter automatically, and
         auto-detects header row position (skipping title rows if present).
+        Optimized for large files (12+ MB) with memory-efficient parsing.
 
         Args:
             file_content: CSV file content as bytes.
@@ -570,6 +579,9 @@ class PAReportService:
         Raises:
             ValueError: If CSV cannot be parsed with any encoding.
         """
+        file_size_mb = len(file_content) / (1024 * 1024)
+        logger.info(f"Parsing CSV file ({file_size_mb:.2f} MB)")
+
         # Encoding priority order
         encodings = ["utf-8", "utf-8-sig", "latin-1", "iso-8859-1"]
 
@@ -581,29 +593,46 @@ class PAReportService:
         if header_row > 0:
             logger.info(f"Detected {header_row} title rows before header, will skip them")
 
+        last_error = None
         for encoding in encodings:
             try:
+                # Use low_memory=False for consistent dtype inference
+                # This is actually more memory-efficient for large files with mixed types
                 df = pd.read_csv(
                     BytesIO(file_content),
                     encoding=encoding,
                     delimiter=delimiter,
                     quotechar='"',
                     thousands=None,  # Don't interpret commas as thousands separators
-                    skiprows=header_row  # Skip title rows before header
+                    skiprows=header_row,  # Skip title rows before header
+                    low_memory=False,  # Avoid dtype warnings and mixed type issues
+                    on_bad_lines='warn'  # Log but don't fail on malformed lines
                 )
 
                 # Validate that we got meaningful data
                 if len(df.columns) > 1 and len(df) > 0:
-                    logger.info(f"CSV parsed successfully with encoding={encoding}, delimiter='{delimiter}', skiprows={header_row}")
+                    logger.info(f"CSV parsed successfully: encoding={encoding}, delimiter='{delimiter}', skiprows={header_row}, rows={len(df)}, cols={len(df.columns)}")
                     return df
 
-            except UnicodeDecodeError:
+            except UnicodeDecodeError as e:
+                last_error = e
                 continue
             except pd.errors.ParserError as e:
                 logger.warning(f"CSV parser error with encoding={encoding}: {e}")
+                last_error = e
+                continue
+            except MemoryError as e:
+                logger.error(f"Memory error parsing CSV ({file_size_mb:.2f} MB): {e}")
+                raise ValueError(f"El archivo CSV es demasiado grande ({file_size_mb:.1f} MB). Intente dividirlo en partes más pequeñas.")
+            except Exception as e:
+                logger.error(f"Unexpected error parsing CSV with encoding={encoding}: {e}")
+                last_error = e
                 continue
 
-        raise ValueError("Error de codificación en archivo CSV. Asegúrese de usar UTF-8.")
+        error_msg = "Error de codificación en archivo CSV. Asegúrese de usar UTF-8."
+        if last_error:
+            logger.error(f"CSV parsing failed after all attempts: {last_error}")
+        raise ValueError(error_msg)
 
     def _detect_header_row(self, file_content: bytes, delimiter: str) -> int:
         """

@@ -4,11 +4,13 @@ Finkargo Automation Hub - FastAPI Backend Entry Point
 Optimizado con:
 - GZipMiddleware para compresión de respuestas JSON
 - CORS configurado para Vercel preview URLs
+- Request size limit middleware for large file uploads (50 MB)
 """
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from src.config.settings import get_settings
 from src.adapter.rest import legal_routes, operations_routes, auth_routes, finance_routes, tesoreria_routes, alianzas_routes, treasury_matching_routes, risk_routes, pa_routes
 from src.adapter.rest.declaraciones import directory_scanner as treasury_directory_scanner
@@ -23,6 +25,47 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
+
+
+class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to limit request body size for file uploads.
+    Prevents memory exhaustion from extremely large uploads.
+
+    Note: This middleware runs before CORS middleware in the request chain,
+    so we must include CORS headers in our 413 responses to avoid misleading
+    CORS errors in the browser.
+    """
+
+    def __init__(self, app, max_upload_size: int = 52428800):  # 50 MB default
+        super().__init__(app)
+        self.max_upload_size = max_upload_size
+
+    async def dispatch(self, request: Request, call_next):
+        # Check content-length header if present
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                size = int(content_length)
+                if size > self.max_upload_size:
+                    logger.warning(f"Request body too large: {size} bytes (max: {self.max_upload_size})")
+                    # Get the origin header for CORS
+                    origin = request.headers.get("origin", "*")
+                    return JSONResponse(
+                        status_code=413,
+                        content={
+                            "detail": f"El archivo es demasiado grande. Tamaño máximo: {self.max_upload_size // (1024 * 1024)} MB"
+                        },
+                        headers={
+                            "Access-Control-Allow-Origin": origin,
+                            "Access-Control-Allow-Credentials": "true",
+                        }
+                    )
+            except ValueError:
+                pass
+
+        return await call_next(request)
+
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -53,6 +96,10 @@ app.add_middleware(
 # GZip middleware for compressing JSON responses
 # minimum_size=500 means only compress responses larger than 500 bytes
 app.add_middleware(GZipMiddleware, minimum_size=500)
+
+# Request size limit middleware for large file uploads
+# Uses MAX_UPLOAD_SIZE from settings (default 50 MB)
+app.add_middleware(RequestSizeLimitMiddleware, max_upload_size=settings.MAX_UPLOAD_SIZE)
 
 
 @app.exception_handler(Exception)

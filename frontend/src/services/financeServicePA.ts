@@ -4,6 +4,7 @@
  * Service for handling PA report classification and rule management.
  */
 
+import axios from 'axios';
 import apiClient from '../api/clients/apiClient';
 import type {
   PARulesSummary,
@@ -199,21 +200,69 @@ export const getNexoRules = async (
 // =============================================================================
 
 /**
+ * Helper to convert network errors to user-friendly messages
+ */
+const getNetworkErrorMessage = (error: unknown): string => {
+  // Check for axios errors with response status
+  if (axios.isAxiosError(error)) {
+    // Check for 413 status (file too large)
+    if (error.response?.status === 413) {
+      // Try to get the message from the response, or use default
+      const detail = error.response?.data?.detail;
+      return detail || 'El archivo es demasiado grande. El tamaño máximo es 50 MB.';
+    }
+    // Check for connection refused errors
+    if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+      return 'No se pudo conectar al servidor. Verifique que el servidor esté activo e intente nuevamente.';
+    }
+    // Check for timeout errors
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      return 'La solicitud tardó demasiado tiempo. Por favor intente nuevamente.';
+    }
+  }
+
+  if (error instanceof Error) {
+    // Check for connection refused errors
+    if (error.message.includes('ERR_CONNECTION_REFUSED') ||
+        error.message.includes('Network Error') ||
+        error.message.includes('ECONNREFUSED')) {
+      return 'No se pudo conectar al servidor. Verifique que el servidor esté activo e intente nuevamente.';
+    }
+    // Check for timeout errors
+    if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+      return 'La solicitud tardó demasiado tiempo. Por favor intente nuevamente.';
+    }
+    // Check for file too large errors (HTTP 413) in message
+    if (error.message.includes('413') || error.message.includes('too large')) {
+      return 'El archivo es demasiado grande. El tamaño máximo es 50 MB.';
+    }
+    return error.message;
+  }
+  return 'Error de red desconocido. Por favor intente nuevamente.';
+};
+
+/**
  * Upload NetSuite movements file
  */
 export const uploadNetSuiteFile = async (file: File): Promise<PAUploadResponse> => {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await apiClient.post<PAUploadResponse>(
-    `${PA_API_BASE}/process/upload`,
-    formData,
-    {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 600000, // 10 minute timeout for large files (50K+ records)
-    }
-  );
-  return response.data;
+  try {
+    const response = await apiClient.post<PAUploadResponse>(
+      `${PA_API_BASE}/process/upload`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 600000, // 10 minute timeout for large files (50K+ records)
+      }
+    );
+    return response.data;
+  } catch (error) {
+    // Re-throw with a more user-friendly message for network errors
+    const message = getNetworkErrorMessage(error);
+    throw new Error(message);
+  }
 };
 
 /**
