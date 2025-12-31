@@ -182,7 +182,13 @@ EXTRACTION_SCHEMAS = {
                         "position": {"type": ["string", "null"]}
                     }
                 }
-            }
+            },
+            "contador_name": {"type": ["string", "null"], "description": "Name of registered contador (accountant)"},
+            "contador_cedula": {"type": ["string", "null"], "description": "Cedula of registered contador"},
+            "contador_license": {"type": ["string", "null"], "description": "Professional license (tarjeta profesional) of contador"},
+            "revisor_fiscal_name": {"type": ["string", "null"], "description": "Name of registered revisor fiscal (fiscal auditor)"},
+            "revisor_fiscal_cedula": {"type": ["string", "null"], "description": "Cedula of revisor fiscal"},
+            "revisor_fiscal_license": {"type": ["string", "null"], "description": "Professional license of revisor fiscal"}
         },
         "required": ["company_name", "nit", "legal_representative_name", "legal_representative_id"]
     }

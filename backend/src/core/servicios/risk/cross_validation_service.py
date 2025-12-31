@@ -131,6 +131,10 @@ class CrossValidationService:
         if address_result:
             results.append(address_result)
 
+        # 9. Contador/Revisor Fiscal validation
+        contador_results = self._validate_contador_revisor_fiscal(extractions)
+        results.extend(contador_results)
+
         discrepancy_count = sum(1 for r in results if r.is_discrepancy)
         logger.info(f"Cross-validation complete: {len(results)} checks, {discrepancy_count} discrepancies")
 
@@ -987,6 +991,218 @@ class CrossValidationService:
             description=f"Ciudades diferentes: RUT indica '{rut_city}', Certificado indica '{cert_city}'",
             score_impact=self.SCORE_IMPACT[DiscrepancySeverity.MEDIUM]
         )
+
+    def _validate_contador_revisor_fiscal(
+        self,
+        extractions: Dict[DocumentType, dict]
+    ) -> List[CrossValidationResult]:
+        """
+        Validate contador/revisor fiscal credentials across documents.
+
+        Compares the signatory/auditor in financial statements against the
+        contador/revisor fiscal registered in Certificado de Existencia.
+
+        This helps detect:
+        - Fraudulent financial statements with fake professional signatures
+        - Unauthorized persons signing financial statements
+        - Fabricated professional license numbers
+
+        Args:
+            extractions: Dictionary mapping DocumentType to extracted data
+
+        Returns:
+            List[CrossValidationResult]: Validation results for contador/revisor fiscal
+        """
+        results = []
+
+        # Get Certificado de Existencia data (source of truth for registered professionals)
+        cert_data = extractions.get(DocumentType.CERTIFICADO_EXISTENCIA, {}) or {}
+
+        # Get Financial Statement data (signatory to validate)
+        fs_current = extractions.get(DocumentType.FINANCIAL_STATEMENT_CURRENT, {}) or {}
+        fs_prior = extractions.get(DocumentType.FINANCIAL_STATEMENT_PRIOR, {}) or {}
+
+        # Extract registered contador/revisor fiscal from Certificado
+        contador_name = cert_data.get('contador_name', '')
+        contador_cedula = cert_data.get('contador_cedula', '')
+        revisor_fiscal_name = cert_data.get('revisor_fiscal_name', '')
+        revisor_fiscal_cedula = cert_data.get('revisor_fiscal_cedula', '')
+
+        # Normalize registered professional names
+        normalized_contador = self.normalizer.normalize_person_name(contador_name) if contador_name else ''
+        normalized_revisor = self.normalizer.normalize_person_name(revisor_fiscal_name) if revisor_fiscal_name else ''
+        normalized_contador_id = self._normalize_id(contador_cedula) if contador_cedula else ''
+        normalized_revisor_id = self._normalize_id(revisor_fiscal_cedula) if revisor_fiscal_cedula else ''
+
+        # Check if we have any registered professionals to validate against
+        has_registered_professionals = bool(normalized_contador or normalized_revisor)
+
+        # Process both current and prior financial statements
+        for fs_type, fs_data in [
+            ('financial_statement_current', fs_current),
+            ('financial_statement_prior', fs_prior)
+        ]:
+            if not fs_data:
+                continue
+
+            # Extract signatory and auditor from financial statement
+            signatory_name = fs_data.get('signatory_name', '')
+            signatory_id = fs_data.get('signatory_id', '')
+            auditor_name = fs_data.get('auditor_name', '')
+            auditor_license = fs_data.get('auditor_license', '')
+
+            # Skip if no signatory/auditor info in this statement
+            if not signatory_name and not auditor_name:
+                continue
+
+            # Build documents compared list
+            documents_compared = [fs_type]
+            if cert_data:
+                documents_compared.append('certificado_existencia')
+
+            # Determine which person to validate (prefer auditor_name if available, else signatory)
+            person_to_validate = auditor_name if auditor_name else signatory_name
+            person_id_to_validate = signatory_id if signatory_id else ''
+
+            if not person_to_validate:
+                continue
+
+            normalized_person = self.normalizer.normalize_person_name(person_to_validate)
+            normalized_person_id = self._normalize_id(person_id_to_validate) if person_id_to_validate else ''
+
+            # If no registered professionals in Certificado, flag as CRITICAL (cannot verify)
+            if not has_registered_professionals:
+                results.append(CrossValidationResult(
+                    validation_type=ValidationType.CONTADOR_REVISOR_FISCAL,
+                    documents_compared=documents_compared,
+                    field_compared="signatory_validation",
+                    values_found={
+                        fs_type: {
+                            'signatory_name': signatory_name,
+                            'signatory_id': signatory_id,
+                            'auditor_name': auditor_name,
+                            'auditor_license': auditor_license
+                        },
+                        'certificado_existencia': {
+                            'contador_name': contador_name,
+                            'revisor_fiscal_name': revisor_fiscal_name,
+                            'note': 'No registered contador/revisor fiscal found in certificate'
+                        }
+                    },
+                    is_discrepancy=True,
+                    severity=DiscrepancySeverity.CRITICAL,
+                    description=f"ALERTA CRÍTICA: Firmante '{person_to_validate}' en estados financieros no puede ser "
+                               f"verificado - no hay contador/revisor fiscal registrado en Certificado de Existencia",
+                    score_impact=self.SCORE_IMPACT[DiscrepancySeverity.CRITICAL]
+                ))
+                continue
+
+            # Check if the signatory matches either contador or revisor fiscal
+            matches_contador_name = normalized_contador and self._names_match(normalized_person, normalized_contador)
+            matches_revisor_name = normalized_revisor and self._names_match(normalized_person, normalized_revisor)
+            matches_any_name = matches_contador_name or matches_revisor_name
+
+            # If names match, also check IDs if available
+            if matches_any_name and normalized_person_id:
+                if matches_contador_name and normalized_contador_id:
+                    # Check contador ID
+                    if normalized_person_id != normalized_contador_id:
+                        results.append(CrossValidationResult(
+                            validation_type=ValidationType.CONTADOR_REVISOR_FISCAL,
+                            documents_compared=documents_compared,
+                            field_compared="signatory_id_validation",
+                            values_found={
+                                fs_type: {
+                                    'signatory_name': signatory_name,
+                                    'signatory_id': signatory_id
+                                },
+                                'certificado_existencia': {
+                                    'contador_name': contador_name,
+                                    'contador_cedula': contador_cedula
+                                }
+                            },
+                            is_discrepancy=True,
+                            severity=DiscrepancySeverity.MEDIUM,
+                            description=f"Discrepancia de cédula: Firmante '{person_to_validate}' tiene cédula "
+                                       f"'{signatory_id}' pero contador registrado tiene '{contador_cedula}'",
+                            score_impact=self.SCORE_IMPACT[DiscrepancySeverity.MEDIUM]
+                        ))
+                        continue
+                elif matches_revisor_name and normalized_revisor_id:
+                    # Check revisor fiscal ID
+                    if normalized_person_id != normalized_revisor_id:
+                        results.append(CrossValidationResult(
+                            validation_type=ValidationType.CONTADOR_REVISOR_FISCAL,
+                            documents_compared=documents_compared,
+                            field_compared="signatory_id_validation",
+                            values_found={
+                                fs_type: {
+                                    'signatory_name': signatory_name,
+                                    'signatory_id': signatory_id
+                                },
+                                'certificado_existencia': {
+                                    'revisor_fiscal_name': revisor_fiscal_name,
+                                    'revisor_fiscal_cedula': revisor_fiscal_cedula
+                                }
+                            },
+                            is_discrepancy=True,
+                            severity=DiscrepancySeverity.MEDIUM,
+                            description=f"Discrepancia de cédula: Firmante '{person_to_validate}' tiene cédula "
+                                       f"'{signatory_id}' pero revisor fiscal registrado tiene '{revisor_fiscal_cedula}'",
+                            score_impact=self.SCORE_IMPACT[DiscrepancySeverity.MEDIUM]
+                        ))
+                        continue
+
+            # Build values_found for the result
+            values_found = {
+                fs_type: {
+                    'signatory_name': signatory_name,
+                    'signatory_id': signatory_id,
+                    'auditor_name': auditor_name,
+                    'auditor_license': auditor_license
+                },
+                'certificado_existencia': {
+                    'contador_name': contador_name,
+                    'contador_cedula': contador_cedula,
+                    'revisor_fiscal_name': revisor_fiscal_name,
+                    'revisor_fiscal_cedula': revisor_fiscal_cedula
+                }
+            }
+
+            if matches_any_name:
+                # Verified match
+                matched_role = "contador" if matches_contador_name else "revisor fiscal"
+                results.append(CrossValidationResult(
+                    validation_type=ValidationType.CONTADOR_REVISOR_FISCAL,
+                    documents_compared=documents_compared,
+                    field_compared="signatory_validation",
+                    values_found=values_found,
+                    is_discrepancy=False,
+                    severity=None,
+                    description=f"Firmante '{person_to_validate}' verificado como {matched_role} registrado",
+                    score_impact=Decimal('0')
+                ))
+            else:
+                # Name does not match any registered professional - HIGH severity
+                registered_professionals = []
+                if contador_name:
+                    registered_professionals.append(f"Contador: {contador_name}")
+                if revisor_fiscal_name:
+                    registered_professionals.append(f"Revisor Fiscal: {revisor_fiscal_name}")
+
+                results.append(CrossValidationResult(
+                    validation_type=ValidationType.CONTADOR_REVISOR_FISCAL,
+                    documents_compared=documents_compared,
+                    field_compared="signatory_validation",
+                    values_found=values_found,
+                    is_discrepancy=True,
+                    severity=DiscrepancySeverity.HIGH,
+                    description=f"ALERTA: Firmante '{person_to_validate}' no coincide con profesionales registrados. "
+                               f"Registrados: {', '.join(registered_professionals)}",
+                    score_impact=self.SCORE_IMPACT[DiscrepancySeverity.HIGH]
+                ))
+
+        return results
 
     def calculate_total_score_impact(
         self,

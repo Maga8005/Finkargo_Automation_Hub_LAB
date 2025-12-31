@@ -441,3 +441,247 @@ class TestEdgeCases:
         # Should not crash
         result = fraud_service._is_similar_name(long_name, "SHORT")
         assert result is False  # Very different
+
+
+class TestContadorRevisorFiscalValidation:
+    """Test contador/revisor fiscal cross-validation"""
+
+    @pytest.fixture
+    def cross_validation_service(self):
+        """Create CrossValidationService for testing"""
+        from src.core.servicios.risk.cross_validation_service import CrossValidationService
+        return CrossValidationService()
+
+    def test_contador_revisor_fiscal_verified_match(self, cross_validation_service):
+        """Test that matching contador/signatory produces INFO (verified) result"""
+        from src.interface.risk_dtos import DocumentType, ValidationType
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': 'JUAN CARLOS PEREZ GARCIA',
+                'contador_cedula': '12345678',
+                'revisor_fiscal_name': 'MARIA LOPEZ RODRIGUEZ',
+                'revisor_fiscal_cedula': '87654321'
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'JUAN CARLOS PEREZ GARCIA',
+                'signatory_id': '',
+                'auditor_name': '',
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        # Find the validation result for current statement
+        current_result = next(
+            (r for r in results if 'financial_statement_current' in r.documents_compared),
+            None
+        )
+        assert current_result is not None
+        assert current_result.validation_type == ValidationType.CONTADOR_REVISOR_FISCAL
+        assert current_result.is_discrepancy is False
+        assert current_result.score_impact == Decimal('0')
+        assert 'verificado' in current_result.description.lower()
+
+    def test_contador_revisor_fiscal_name_mismatch(self, cross_validation_service):
+        """Test that mismatched names produce HIGH severity discrepancy"""
+        from src.interface.risk_dtos import DocumentType, ValidationType, DiscrepancySeverity
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': 'JUAN CARLOS PEREZ GARCIA',
+                'contador_cedula': '12345678',
+                'revisor_fiscal_name': 'MARIA LOPEZ RODRIGUEZ',
+                'revisor_fiscal_cedula': '87654321'
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'PEDRO ALFONSO MARTINEZ',  # Different person
+                'signatory_id': '99999999',
+                'auditor_name': '',
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        current_result = next(
+            (r for r in results if 'financial_statement_current' in r.documents_compared),
+            None
+        )
+        assert current_result is not None
+        assert current_result.validation_type == ValidationType.CONTADOR_REVISOR_FISCAL
+        assert current_result.is_discrepancy is True
+        assert current_result.severity == DiscrepancySeverity.HIGH
+        assert 'no coincide' in current_result.description.lower()
+
+    def test_contador_revisor_fiscal_cedula_mismatch(self, cross_validation_service):
+        """Test that matching name but different cedula produces MEDIUM severity"""
+        from src.interface.risk_dtos import DocumentType, ValidationType, DiscrepancySeverity
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': 'JUAN CARLOS PEREZ GARCIA',
+                'contador_cedula': '12345678',
+                'revisor_fiscal_name': '',
+                'revisor_fiscal_cedula': ''
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'JUAN CARLOS PEREZ GARCIA',  # Same name
+                'signatory_id': '99999999',  # Different cedula
+                'auditor_name': '',
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        current_result = next(
+            (r for r in results if 'financial_statement_current' in r.documents_compared),
+            None
+        )
+        assert current_result is not None
+        assert current_result.validation_type == ValidationType.CONTADOR_REVISOR_FISCAL
+        assert current_result.is_discrepancy is True
+        assert current_result.severity == DiscrepancySeverity.MEDIUM
+        assert 'cédula' in current_result.description.lower()
+
+    def test_contador_revisor_fiscal_not_found_critical(self, cross_validation_service):
+        """Test that signatory not in certificate produces CRITICAL severity"""
+        from src.interface.risk_dtos import DocumentType, ValidationType, DiscrepancySeverity
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': '',  # No contador registered
+                'contador_cedula': '',
+                'revisor_fiscal_name': '',  # No revisor fiscal registered
+                'revisor_fiscal_cedula': ''
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'JUAN CARLOS PEREZ GARCIA',
+                'signatory_id': '12345678',
+                'auditor_name': '',
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        current_result = next(
+            (r for r in results if 'financial_statement_current' in r.documents_compared),
+            None
+        )
+        assert current_result is not None
+        assert current_result.validation_type == ValidationType.CONTADOR_REVISOR_FISCAL
+        assert current_result.is_discrepancy is True
+        assert current_result.severity == DiscrepancySeverity.CRITICAL
+        assert 'no puede ser verificado' in current_result.description.lower()
+
+    def test_contador_revisor_fiscal_missing_data_graceful(self, cross_validation_service):
+        """Test graceful handling when no signatory info in financial statement"""
+        from src.interface.risk_dtos import DocumentType
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': 'JUAN CARLOS PEREZ GARCIA',
+                'contador_cedula': '12345678',
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': '',  # No signatory
+                'auditor_name': '',  # No auditor
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        # Should return empty list since there's nothing to validate
+        assert len(results) == 0
+
+    def test_contador_revisor_fiscal_fuzzy_name_match(self, cross_validation_service):
+        """Test that name variations still match (fuzzy matching)"""
+        from src.interface.risk_dtos import DocumentType, ValidationType
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': 'JUAN CARLOS PEREZ GARCIA',
+                'contador_cedula': '12345678',
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                # Same name but different order (common in Colombian documents)
+                'signatory_name': 'PEREZ GARCIA JUAN CARLOS',
+                'signatory_id': '',
+                'auditor_name': '',
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        current_result = next(
+            (r for r in results if 'financial_statement_current' in r.documents_compared),
+            None
+        )
+        assert current_result is not None
+        # Should match due to fuzzy matching (same tokens, different order)
+        assert current_result.is_discrepancy is False
+
+    def test_contador_revisor_fiscal_both_statements(self, cross_validation_service):
+        """Test validation runs for both current and prior financial statements"""
+        from src.interface.risk_dtos import DocumentType
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': 'JUAN CARLOS PEREZ GARCIA',
+                'contador_cedula': '12345678',
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'JUAN CARLOS PEREZ GARCIA',
+                'fiscal_year': 2024
+            },
+            DocumentType.FINANCIAL_STATEMENT_PRIOR: {
+                'signatory_name': 'JUAN CARLOS PEREZ GARCIA',
+                'fiscal_year': 2023
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        # Should have results for both statements
+        assert len(results) == 2
+
+        current_docs = [r.documents_compared for r in results]
+        has_current = any('financial_statement_current' in docs for docs in current_docs)
+        has_prior = any('financial_statement_prior' in docs for docs in current_docs)
+
+        assert has_current
+        assert has_prior
+
+    def test_contador_revisor_fiscal_auditor_preferred_over_signatory(self, cross_validation_service):
+        """Test that auditor_name is validated if present, falling back to signatory"""
+        from src.interface.risk_dtos import DocumentType
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': 'CONTADOR NOMBRE',
+                'revisor_fiscal_name': 'AUDITOR PROFESIONAL',
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'REPRESENTANTE LEGAL',  # This should be ignored
+                'auditor_name': 'AUDITOR PROFESIONAL',  # This matches revisor fiscal
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        current_result = results[0]
+        # Should match revisor fiscal (auditor_name is preferred)
+        assert current_result.is_discrepancy is False
+        assert 'revisor fiscal' in current_result.description.lower()
