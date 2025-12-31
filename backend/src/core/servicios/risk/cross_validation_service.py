@@ -1301,6 +1301,16 @@ class CrossValidationService:
         if tokens1 == tokens2:
             return True
 
+        # Check for partial token overlap (handles name variations between documents)
+        # Example: "LAIS MILENA LOBO" (3 tokens) vs "LOBO BARROS LAIS MILENA" (4 tokens)
+        # Common tokens: {LAIS, MILENA, LOBO} = 3, smaller set size = 3, overlap = 100% = match
+        common_tokens = tokens1 & tokens2
+        min_tokens = min(len(tokens1), len(tokens2))
+        if min_tokens > 0:
+            overlap_ratio = len(common_tokens) / min_tokens
+            if overlap_ratio >= 0.75:  # 75% of smaller set must match
+                return True
+
         # Fuzzy matching for spelling variations
         similarity = SequenceMatcher(None, name1, name2).ratio()
         return similarity >= threshold

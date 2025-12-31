@@ -882,3 +882,52 @@ class TestContadorRevisorFiscalValidation:
         assert current_result.is_discrepancy is True
         assert current_result.severity == DiscrepancySeverity.MEDIUM
         assert 'suplente' in current_result.description.lower()
+
+    def test_contador_revisor_fiscal_partial_name_match(self, cross_validation_service):
+        """Test partial name matching for RUT name order variations.
+
+        Scenario: Global Imports Latam SAS case
+        - RUT shows: "LOBO BARROS LAIS MILENA" (lastname1 lastname2 firstname1 firstname2)
+        - Financial statement shows: "LAIS MILENA LOBO" (firstname1 firstname2 lastname1)
+        - Expected: Match (INFO, not HIGH severity)
+
+        This handles Colombian document conventions where RUT uses full name with
+        both lastnames, while financial statements may only show partial names.
+        """
+        from src.interface.risk_dtos import DocumentType, ValidationType
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': '',  # Empty in certificate
+                'revisor_fiscal_name': '',
+            },
+            DocumentType.RUT: {
+                'contador_name': 'LOBO BARROS LAIS MILENA',  # RUT format: lastname1 lastname2 firstname1 firstname2
+                'contador_cedula': '52436789',
+                'revisor_fiscal_principal_name': '',
+                'revisor_fiscal_suplente_name': '',
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'LAIS MILENA LOBO',  # Financial statement: firstname1 firstname2 lastname1 (no lastname2)
+                'signatory_id': '52436789',
+                'auditor_name': '',
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        current_result = next(
+            (r for r in results if 'financial_statement_current' in r.documents_compared),
+            None
+        )
+        assert current_result is not None
+        assert current_result.validation_type == ValidationType.CONTADOR_REVISOR_FISCAL
+        # The key assertion: partial name match should NOT be a discrepancy
+        assert current_result.is_discrepancy is False, (
+            f"Expected match for partial name overlap (LOBO BARROS LAIS MILENA vs LAIS MILENA LOBO), "
+            f"but got discrepancy: {current_result.description}"
+        )
+        assert current_result.score_impact == Decimal('0')
+        assert 'verificado' in current_result.description.lower()
