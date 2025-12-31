@@ -331,7 +331,8 @@ export type ValidationType =
   | 'provider_domain'
   | 'address'
   | 'domain_existence'
-  | 'domain_age';
+  | 'domain_age'
+  | 'contador_revisor_fiscal';
 
 export type DiscrepancySeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
@@ -506,6 +507,7 @@ export const VALIDATION_TYPE_LABELS: Record<ValidationType, string> = {
   address: 'Dirección',
   domain_existence: 'Existencia de Dominio',
   domain_age: 'Antigüedad de Dominio',
+  contador_revisor_fiscal: 'Contador/Revisor Fiscal',
 };
 
 // ==================== External Contact Types ====================

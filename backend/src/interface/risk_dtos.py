@@ -412,6 +412,7 @@ class ValidationType(str, Enum):
     ADDRESS = "address"
     DOMAIN_EXISTENCE = "domain_existence"  # DNS lookup validation
     DOMAIN_AGE = "domain_age"  # WHOIS domain age validation
+    CONTADOR_REVISOR_FISCAL = "contador_revisor_fiscal"  # Contador/Revisor fiscal validation
 
 
 class DocumentUploadResponse(BaseModel):

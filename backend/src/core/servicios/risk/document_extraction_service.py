@@ -34,7 +34,20 @@ EXTRACTION_SCHEMAS = {
             "revenue": {"type": ["number", "null"], "description": "Total revenue/sales"},
             "signatory_name": {"type": ["string", "null"], "description": "Name of person who signed"},
             "signatory_id": {"type": ["string", "null"], "description": "ID of signatory"},
-            "signatory_role": {"type": ["string", "null"], "description": "Role of signatory"}
+            "signatory_role": {"type": ["string", "null"], "description": "Role of signatory"},
+            "signatories": {
+                "type": "array",
+                "description": "List of all signatories who signed the financial statement (Representante Legal, Contador, Revisor Fiscal, etc.)",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Name of the signatory"},
+                        "id": {"type": ["string", "null"], "description": "ID/cedula of the signatory"},
+                        "role": {"type": ["string", "null"], "description": "Role of the signatory (Representante Legal, Contador, Revisor Fiscal, etc.)"}
+                    },
+                    "required": ["name"]
+                }
+            }
         },
         "required": ["company_name", "nit", "fiscal_year"]
     },
@@ -55,7 +68,20 @@ EXTRACTION_SCHEMAS = {
             "revenue": {"type": ["number", "null"], "description": "Total revenue/sales"},
             "signatory_name": {"type": ["string", "null"], "description": "Name of person who signed"},
             "signatory_id": {"type": ["string", "null"], "description": "ID of signatory"},
-            "signatory_role": {"type": ["string", "null"], "description": "Role of signatory"}
+            "signatory_role": {"type": ["string", "null"], "description": "Role of signatory"},
+            "signatories": {
+                "type": "array",
+                "description": "List of all signatories who signed the financial statement (Representante Legal, Contador, Revisor Fiscal, etc.)",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Name of the signatory"},
+                        "id": {"type": ["string", "null"], "description": "ID/cedula of the signatory"},
+                        "role": {"type": ["string", "null"], "description": "Role of the signatory (Representante Legal, Contador, Revisor Fiscal, etc.)"}
+                    },
+                    "required": ["name"]
+                }
+            }
         },
         "required": ["company_name", "nit", "fiscal_year"]
     },
@@ -134,7 +160,14 @@ EXTRACTION_SCHEMAS = {
                 }
             },
             "registration_date": {"type": ["string", "null"], "description": "RUT registration date"},
-            "last_update_date": {"type": ["string", "null"], "description": "Last RUT update date"}
+            "last_update_date": {"type": ["string", "null"], "description": "Last RUT update date"},
+            "contador_name": {"type": ["string", "null"], "description": "Full name of contador (accountant) constructed from fields 152-155: primer apellido, segundo apellido, primer nombre, otros nombres"},
+            "contador_cedula": {"type": ["string", "null"], "description": "Contador ID number (cédula) from field 149"},
+            "contador_license": {"type": ["string", "null"], "description": "Contador professional license (tarjeta profesional) if available"},
+            "revisor_fiscal_principal_name": {"type": ["string", "null"], "description": "Full name of Revisor Fiscal Principal constructed from fields 128-131"},
+            "revisor_fiscal_principal_cedula": {"type": ["string", "null"], "description": "Revisor Fiscal Principal ID number (cédula) from field 125"},
+            "revisor_fiscal_suplente_name": {"type": ["string", "null"], "description": "Full name of Revisor Fiscal Suplente constructed from fields 140-143"},
+            "revisor_fiscal_suplente_cedula": {"type": ["string", "null"], "description": "Revisor Fiscal Suplente ID number (cédula) from field 137"}
         },
         "required": ["company_name", "nit", "legal_representative_name", "legal_representative_id"]
     },
@@ -182,7 +215,13 @@ EXTRACTION_SCHEMAS = {
                         "position": {"type": ["string", "null"]}
                     }
                 }
-            }
+            },
+            "contador_name": {"type": ["string", "null"], "description": "Name of registered contador (accountant)"},
+            "contador_cedula": {"type": ["string", "null"], "description": "Cedula of registered contador"},
+            "contador_license": {"type": ["string", "null"], "description": "Professional license (tarjeta profesional) of contador"},
+            "revisor_fiscal_name": {"type": ["string", "null"], "description": "Name of registered revisor fiscal (fiscal auditor)"},
+            "revisor_fiscal_cedula": {"type": ["string", "null"], "description": "Cedula of revisor fiscal"},
+            "revisor_fiscal_license": {"type": ["string", "null"], "description": "Professional license of revisor fiscal"}
         },
         "required": ["company_name", "nit", "legal_representative_name", "legal_representative_id"]
     }

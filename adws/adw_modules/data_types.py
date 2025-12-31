@@ -33,6 +33,7 @@ SlashCommand = Literal[
     "/pull_request",
     "/implement",
     "/test",
+    "/test_api",
     "/resolve_failed_test",
     "/test_e2e",
     "/resolve_failed_e2e_test",

@@ -64,3 +64,11 @@ This prompt helps you determine what documentation you should read based on the 
     - When implementing NetSuite file processing for PA accounts
     - When troubleshooting PA classification or homologation logic
     - When working with finance_admin role or PA-related RBAC
+
+- app_docs/feature-b0a5e4a8-contador-revisor-fiscal-validation.md
+  - Conditions:
+    - When working with contador or revisor fiscal validation
+    - When implementing signatory verification in financial statements
+    - When modifying cross-validation logic for professional credentials
+    - When working with Certificado de Existencia extraction fields
+    - When troubleshooting financial statement signatory mismatches
