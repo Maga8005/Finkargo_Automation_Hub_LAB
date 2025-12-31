@@ -685,3 +685,198 @@ class TestContadorRevisorFiscalValidation:
         # Should match revisor fiscal (auditor_name is preferred)
         assert current_result.is_discrepancy is False
         assert 'revisor fiscal' in current_result.description.lower()
+
+    def test_contador_revisor_fiscal_from_rut_when_cert_empty(self, cross_validation_service):
+        """Test that contador/revisor fiscal is extracted from RUT when Certificado has no data.
+
+        This is the key case for IMPORTADORA MULTIVALVULAS S.A.S. where the Certificado
+        de Existencia has no contador/revisor fiscal info but the RUT does.
+        """
+        from src.interface.risk_dtos import DocumentType, ValidationType
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'company_name': 'IMPORTADORA MULTIVALVULAS S.A.S.',
+                'nit': '900123456-7',
+                'contador_name': '',  # Empty in certificate
+                'contador_cedula': '',
+                'revisor_fiscal_name': '',  # Empty in certificate
+                'revisor_fiscal_cedula': ''
+            },
+            DocumentType.RUT: {
+                'company_name': 'IMPORTADORA MULTIVALVULAS S.A.S.',
+                'nit': '900123456-7',
+                'contador_name': 'JUAN CARLOS PEREZ GARCIA',  # Available in RUT
+                'contador_cedula': '12345678',
+                'revisor_fiscal_principal_name': '',  # RF fields blank for this company
+                'revisor_fiscal_principal_cedula': '',
+                'revisor_fiscal_suplente_name': '',
+                'revisor_fiscal_suplente_cedula': ''
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'JUAN CARLOS PEREZ GARCIA',
+                'signatory_id': '12345678',
+                'auditor_name': '',
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        current_result = next(
+            (r for r in results if 'financial_statement_current' in r.documents_compared),
+            None
+        )
+        assert current_result is not None
+        assert current_result.validation_type == ValidationType.CONTADOR_REVISOR_FISCAL
+        assert current_result.is_discrepancy is False
+        assert current_result.score_impact == Decimal('0')
+        # Should indicate RUT as source
+        assert 'rut' in current_result.documents_compared
+        assert 'RUT' in current_result.description
+
+    def test_contador_revisor_fiscal_cert_takes_precedence_over_rut(self, cross_validation_service):
+        """Test that Certificado data takes precedence when both sources have data."""
+        from src.interface.risk_dtos import DocumentType, ValidationType
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': 'MARIA LOPEZ RODRIGUEZ',  # Different from RUT
+                'contador_cedula': '87654321',
+                'revisor_fiscal_name': '',
+                'revisor_fiscal_cedula': ''
+            },
+            DocumentType.RUT: {
+                'contador_name': 'JUAN CARLOS PEREZ GARCIA',  # Different from Cert
+                'contador_cedula': '12345678',
+                'revisor_fiscal_principal_name': '',
+                'revisor_fiscal_principal_cedula': '',
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'MARIA LOPEZ RODRIGUEZ',  # Matches Certificado
+                'signatory_id': '',
+                'auditor_name': '',
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        current_result = next(
+            (r for r in results if 'financial_statement_current' in r.documents_compared),
+            None
+        )
+        assert current_result is not None
+        # Should verify against Certificado (precedence)
+        assert current_result.is_discrepancy is False
+        assert 'Certificado de Existencia' in current_result.description
+
+    def test_contador_revisor_fiscal_rut_revisor_suplente_validation(self, cross_validation_service):
+        """Test that Revisor Fiscal Suplente from RUT is considered in validation."""
+        from src.interface.risk_dtos import DocumentType, ValidationType
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': '',  # Empty
+                'revisor_fiscal_name': '',  # Empty
+            },
+            DocumentType.RUT: {
+                'contador_name': 'JUAN CARLOS PEREZ',
+                'contador_cedula': '12345678',
+                'revisor_fiscal_principal_name': 'MARIA LOPEZ',
+                'revisor_fiscal_principal_cedula': '87654321',
+                'revisor_fiscal_suplente_name': 'PEDRO MARTINEZ GARCIA',  # Suplente
+                'revisor_fiscal_suplente_cedula': '11111111',
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'PEDRO MARTINEZ GARCIA',  # Matches suplente
+                'signatory_id': '11111111',
+                'auditor_name': '',
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        current_result = next(
+            (r for r in results if 'financial_statement_current' in r.documents_compared),
+            None
+        )
+        assert current_result is not None
+        # Should verify against RUT suplente
+        assert current_result.is_discrepancy is False
+        assert 'revisor fiscal suplente' in current_result.description.lower()
+        assert 'rut' in current_result.documents_compared
+
+    def test_contador_revisor_fiscal_rut_revisor_principal_fallback(self, cross_validation_service):
+        """Test that Revisor Fiscal Principal from RUT is used when Cert is empty."""
+        from src.interface.risk_dtos import DocumentType, ValidationType
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': '',
+                'revisor_fiscal_name': '',  # Empty in cert
+            },
+            DocumentType.RUT: {
+                'contador_name': '',
+                'revisor_fiscal_principal_name': 'ANA MARIA GONZALEZ',  # Principal in RUT
+                'revisor_fiscal_principal_cedula': '22222222',
+                'revisor_fiscal_suplente_name': '',
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'ANA MARIA GONZALEZ',  # Matches RUT principal
+                'signatory_id': '',
+                'auditor_name': '',
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        current_result = next(
+            (r for r in results if 'financial_statement_current' in r.documents_compared),
+            None
+        )
+        assert current_result is not None
+        assert current_result.is_discrepancy is False
+        assert 'RUT' in current_result.description
+        assert 'rut' in current_result.documents_compared
+
+    def test_contador_revisor_fiscal_rut_suplente_cedula_mismatch(self, cross_validation_service):
+        """Test that mismatched cedula for revisor suplente produces MEDIUM severity."""
+        from src.interface.risk_dtos import DocumentType, DiscrepancySeverity
+
+        extractions = {
+            DocumentType.CERTIFICADO_EXISTENCIA: {
+                'contador_name': '',
+                'revisor_fiscal_name': '',
+            },
+            DocumentType.RUT: {
+                'contador_name': '',
+                'revisor_fiscal_principal_name': '',
+                'revisor_fiscal_suplente_name': 'PEDRO MARTINEZ GARCIA',
+                'revisor_fiscal_suplente_cedula': '11111111',
+            },
+            DocumentType.FINANCIAL_STATEMENT_CURRENT: {
+                'signatory_name': 'PEDRO MARTINEZ GARCIA',  # Same name
+                'signatory_id': '99999999',  # Different cedula
+                'auditor_name': '',
+                'fiscal_year': 2024
+            }
+        }
+
+        results = cross_validation_service._validate_contador_revisor_fiscal(extractions)
+
+        assert len(results) >= 1
+        current_result = next(
+            (r for r in results if 'financial_statement_current' in r.documents_compared),
+            None
+        )
+        assert current_result is not None
+        assert current_result.is_discrepancy is True
+        assert current_result.severity == DiscrepancySeverity.MEDIUM
+        assert 'suplente' in current_result.description.lower()

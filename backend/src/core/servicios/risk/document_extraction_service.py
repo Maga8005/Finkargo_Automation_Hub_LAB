@@ -134,7 +134,14 @@ EXTRACTION_SCHEMAS = {
                 }
             },
             "registration_date": {"type": ["string", "null"], "description": "RUT registration date"},
-            "last_update_date": {"type": ["string", "null"], "description": "Last RUT update date"}
+            "last_update_date": {"type": ["string", "null"], "description": "Last RUT update date"},
+            "contador_name": {"type": ["string", "null"], "description": "Full name of contador (accountant) constructed from fields 152-155: primer apellido, segundo apellido, primer nombre, otros nombres"},
+            "contador_cedula": {"type": ["string", "null"], "description": "Contador ID number (cédula) from field 149"},
+            "contador_license": {"type": ["string", "null"], "description": "Contador professional license (tarjeta profesional) if available"},
+            "revisor_fiscal_principal_name": {"type": ["string", "null"], "description": "Full name of Revisor Fiscal Principal constructed from fields 128-131"},
+            "revisor_fiscal_principal_cedula": {"type": ["string", "null"], "description": "Revisor Fiscal Principal ID number (cédula) from field 125"},
+            "revisor_fiscal_suplente_name": {"type": ["string", "null"], "description": "Full name of Revisor Fiscal Suplente constructed from fields 140-143"},
+            "revisor_fiscal_suplente_cedula": {"type": ["string", "null"], "description": "Revisor Fiscal Suplente ID number (cédula) from field 137"}
         },
         "required": ["company_name", "nit", "legal_representative_name", "legal_representative_id"]
     },

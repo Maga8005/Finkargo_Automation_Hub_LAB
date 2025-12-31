@@ -1000,7 +1000,10 @@ class CrossValidationService:
         Validate contador/revisor fiscal credentials across documents.
 
         Compares the signatory/auditor in financial statements against the
-        contador/revisor fiscal registered in Certificado de Existencia.
+        contador/revisor fiscal registered in Certificado de Existencia OR RUT.
+
+        RUT is used as a fallback source when Certificado de Existencia lacks
+        contador/revisor fiscal information (common for some company types).
 
         This helps detect:
         - Fraudulent financial statements with fake professional signatures
@@ -1015,27 +1018,42 @@ class CrossValidationService:
         """
         results = []
 
-        # Get Certificado de Existencia data (source of truth for registered professionals)
+        # Get Certificado de Existencia data (primary source for registered professionals)
         cert_data = extractions.get(DocumentType.CERTIFICADO_EXISTENCIA, {}) or {}
+
+        # Get RUT data as fallback source for contador/revisor fiscal
+        rut_data = extractions.get(DocumentType.RUT, {}) or {}
 
         # Get Financial Statement data (signatory to validate)
         fs_current = extractions.get(DocumentType.FINANCIAL_STATEMENT_CURRENT, {}) or {}
         fs_prior = extractions.get(DocumentType.FINANCIAL_STATEMENT_PRIOR, {}) or {}
 
-        # Extract registered contador/revisor fiscal from Certificado
-        contador_name = cert_data.get('contador_name', '')
-        contador_cedula = cert_data.get('contador_cedula', '')
-        revisor_fiscal_name = cert_data.get('revisor_fiscal_name', '')
-        revisor_fiscal_cedula = cert_data.get('revisor_fiscal_cedula', '')
+        # Extract registered contador/revisor fiscal - prefer Certificado, fallback to RUT
+        contador_name = cert_data.get('contador_name', '') or rut_data.get('contador_name', '')
+        contador_cedula = cert_data.get('contador_cedula', '') or rut_data.get('contador_cedula', '')
+
+        # For revisor fiscal, prefer Certificado, fallback to RUT principal revisor fiscal
+        revisor_fiscal_name = cert_data.get('revisor_fiscal_name', '') or rut_data.get('revisor_fiscal_principal_name', '')
+        revisor_fiscal_cedula = cert_data.get('revisor_fiscal_cedula', '') or rut_data.get('revisor_fiscal_principal_cedula', '')
+
+        # Also track revisor fiscal suplente from RUT (additional validation source)
+        revisor_fiscal_suplente_name = rut_data.get('revisor_fiscal_suplente_name', '')
+        revisor_fiscal_suplente_cedula = rut_data.get('revisor_fiscal_suplente_cedula', '')
+
+        # Track data source for description messages
+        contador_source = 'Certificado de Existencia' if cert_data.get('contador_name', '') else ('RUT' if rut_data.get('contador_name', '') else None)
+        revisor_source = 'Certificado de Existencia' if cert_data.get('revisor_fiscal_name', '') else ('RUT' if rut_data.get('revisor_fiscal_principal_name', '') else None)
 
         # Normalize registered professional names
         normalized_contador = self.normalizer.normalize_person_name(contador_name) if contador_name else ''
         normalized_revisor = self.normalizer.normalize_person_name(revisor_fiscal_name) if revisor_fiscal_name else ''
+        normalized_revisor_suplente = self.normalizer.normalize_person_name(revisor_fiscal_suplente_name) if revisor_fiscal_suplente_name else ''
         normalized_contador_id = self._normalize_id(contador_cedula) if contador_cedula else ''
         normalized_revisor_id = self._normalize_id(revisor_fiscal_cedula) if revisor_fiscal_cedula else ''
+        normalized_revisor_suplente_id = self._normalize_id(revisor_fiscal_suplente_cedula) if revisor_fiscal_suplente_cedula else ''
 
-        # Check if we have any registered professionals to validate against
-        has_registered_professionals = bool(normalized_contador or normalized_revisor)
+        # Check if we have any registered professionals to validate against (from any source)
+        has_registered_professionals = bool(normalized_contador or normalized_revisor or normalized_revisor_suplente)
 
         # Process both current and prior financial statements
         for fs_type, fs_data in [
@@ -1055,10 +1073,13 @@ class CrossValidationService:
             if not signatory_name and not auditor_name:
                 continue
 
-            # Build documents compared list
+            # Build documents compared list - include sources that provided data
             documents_compared = [fs_type]
-            if cert_data:
+            if contador_source == 'Certificado de Existencia' or revisor_source == 'Certificado de Existencia':
                 documents_compared.append('certificado_existencia')
+            if contador_source == 'RUT' or revisor_source == 'RUT' or normalized_revisor_suplente:
+                if 'rut' not in documents_compared:
+                    documents_compared.append('rut')
 
             # Determine which person to validate (prefer auditor_name if available, else signatory)
             person_to_validate = auditor_name if auditor_name else signatory_name
@@ -1097,10 +1118,11 @@ class CrossValidationService:
                 ))
                 continue
 
-            # Check if the signatory matches either contador or revisor fiscal
+            # Check if the signatory matches contador, revisor fiscal principal, or revisor fiscal suplente
             matches_contador_name = normalized_contador and self._names_match(normalized_person, normalized_contador)
             matches_revisor_name = normalized_revisor and self._names_match(normalized_person, normalized_revisor)
-            matches_any_name = matches_contador_name or matches_revisor_name
+            matches_revisor_suplente_name = normalized_revisor_suplente and self._names_match(normalized_person, normalized_revisor_suplente)
+            matches_any_name = matches_contador_name or matches_revisor_name or matches_revisor_suplente_name
 
             # If names match, also check IDs if available
             if matches_any_name and normalized_person_id:
@@ -1129,7 +1151,7 @@ class CrossValidationService:
                         ))
                         continue
                 elif matches_revisor_name and normalized_revisor_id:
-                    # Check revisor fiscal ID
+                    # Check revisor fiscal principal ID
                     if normalized_person_id != normalized_revisor_id:
                         results.append(CrossValidationResult(
                             validation_type=ValidationType.CONTADOR_REVISOR_FISCAL,
@@ -1140,10 +1162,9 @@ class CrossValidationService:
                                     'signatory_name': signatory_name,
                                     'signatory_id': signatory_id
                                 },
-                                'certificado_existencia': {
-                                    'revisor_fiscal_name': revisor_fiscal_name,
-                                    'revisor_fiscal_cedula': revisor_fiscal_cedula
-                                }
+                                'source': revisor_source or 'Certificado de Existencia',
+                                'revisor_fiscal_name': revisor_fiscal_name,
+                                'revisor_fiscal_cedula': revisor_fiscal_cedula
                             },
                             is_discrepancy=True,
                             severity=DiscrepancySeverity.MEDIUM,
@@ -1152,26 +1173,71 @@ class CrossValidationService:
                             score_impact=self.SCORE_IMPACT[DiscrepancySeverity.MEDIUM]
                         ))
                         continue
+                elif matches_revisor_suplente_name and normalized_revisor_suplente_id:
+                    # Check revisor fiscal suplente ID (from RUT)
+                    if normalized_person_id != normalized_revisor_suplente_id:
+                        results.append(CrossValidationResult(
+                            validation_type=ValidationType.CONTADOR_REVISOR_FISCAL,
+                            documents_compared=documents_compared,
+                            field_compared="signatory_id_validation",
+                            values_found={
+                                fs_type: {
+                                    'signatory_name': signatory_name,
+                                    'signatory_id': signatory_id
+                                },
+                                'source': 'RUT',
+                                'revisor_fiscal_suplente_name': revisor_fiscal_suplente_name,
+                                'revisor_fiscal_suplente_cedula': revisor_fiscal_suplente_cedula
+                            },
+                            is_discrepancy=True,
+                            severity=DiscrepancySeverity.MEDIUM,
+                            description=f"Discrepancia de cédula: Firmante '{person_to_validate}' tiene cédula "
+                                       f"'{signatory_id}' pero revisor fiscal suplente registrado tiene '{revisor_fiscal_suplente_cedula}'",
+                            score_impact=self.SCORE_IMPACT[DiscrepancySeverity.MEDIUM]
+                        ))
+                        continue
 
-            # Build values_found for the result
+            # Build values_found for the result - include data from all sources
             values_found = {
                 fs_type: {
                     'signatory_name': signatory_name,
                     'signatory_id': signatory_id,
                     'auditor_name': auditor_name,
                     'auditor_license': auditor_license
-                },
-                'certificado_existencia': {
-                    'contador_name': contador_name,
-                    'contador_cedula': contador_cedula,
-                    'revisor_fiscal_name': revisor_fiscal_name,
-                    'revisor_fiscal_cedula': revisor_fiscal_cedula
                 }
             }
 
+            # Add certificado data if available
+            if cert_data.get('contador_name') or cert_data.get('revisor_fiscal_name'):
+                values_found['certificado_existencia'] = {
+                    'contador_name': cert_data.get('contador_name', ''),
+                    'contador_cedula': cert_data.get('contador_cedula', ''),
+                    'revisor_fiscal_name': cert_data.get('revisor_fiscal_name', ''),
+                    'revisor_fiscal_cedula': cert_data.get('revisor_fiscal_cedula', '')
+                }
+
+            # Add RUT data if used as source
+            if rut_data.get('contador_name') or rut_data.get('revisor_fiscal_principal_name') or rut_data.get('revisor_fiscal_suplente_name'):
+                values_found['rut'] = {
+                    'contador_name': rut_data.get('contador_name', ''),
+                    'contador_cedula': rut_data.get('contador_cedula', ''),
+                    'revisor_fiscal_principal_name': rut_data.get('revisor_fiscal_principal_name', ''),
+                    'revisor_fiscal_principal_cedula': rut_data.get('revisor_fiscal_principal_cedula', ''),
+                    'revisor_fiscal_suplente_name': rut_data.get('revisor_fiscal_suplente_name', ''),
+                    'revisor_fiscal_suplente_cedula': rut_data.get('revisor_fiscal_suplente_cedula', '')
+                }
+
             if matches_any_name:
-                # Verified match
-                matched_role = "contador" if matches_contador_name else "revisor fiscal"
+                # Verified match - determine role and source
+                if matches_contador_name:
+                    matched_role = "contador"
+                    matched_source = contador_source
+                elif matches_revisor_name:
+                    matched_role = "revisor fiscal"
+                    matched_source = revisor_source
+                else:
+                    matched_role = "revisor fiscal suplente"
+                    matched_source = "RUT"
                 results.append(CrossValidationResult(
                     validation_type=ValidationType.CONTADOR_REVISOR_FISCAL,
                     documents_compared=documents_compared,
@@ -1179,16 +1245,20 @@ class CrossValidationService:
                     values_found=values_found,
                     is_discrepancy=False,
                     severity=None,
-                    description=f"Firmante '{person_to_validate}' verificado como {matched_role} registrado",
+                    description=f"Firmante '{person_to_validate}' verificado como {matched_role} registrado (fuente: {matched_source})",
                     score_impact=Decimal('0')
                 ))
             else:
                 # Name does not match any registered professional - HIGH severity
                 registered_professionals = []
                 if contador_name:
-                    registered_professionals.append(f"Contador: {contador_name}")
+                    source_info = f" ({contador_source})" if contador_source else ""
+                    registered_professionals.append(f"Contador: {contador_name}{source_info}")
                 if revisor_fiscal_name:
-                    registered_professionals.append(f"Revisor Fiscal: {revisor_fiscal_name}")
+                    source_info = f" ({revisor_source})" if revisor_source else ""
+                    registered_professionals.append(f"Revisor Fiscal: {revisor_fiscal_name}{source_info}")
+                if revisor_fiscal_suplente_name:
+                    registered_professionals.append(f"Revisor Fiscal Suplente: {revisor_fiscal_suplente_name} (RUT)")
 
                 results.append(CrossValidationResult(
                     validation_type=ValidationType.CONTADOR_REVISOR_FISCAL,
