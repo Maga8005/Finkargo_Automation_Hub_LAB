@@ -70,6 +70,21 @@ const FIELD_LABELS: Record<string, string> = {
   // Certificado existencia
   entity_type: 'Tipo de Entidad',
   registered_capital: 'Capital Registrado',
+  // Contador (Accountant) fields
+  contador_name: 'Nombre del Contador',
+  contador_cedula: 'Cédula del Contador',
+  contador_license: 'Tarjeta Profesional Contador',
+  // Revisor Fiscal fields (Certificado de Existencia)
+  revisor_fiscal_name: 'Nombre del Revisor Fiscal',
+  revisor_fiscal_cedula: 'Cédula del Revisor Fiscal',
+  revisor_fiscal_license: 'Tarjeta Profesional Revisor Fiscal',
+  // Revisor Fiscal fields (RUT - principal and suplente)
+  revisor_fiscal_principal_name: 'Nombre del Revisor Fiscal Principal',
+  revisor_fiscal_principal_cedula: 'Cédula del Revisor Fiscal Principal',
+  revisor_fiscal_suplente_name: 'Nombre del Revisor Fiscal Suplente',
+  revisor_fiscal_suplente_cedula: 'Cédula del Revisor Fiscal Suplente',
+  // Signatories (Financial Statements)
+  signatories: 'Firmantes',
 };
 
 /**
@@ -279,6 +294,20 @@ const createDocumentSheet = (extraction: DocumentExtraction): XLSX.WorkSheet | n
     shareholders.forEach((shareholder, idx) => {
       data.push([`Accionista ${idx + 1}`, '']);
       Object.entries(shareholder).forEach(([key, value]) => {
+        data.push([`  ${getFieldLabel(key)}`, formatValueForExcel(value, key)]);
+      });
+    });
+  }
+
+  // Handle signatories array separately (expand to multiple rows) - Financial Statements
+  const signatories = extractedData.signatories as Array<Record<string, unknown>> | undefined;
+  if (signatories && Array.isArray(signatories) && signatories.length > 0) {
+    data.push(['']); // Empty row
+    data.push(['--- Firmantes ---', '']);
+
+    signatories.forEach((signatory, idx) => {
+      data.push([`Firmante ${idx + 1}`, '']);
+      Object.entries(signatory).forEach(([key, value]) => {
         data.push([`  ${getFieldLabel(key)}`, formatValueForExcel(value, key)]);
       });
     });
