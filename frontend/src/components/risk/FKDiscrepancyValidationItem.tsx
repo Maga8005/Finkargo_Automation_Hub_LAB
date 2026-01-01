@@ -19,6 +19,12 @@ import {
   Stack,
   CircularProgress,
   Tooltip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -36,6 +42,10 @@ import {
   VALIDATION_TYPE_LABELS,
   DISCREPANCY_VALIDATION_REASON_CONFIG,
 } from '../../types/risk';
+import {
+  getDocumentLabel,
+  formatValueForDisplay,
+} from './crossValidationFormatters';
 
 interface FKDiscrepancyValidationItemProps {
   result: CrossValidationResultWithValidation;
@@ -250,18 +260,39 @@ export const FKDiscrepancyValidationItem: React.FC<FKDiscrepancyValidationItemPr
           ) : (
             /* Validation Form */
             <Stack spacing={2}>
-              {/* Values Found */}
+              {/* Values Found - Table format matching FKCrossValidationResults */}
               {Object.keys(result.values_found).length > 0 && (
-                <Box sx={{ p: 1.5, bgcolor: '#F9FAFB', borderRadius: 1 }}>
-                  <Typography variant="caption" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
                     Valores encontrados:
                   </Typography>
-                  {Object.entries(result.values_found).map(([key, value]) => (
-                    <Typography key={key} variant="body2" sx={{ mb: 0.5 }}>
-                      <strong>{key}:</strong>{' '}
-                      {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                    </Typography>
-                  ))}
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Documento</TableCell>
+                          <TableCell>Valor</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {Object.entries(result.values_found).map(([key, value]) => (
+                          <TableRow key={key}>
+                            <TableCell>
+                              <Typography variant="body2">{getDocumentLabel(key)}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography
+                                variant="body2"
+                                sx={{ fontWeight: 500, whiteSpace: 'pre-line' }}
+                              >
+                                {formatValueForDisplay(value)}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 </Box>
               )}
 
