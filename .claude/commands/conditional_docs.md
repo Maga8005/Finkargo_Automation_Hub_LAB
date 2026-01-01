@@ -80,3 +80,12 @@ This prompt helps you determine what documentation you should read based on the 
     - When modifying FKCrossValidationResults or FKVerificationStatusCard components
     - When working with discrepancy_validations table or DiscrepancyValidationRepository
     - When updating cross-validation PDF export with validation status
+
+- app_docs/feature-584b6bdd-external-communication-validation-comments.md
+  - Conditions:
+    - When working with email chain validation in the Riesgos module
+    - When implementing external contact alert validation
+    - When modifying FKEmailChainUploader or FKExternalContactTab components
+    - When working with email_chain_discrepancy_validations or external_contact_validations tables
+    - When extending PDF export with external communication validation data
+    - When troubleshooting mesa de control validation workflows for external communications
