@@ -40,92 +40,29 @@ import type {
   CrossValidationResult,
   DiscrepancySeverity,
   ClientInfo,
+  CrossValidationResponseWithValidations,
+  CrossValidationResultWithValidation,
+  DiscrepancyValidationProgress,
+  DiscrepancyValidationRequest,
 } from '../../types/risk';
 import {
   DISCREPANCY_SEVERITY_CONFIG,
   VALIDATION_TYPE_LABELS,
-  DOCUMENT_TYPE_CONFIG,
   VERIFICATION_STATUS_CONFIG,
 } from '../../types/risk';
 import { exportCrossValidationToPDF } from '../../utils/crossValidationPdfExport';
-
-// Field label mapping for signatory data - maps technical field names to Spanish labels
-const SIGNATORY_FIELD_LABELS: Record<string, string> = {
-  signatory_name: 'Firmante',
-  signatory_id: 'Cédula Firmante',
-  auditor_name: 'Auditor',
-  auditor_license: 'Licencia Auditor',
-  all_signatories: 'Todos los Firmantes',
-  contador_name: 'Contador',
-  contador_cedula: 'Cédula Contador',
-  revisor_fiscal_name: 'Revisor Fiscal',
-  revisor_fiscal_cedula: 'Cédula Revisor Fiscal',
-  revisor_fiscal_principal_name: 'Revisor Fiscal Principal',
-  revisor_fiscal_principal_cedula: 'Cédula Revisor Fiscal Principal',
-  revisor_fiscal_suplente_name: 'Revisor Fiscal Suplente',
-  revisor_fiscal_suplente_cedula: 'Cédula Revisor Fiscal Suplente',
-  name: 'Nombre',
-  id: 'Cédula',
-  role: 'Rol',
-};
-
-// Check if object contains signatory-related fields
-const isSignatoryObject = (obj: Record<string, unknown>): boolean => {
-  const signatoryFields = [
-    'signatory_name',
-    'contador_name',
-    'revisor_fiscal_name',
-    'revisor_fiscal_principal_name',
-    'all_signatories',
-    'auditor_name',
-  ];
-  return signatoryFields.some((field) => field in obj);
-};
-
-// Format a single signatory from all_signatories array
-const formatSignatory = (sig: Record<string, unknown>): string => {
-  const name = sig.name || sig.nombre || 'Sin nombre';
-  const role = sig.role || sig.rol || '';
-  const id = sig.id || sig.cedula || '';
-
-  if (role && id) {
-    return `${name} (${role}) - Cédula: ${id}`;
-  } else if (role) {
-    return `${name} (${role})`;
-  } else if (id) {
-    return `${name} - Cédula: ${id}`;
-  }
-  return String(name);
-};
-
-// Format signatory object with readable labels
-const formatSignatoryObject = (obj: Record<string, unknown>): string => {
-  const lines: string[] = [];
-
-  // Handle all_signatories array first
-  if (Array.isArray(obj.all_signatories) && obj.all_signatories.length > 0) {
-    lines.push(`${SIGNATORY_FIELD_LABELS.all_signatories}:`);
-    obj.all_signatories.forEach((sig: Record<string, unknown>) => {
-      lines.push(`  • ${formatSignatory(sig)}`);
-    });
-  }
-
-  // Handle other signatory fields
-  for (const [key, value] of Object.entries(obj)) {
-    if (key === 'all_signatories') continue; // Already handled
-    if (value === null || value === undefined || value === '') continue;
-
-    const label = SIGNATORY_FIELD_LABELS[key] || key;
-    lines.push(`${label}: ${value}`);
-  }
-
-  return lines.join('\n');
-};
+import { FKDiscrepancyValidationItem } from './FKDiscrepancyValidationItem';
+import {
+  getDocumentLabel,
+  formatValueForDisplay,
+} from './crossValidationFormatters';
 
 interface FKCrossValidationResultsProps {
   evaluationId: string;
   canValidate: boolean;
+  canValidateDiscrepancies?: boolean; // Whether user can validate individual discrepancies
   onValidationComplete?: (response: CrossValidationResponse) => void;
+  onDiscrepancyValidationChange?: (progress: DiscrepancyValidationProgress) => void;
   assessmentId?: string;
   clientNit?: string;
   clientInfo?: ClientInfo;
@@ -136,7 +73,9 @@ interface FKCrossValidationResultsProps {
 const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
   evaluationId,
   canValidate,
+  canValidateDiscrepancies = false,
   onValidationComplete,
+  onDiscrepancyValidationChange,
   assessmentId,
   clientNit,
   clientInfo,
@@ -144,7 +83,7 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
   finalizedAt,
 }) => {
   // State
-  const [results, setResults] = useState<CrossValidationResponse | null>(null);
+  const [results, setResults] = useState<CrossValidationResponseWithValidations | null>(null);
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -152,13 +91,14 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
   const [success, setSuccess] = useState<string | null>(null);
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
 
-  // Load existing results
+  // Load existing results with validations
   const loadResults = useCallback(async () => {
     if (!evaluationId) return;
 
     try {
       setLoading(true);
-      const data = await riskService.getDiscrepancies(evaluationId);
+      // Use the new endpoint that includes validation state
+      const data = await riskService.getDiscrepanciesWithValidations(evaluationId);
       setResults(data);
     } catch {
       // No results yet is not an error
@@ -207,12 +147,47 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
         client_info: clientInfo,
         finalized_by: finalizedBy,
         finalized_at: finalizedAt,
+        validation_progress: results.validation_progress,
       });
     } catch (err) {
       console.error('PDF export error:', err);
       setError('Error al exportar PDF');
     } finally {
       setExporting(false);
+    }
+  };
+
+  // Handle discrepancy validation
+  const handleValidateDiscrepancy = async (resultId: string, request: DiscrepancyValidationRequest) => {
+    try {
+      await riskService.validateDiscrepancy(evaluationId, resultId, request);
+      // Reload results to get updated validation state
+      await loadResults();
+      // Notify parent of validation change
+      if (onDiscrepancyValidationChange && results?.validation_progress) {
+        onDiscrepancyValidationChange(results.validation_progress);
+      }
+      setSuccess('Discrepancia validada correctamente');
+    } catch (err) {
+      console.error('Discrepancy validation error:', err);
+      throw err;
+    }
+  };
+
+  // Handle remove discrepancy validation
+  const handleRemoveDiscrepancyValidation = async (resultId: string) => {
+    try {
+      await riskService.removeDiscrepancyValidation(evaluationId, resultId);
+      // Reload results to get updated validation state
+      await loadResults();
+      // Notify parent of validation change
+      if (onDiscrepancyValidationChange && results?.validation_progress) {
+        onDiscrepancyValidationChange(results.validation_progress);
+      }
+      setSuccess('Validación removida correctamente');
+    } catch (err) {
+      console.error('Remove validation error:', err);
+      throw err;
     }
   };
 
@@ -243,71 +218,6 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
       default:
         return <Info color="info" />;
     }
-  };
-
-  // Get document label from document type string
-  const getDocumentLabel = (docType: string): string => {
-    const config = DOCUMENT_TYPE_CONFIG[docType as keyof typeof DOCUMENT_TYPE_CONFIG];
-    return config?.label || docType;
-  };
-
-  // Format value for display based on type
-  const formatValueForDisplay = (value: unknown): string => {
-    if (value === null || value === undefined) {
-      return 'N/A';
-    }
-
-    if (Array.isArray(value)) {
-      if (value.length === 0) {
-        return 'N/A';
-      }
-      // Check if array of objects (like shareholders or signatories)
-      if (typeof value[0] === 'object' && value[0] !== null) {
-        // Check if it's an array of signatories
-        const firstItem = value[0] as Record<string, unknown>;
-        if ('role' in firstItem || 'rol' in firstItem) {
-          // Format as signatories list
-          return value
-            .map((sig) => formatSignatory(sig as Record<string, unknown>))
-            .join('\n');
-        }
-
-        const formatted = value.map((item, idx) => {
-          // Try to get a meaningful name/identifier from the object
-          const name = item.name || item.nombre || item.razon_social || `Item ${idx + 1}`;
-          const percentage = item.percentage || item.porcentaje;
-          if (percentage !== undefined && percentage !== null) {
-            return `${name} (${percentage}%)`;
-          }
-          return name;
-        });
-        // Truncate if too many items
-        if (formatted.length > 5) {
-          return `${formatted.slice(0, 5).join(', ')} ... y ${formatted.length - 5} más`;
-        }
-        return formatted.join(', ');
-      }
-      // Array of primitives
-      return value.join(', ');
-    }
-
-    if (typeof value === 'object') {
-      // Single object - extract key info
-      const obj = value as Record<string, unknown>;
-
-      // Check if this is a signatory-related object
-      if (isSignatoryObject(obj)) {
-        return formatSignatoryObject(obj);
-      }
-
-      const name = obj.name || obj.nombre || obj.razon_social;
-      if (name) {
-        return String(name);
-      }
-      return JSON.stringify(value);
-    }
-
-    return String(value);
   };
 
   // Render values comparison
@@ -552,31 +462,70 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
 
             {/* Binary verification status banner - replaces numeric score display */}
             {results.total_discrepancies > 0 ? (
-              <Box
-                sx={{
-                  p: 3,
-                  mb: 2,
-                  borderRadius: 2,
-                  backgroundColor: VERIFICATION_STATUS_CONFIG.requires_manual_verification.bgColor,
-                  border: `2px solid ${VERIFICATION_STATUS_CONFIG.requires_manual_verification.textColor}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                }}
-              >
-                <Warning sx={{ fontSize: 40, color: VERIFICATION_STATUS_CONFIG.requires_manual_verification.textColor }} />
-                <Box>
-                  <Typography
-                    variant="h6"
-                    sx={{ fontWeight: 700, color: VERIFICATION_STATUS_CONFIG.requires_manual_verification.textColor }}
-                  >
-                    {VERIFICATION_STATUS_CONFIG.requires_manual_verification.label}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Se encontraron {results.total_discrepancies} discrepancia{results.total_discrepancies !== 1 ? 's' : ''} que requieren verificación manual.
-                  </Typography>
+              results.validation_progress?.all_validated ? (
+                /* All discrepancies validated by mesa de control */
+                <Box
+                  sx={{
+                    p: 3,
+                    mb: 2,
+                    borderRadius: 2,
+                    backgroundColor: '#E0F7E6',
+                    border: '2px solid #2CA14D',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                  }}
+                >
+                  <CheckCircle sx={{ fontSize: 40, color: '#2CA14D' }} />
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#2CA14D' }}>
+                      VALIDADO POR MESA DE CONTROL
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Todas las {results.total_discrepancies} discrepancia{results.total_discrepancies !== 1 ? 's fueron validadas' : ' fue validada'} por Mesa de Control.
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={`${results.validation_progress.validated_count}/${results.validation_progress.total_discrepancies}`}
+                    color="success"
+                    sx={{ fontWeight: 600 }}
+                  />
                 </Box>
-              </Box>
+              ) : (
+                /* Discrepancies pending validation */
+                <Box
+                  sx={{
+                    p: 3,
+                    mb: 2,
+                    borderRadius: 2,
+                    backgroundColor: VERIFICATION_STATUS_CONFIG.requires_manual_verification.bgColor,
+                    border: `2px solid ${VERIFICATION_STATUS_CONFIG.requires_manual_verification.textColor}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                  }}
+                >
+                  <Warning sx={{ fontSize: 40, color: VERIFICATION_STATUS_CONFIG.requires_manual_verification.textColor }} />
+                  <Box sx={{ flex: 1 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{ fontWeight: 700, color: VERIFICATION_STATUS_CONFIG.requires_manual_verification.textColor }}
+                    >
+                      {VERIFICATION_STATUS_CONFIG.requires_manual_verification.label}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Se encontraron {results.total_discrepancies} discrepancia{results.total_discrepancies !== 1 ? 's' : ''} que requieren verificación manual.
+                    </Typography>
+                  </Box>
+                  {results.validation_progress && results.validation_progress.validated_count > 0 && (
+                    <Chip
+                      label={`Validados: ${results.validation_progress.validated_count}/${results.validation_progress.total_discrepancies}`}
+                      color="warning"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  )}
+                </Box>
+              )
             ) : (
               <Box
                 sx={{
@@ -615,13 +564,33 @@ const FKCrossValidationResults: React.FC<FKCrossValidationResultsProps> = ({
             </Typography>
 
             {/* Discrepancies first */}
-            {results.results
-              .filter(r => r.is_discrepancy)
-              .sort((a, b) => {
-                const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
-                return (severityOrder[a.severity || 'low'] || 5) - (severityOrder[b.severity || 'low'] || 5);
-              })
-              .map((result, index) => renderResult(result, index))}
+            {canValidateDiscrepancies ? (
+              /* Show discrepancies with validation controls */
+              results.results
+                .filter(r => r.is_discrepancy)
+                .sort((a, b) => {
+                  const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+                  return (severityOrder[a.severity || 'low'] || 5) - (severityOrder[b.severity || 'low'] || 5);
+                })
+                .map((result) => (
+                  <FKDiscrepancyValidationItem
+                    key={result.id}
+                    result={result as CrossValidationResultWithValidation}
+                    canValidate={canValidateDiscrepancies}
+                    onValidate={handleValidateDiscrepancy}
+                    onRemoveValidation={handleRemoveDiscrepancyValidation}
+                  />
+                ))
+            ) : (
+              /* Show discrepancies without validation controls */
+              results.results
+                .filter(r => r.is_discrepancy)
+                .sort((a, b) => {
+                  const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+                  return (severityOrder[a.severity || 'low'] || 5) - (severityOrder[b.severity || 'low'] || 5);
+                })
+                .map((result, index) => renderResult(result, index))
+            )}
 
             {/* Passed validations */}
             <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>

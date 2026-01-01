@@ -72,3 +72,11 @@ This prompt helps you determine what documentation you should read based on the 
     - When modifying cross-validation logic for professional credentials
     - When working with Certificado de Existencia extraction fields
     - When troubleshooting financial statement signatory mismatches
+
+- app_docs/feature-6a9aabdc-discrepancy-validation-checkboxes.md
+  - Conditions:
+    - When working with discrepancy validation in the Riesgos module
+    - When implementing mesa de control approval workflows
+    - When modifying FKCrossValidationResults or FKVerificationStatusCard components
+    - When working with discrepancy_validations table or DiscrepancyValidationRepository
+    - When updating cross-validation PDF export with validation status

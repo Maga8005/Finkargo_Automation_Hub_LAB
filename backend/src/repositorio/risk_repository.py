@@ -1130,3 +1130,213 @@ class EmailChainRepository:
             .execute()
 
         return response.count or 0
+
+
+class DiscrepancyValidationRepository:
+    """Repository for discrepancy validation operations (mesa de control validations)"""
+
+    def __init__(self, supabase_client: Client):
+        """Initialize repository with Supabase client"""
+        self.db = supabase_client
+
+    async def create(self, data: dict) -> dict:
+        """
+        Create new discrepancy validation record
+
+        Args:
+            data: Validation data
+
+        Returns:
+            dict: Created validation record
+        """
+        logger.info(f"Creating discrepancy validation for result: {data.get('cross_validation_result_id')}")
+
+        response = self.db.table('discrepancy_validations') \
+            .insert(data) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_id(self, id: str) -> Optional[dict]:
+        """
+        Get validation by UUID
+
+        Args:
+            id: Validation UUID
+
+        Returns:
+            Optional[dict]: Validation record
+        """
+        response = self.db.table('discrepancy_validations') \
+            .select('*') \
+            .eq('id', id) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_cross_validation_result_id(self, cross_validation_result_id: str) -> Optional[dict]:
+        """
+        Get validation by cross-validation result ID
+
+        Args:
+            cross_validation_result_id: Cross-validation result UUID
+
+        Returns:
+            Optional[dict]: Validation record
+        """
+        response = self.db.table('discrepancy_validations') \
+            .select('*') \
+            .eq('cross_validation_result_id', cross_validation_result_id) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_assessment(self, assessment_id: str) -> List[dict]:
+        """
+        Get all validations for an assessment's discrepancies
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            List[dict]: Validation records
+        """
+        # First get all cross-validation result IDs for this assessment
+        cv_response = self.db.table('risk_cross_validation_results') \
+            .select('id') \
+            .eq('assessment_id', assessment_id) \
+            .eq('is_discrepancy', True) \
+            .execute()
+
+        if not cv_response.data:
+            return []
+
+        cv_ids = [r['id'] for r in cv_response.data]
+
+        # Then get validations for those results
+        response = self.db.table('discrepancy_validations') \
+            .select('*') \
+            .in_('cross_validation_result_id', cv_ids) \
+            .order('created_at', desc=False) \
+            .execute()
+
+        return response.data if response.data else []
+
+    async def upsert(self, cross_validation_result_id: str, data: dict) -> dict:
+        """
+        Create or update validation for a cross-validation result
+
+        Args:
+            cross_validation_result_id: Cross-validation result UUID
+            data: Validation data
+
+        Returns:
+            dict: Created or updated validation record
+        """
+        # Check if validation already exists
+        existing = await self.get_by_cross_validation_result_id(cross_validation_result_id)
+
+        if existing:
+            # Update existing validation
+            data['updated_at'] = datetime.utcnow().isoformat()
+            response = self.db.table('discrepancy_validations') \
+                .update(data) \
+                .eq('id', existing['id']) \
+                .execute()
+            return response.data[0] if response.data else None
+        else:
+            # Create new validation
+            data['cross_validation_result_id'] = cross_validation_result_id
+            return await self.create(data)
+
+    async def update(self, id: str, updates: dict) -> Optional[dict]:
+        """
+        Update validation record
+
+        Args:
+            id: Validation UUID
+            updates: Fields to update
+
+        Returns:
+            Optional[dict]: Updated validation record
+        """
+        updates['updated_at'] = datetime.utcnow().isoformat()
+
+        response = self.db.table('discrepancy_validations') \
+            .update(updates) \
+            .eq('id', id) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def delete(self, id: str) -> bool:
+        """
+        Delete validation record
+
+        Args:
+            id: Validation UUID
+
+        Returns:
+            bool: True if deleted
+        """
+        self.db.table('discrepancy_validations') \
+            .delete() \
+            .eq('id', id) \
+            .execute()
+
+        return True
+
+    async def delete_by_cross_validation_result(self, cross_validation_result_id: str) -> bool:
+        """
+        Delete validation for a specific cross-validation result
+
+        Args:
+            cross_validation_result_id: Cross-validation result UUID
+
+        Returns:
+            bool: True if deleted
+        """
+        self.db.table('discrepancy_validations') \
+            .delete() \
+            .eq('cross_validation_result_id', cross_validation_result_id) \
+            .execute()
+
+        return True
+
+    async def get_validation_progress(self, assessment_id: str) -> Dict[str, Any]:
+        """
+        Get validation progress for an assessment
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            Dict with total_discrepancies, validated_count, pending_count, all_validated
+        """
+        # Get total discrepancies for assessment
+        cv_response = self.db.table('risk_cross_validation_results') \
+            .select('id', count='exact') \
+            .eq('assessment_id', assessment_id) \
+            .eq('is_discrepancy', True) \
+            .execute()
+
+        total_discrepancies = cv_response.count or 0
+
+        if total_discrepancies == 0:
+            return {
+                'total_discrepancies': 0,
+                'validated_count': 0,
+                'pending_count': 0,
+                'all_validated': True,
+            }
+
+        # Get validated count
+        validations = await self.get_by_assessment(assessment_id)
+        validated_count = sum(1 for v in validations if v.get('is_validated', False))
+
+        return {
+            'total_discrepancies': total_discrepancies,
+            'validated_count': validated_count,
+            'pending_count': total_discrepancies - validated_count,
+            'all_validated': validated_count >= total_discrepancies,
+        }

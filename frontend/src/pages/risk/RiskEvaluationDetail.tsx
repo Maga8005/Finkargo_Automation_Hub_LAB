@@ -47,6 +47,7 @@ import type {
   RiskAssessmentDetail,
   RiskDecisionRequest,
   CrossValidationResponse,
+  CrossValidationResponseWithValidations,
   ExternalContact,
 } from '../../types/risk';
 import { ASSESSMENT_STATUS_CONFIG } from '../../types/risk';
@@ -76,6 +77,9 @@ const RiskEvaluationDetail: React.FC = () => {
 
   // Check if user is risk manager
   const isRiskManager = userProfile?.role === 'risk_manager' || userProfile?.role === 'admin';
+
+  // Check if user can validate individual discrepancies (mesa_control, risk_manager, or admin)
+  const canValidateDiscrepancies = userProfile?.role && ['mesa_control', 'risk_manager', 'admin'].includes(userProfile.role);
 
   // Check if decision can be made
   const canMakeDecision = isRiskManager &&
@@ -153,7 +157,7 @@ const RiskEvaluationDetail: React.FC = () => {
   }, [loadAssessment]);
 
   // Helper to generate report with data
-  const generateReportWithData = useCallback((cvResults: CrossValidationResponse) => {
+  const generateReportWithData = useCallback((cvResults: CrossValidationResponseWithValidations) => {
     if (!assessment) return;
 
     try {
@@ -183,24 +187,19 @@ const RiskEvaluationDetail: React.FC = () => {
 
   // Handle comprehensive report generation
   const handleGenerateReport = useCallback(async () => {
-    if (!assessment || !validationResults) {
-      // Try to load validation results if not available
-      if (id) {
-        try {
-          const cvResults = await riskService.getDiscrepancies(id);
-          setValidationResults(cvResults);
-          // Generate report with fresh results
-          generateReportWithData(cvResults);
-        } catch (err) {
-          console.error('Error loading validation results for report:', err);
-          setSubmitError('Error al cargar resultados de validación para el reporte');
-          return;
-        }
-      }
-      return;
+    if (!assessment || !id) return;
+
+    try {
+      // Always fetch fresh results with validations to include comments
+      const cvResults = await riskService.getDiscrepanciesWithValidations(id);
+      setValidationResults(cvResults);
+      // Generate report with results including validation comments
+      generateReportWithData(cvResults);
+    } catch (err) {
+      console.error('Error loading validation results for report:', err);
+      setSubmitError('Error al cargar resultados de validación para el reporte');
     }
-    generateReportWithData(validationResults);
-  }, [assessment, validationResults, id, generateReportWithData]);
+  }, [assessment, id, generateReportWithData]);
 
   // Handle decision submission
   const handleSubmitDecision = async () => {
@@ -394,6 +393,7 @@ const RiskEvaluationDetail: React.FC = () => {
           clientInfo={assessment?.client_info}
           finalizedBy={assessment?.finalized_by}
           finalizedAt={assessment?.finalized_at}
+          canValidateDiscrepancies={!!canValidateDiscrepancies}
         />
       )}
 

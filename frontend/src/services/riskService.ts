@@ -28,6 +28,10 @@ import type {
   EmailChainListResponse,
   FinalizationStatus,
   FinalizeEvaluationRequest,
+  DiscrepancyValidation,
+  DiscrepancyValidationProgress,
+  DiscrepancyValidationRequest,
+  CrossValidationResponseWithValidations,
 } from '../types/risk';
 
 export const riskService = {
@@ -410,5 +414,49 @@ export const riskService = {
       request || {}
     );
     return response.data;
+  },
+
+  // ==================== Discrepancy Validation ====================
+
+  /**
+   * Get discrepancies with their validation state
+   */
+  getDiscrepanciesWithValidations: async (evaluationId: string): Promise<CrossValidationResponseWithValidations> => {
+    const response = await apiClient.get<CrossValidationResponseWithValidations>(
+      `/risk/evaluations/${evaluationId}/discrepancies-with-validations`
+    );
+    return response.data;
+  },
+
+  /**
+   * Get validation progress for an evaluation's discrepancies
+   */
+  getDiscrepancyValidationProgress: async (evaluationId: string): Promise<DiscrepancyValidationProgress> => {
+    const response = await apiClient.get<DiscrepancyValidationProgress>(
+      `/risk/evaluations/${evaluationId}/discrepancy-validations`
+    );
+    return response.data;
+  },
+
+  /**
+   * Validate or remove validation from a specific discrepancy
+   */
+  validateDiscrepancy: async (
+    evaluationId: string,
+    resultId: string,
+    request: DiscrepancyValidationRequest
+  ): Promise<DiscrepancyValidation> => {
+    const response = await apiClient.put<DiscrepancyValidation>(
+      `/risk/evaluations/${evaluationId}/discrepancy-validations/${resultId}`,
+      request
+    );
+    return response.data;
+  },
+
+  /**
+   * Remove validation from a specific discrepancy
+   */
+  removeDiscrepancyValidation: async (evaluationId: string, resultId: string): Promise<void> => {
+    await apiClient.delete(`/risk/evaluations/${evaluationId}/discrepancy-validations/${resultId}`);
   },
 };
