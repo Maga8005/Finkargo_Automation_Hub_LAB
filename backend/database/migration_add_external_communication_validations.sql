@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS email_chain_discrepancy_validations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Foreign key to email chain
-    email_chain_id UUID NOT NULL REFERENCES risk_email_chains(id) ON DELETE CASCADE,
+    email_chain_id UUID NOT NULL REFERENCES email_chains(id) ON DELETE CASCADE,
 
     -- Discrepancy identifier (index in the validation_result.discrepancies array)
     discrepancy_index INTEGER NOT NULL CHECK (discrepancy_index >= 0),

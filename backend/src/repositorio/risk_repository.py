@@ -1432,7 +1432,7 @@ class EmailChainDiscrepancyValidationRepository:
             List[dict]: Validation records
         """
         # First get all email chain IDs for this assessment
-        ec_response = self.db.table('risk_email_chains') \
+        ec_response = self.db.table('email_chains') \
             .select('id') \
             .eq('assessment_id', assessment_id) \
             .eq('is_active', True) \
@@ -1528,7 +1528,7 @@ class EmailChainDiscrepancyValidationRepository:
             Dict with total_discrepancies, validated_count, pending_count, all_validated
         """
         # Get all email chains with discrepancies for assessment
-        ec_response = self.db.table('risk_email_chains') \
+        ec_response = self.db.table('email_chains') \
             .select('id, validation_result') \
             .eq('assessment_id', assessment_id) \
             .eq('is_active', True) \
