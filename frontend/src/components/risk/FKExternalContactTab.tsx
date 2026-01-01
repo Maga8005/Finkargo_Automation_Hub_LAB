@@ -47,13 +47,17 @@ import {
 import { riskService } from '../../services/riskService';
 import FKEmailValidationResult from './FKEmailValidationResult';
 import FKEmailChainUploader from './FKEmailChainUploader';
+import FKExternalContactValidationItem from './FKExternalContactValidationItem';
 import type {
-  ExternalContact,
   ExternalContactRequest,
-  ExternalContactListResponse,
   ClientInfo,
+  ExternalContactWithValidation,
+  ExternalContactListWithValidationsResponse,
+  ExternalContactValidationRequest,
 } from '../../types/risk';
 import { EXTERNAL_CONTACT_SOURCE_LABELS, EXTERNAL_CONTACT_VALIDATION_STATUS_CONFIG } from '../../types/risk';
+import { useAuth } from '../../hooks/useAuth';
+import { extractErrorMessage } from '../../utils/errorUtils';
 
 interface FKExternalContactTabProps {
   evaluationId: string;
@@ -72,14 +76,22 @@ const FKExternalContactTab: React.FC<FKExternalContactTabProps> = ({
   evaluationId,
   clientInfo,
 }) => {
+  // Auth context to check user roles
+  const { userProfile } = useAuth();
+
   // State
-  const [contacts, setContacts] = useState<ExternalContact[]>([]);
+  const [contacts, setContacts] = useState<ExternalContactWithValidation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [validationProgress, setValidationProgress] = useState<{ validated: number; total: number } | null>(null);
+
+  // Check if user can validate alerts
+  const canValidateAlert = userProfile?.role &&
+    ['admin', 'risk_manager', 'mesa_control'].includes(userProfile.role);
 
   // Form setup
   const {
@@ -96,13 +108,19 @@ const FKExternalContactTab: React.FC<FKExternalContactTabProps> = ({
     },
   });
 
-  // Load contacts
+  // Load contacts with validations
   const loadContacts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const response: ExternalContactListResponse = await riskService.getExternalContacts(evaluationId);
+      const response: ExternalContactListWithValidationsResponse = await riskService.getExternalContactsWithValidations(evaluationId);
       setContacts(response.contacts);
+      if (response.validation_progress) {
+        setValidationProgress({
+          validated: response.validation_progress.validated_count,
+          total: response.validation_progress.total_alerts,
+        });
+      }
     } catch (err) {
       console.error('Error loading external contacts:', err);
       setError('Error al cargar los contactos externos');
@@ -179,6 +197,30 @@ const FKExternalContactTab: React.FC<FKExternalContactTabProps> = ({
       setError(message);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  // Handle alert validation
+  const handleValidateAlert = async (contactId: string, request: ExternalContactValidationRequest) => {
+    try {
+      await riskService.validateExternalContactAlert(evaluationId, contactId, request);
+      setSuccessMessage('Alerta validada correctamente');
+      await loadContacts(); // Reload to get updated validation state
+    } catch (err) {
+      console.error('Error validating alert:', err);
+      throw new Error(extractErrorMessage(err) || 'Error al validar alerta');
+    }
+  };
+
+  // Handle remove alert validation
+  const handleRemoveAlertValidation = async (contactId: string) => {
+    try {
+      await riskService.removeExternalContactValidation(evaluationId, contactId);
+      setSuccessMessage('Validación removida correctamente');
+      await loadContacts(); // Reload to get updated validation state
+    } catch (err) {
+      console.error('Error removing validation:', err);
+      throw new Error(extractErrorMessage(err) || 'Error al remover validación');
     }
   };
 
@@ -383,6 +425,14 @@ const FKExternalContactTab: React.FC<FKExternalContactTabProps> = ({
                 size="small"
               />
             )}
+            {validationProgress && validationProgress.total > 0 && (
+              <Chip
+                label={`Validados: ${validationProgress.validated}/${validationProgress.total}`}
+                size="small"
+                color={validationProgress.validated >= validationProgress.total ? 'success' : 'default'}
+                icon={<VerifiedUser />}
+              />
+            )}
           </Box>
           <Divider sx={{ mb: 2 }} />
 
@@ -397,103 +447,126 @@ const FKExternalContactTab: React.FC<FKExternalContactTabProps> = ({
               </Typography>
             </Box>
           ) : (
-            <List sx={{ '& .MuiListItem-root': { px: 0 } }}>
-              {contacts.map((contact, index) => {
-                const statusConfig = EXTERNAL_CONTACT_VALIDATION_STATUS_CONFIG[contact.validation_status];
-                const isValidating = validatingId === contact.id;
-                const isDeleting = deletingId === contact.id;
+            <Box>
+              {/* Suspicious/Critical Contacts - with validation controls */}
+              {contacts.filter(c => c.validation_status === 'suspicious' || c.validation_status === 'critical').length > 0 && (
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle2" color="error.main" sx={{ mb: 1 }}>
+                    Contactos con Alertas ({contacts.filter(c => c.validation_status === 'suspicious' || c.validation_status === 'critical').length})
+                  </Typography>
+                  {contacts
+                    .filter(c => c.validation_status === 'suspicious' || c.validation_status === 'critical')
+                    .map((contact) => (
+                      <FKExternalContactValidationItem
+                        key={contact.id}
+                        contact={contact}
+                        canValidate={canValidateAlert ?? false}
+                        onValidate={handleValidateAlert}
+                        onRemoveValidation={handleRemoveAlertValidation}
+                      />
+                    ))}
+                </Box>
+              )}
 
-                return (
-                  <React.Fragment key={contact.id}>
-                    {index > 0 && <Divider sx={{ my: 2 }} />}
-                    <ListItem
-                      sx={{
-                        flexDirection: 'column',
-                        alignItems: 'flex-start',
-                        gap: 1,
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 2 }}>
-                        <Box sx={{ flex: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                              {contact.email}
+              {/* Other contacts - standard list */}
+              <List sx={{ '& .MuiListItem-root': { px: 0 } }}>
+                {contacts.filter(c => c.validation_status !== 'suspicious' && c.validation_status !== 'critical').map((contact, index) => {
+                  const statusConfig = EXTERNAL_CONTACT_VALIDATION_STATUS_CONFIG[contact.validation_status];
+                  const isValidating = validatingId === contact.id;
+                  const isDeleting = deletingId === contact.id;
+
+                  return (
+                    <React.Fragment key={contact.id}>
+                      {index > 0 && <Divider sx={{ my: 2 }} />}
+                      <ListItem
+                        sx={{
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: 1,
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 2 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                                {contact.email}
+                              </Typography>
+                              <Chip
+                                label={statusConfig.label}
+                                size="small"
+                                sx={{
+                                  backgroundColor: statusConfig.bgColor,
+                                  color: statusConfig.textColor,
+                                  fontSize: '0.7rem',
+                                }}
+                              />
+                            </Box>
+                            {contact.sender_name && (
+                              <Typography variant="body2" color="text.secondary">
+                                <Person sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
+                                {contact.sender_name}
+                              </Typography>
+                            )}
+                            <Typography variant="caption" color="text.secondary">
+                              Fuente: {EXTERNAL_CONTACT_SOURCE_LABELS[contact.source as keyof typeof EXTERNAL_CONTACT_SOURCE_LABELS] || contact.source}
+                              {contact.notes && ` • ${contact.notes}`}
                             </Typography>
-                            <Chip
-                              label={statusConfig.label}
-                              size="small"
-                              sx={{
-                                backgroundColor: statusConfig.bgColor,
-                                color: statusConfig.textColor,
-                                fontSize: '0.7rem',
-                              }}
+                          </Box>
+
+                          <ListItemSecondaryAction sx={{ display: 'flex', gap: 1 }}>
+                            <Tooltip title="Validar Dominio">
+                              <span>
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  startIcon={
+                                    isValidating ? (
+                                      <CircularProgress size={16} />
+                                    ) : (
+                                      <VerifiedUser />
+                                    )
+                                  }
+                                  onClick={() => handleValidate(contact.id)}
+                                  disabled={isValidating || isDeleting}
+                                >
+                                  Validar
+                                </Button>
+                              </span>
+                            </Tooltip>
+                            <Tooltip title="Eliminar">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleDelete(contact.id)}
+                                  disabled={isValidating || isDeleting}
+                                >
+                                  {isDeleting ? (
+                                    <CircularProgress size={20} />
+                                  ) : (
+                                    <Delete />
+                                  )}
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          </ListItemSecondaryAction>
+                        </Box>
+
+                        {/* Validation Result */}
+                        {contact.validation_status !== 'pending' && (
+                          <Box sx={{ width: '100%', mt: 1 }}>
+                            <FKEmailValidationResult
+                              validationStatus={contact.validation_status}
+                              validationResult={contact.validation_result}
                             />
                           </Box>
-                          {contact.sender_name && (
-                            <Typography variant="body2" color="text.secondary">
-                              <Person sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
-                              {contact.sender_name}
-                            </Typography>
-                          )}
-                          <Typography variant="caption" color="text.secondary">
-                            Fuente: {EXTERNAL_CONTACT_SOURCE_LABELS[contact.source as keyof typeof EXTERNAL_CONTACT_SOURCE_LABELS] || contact.source}
-                            {contact.notes && ` • ${contact.notes}`}
-                          </Typography>
-                        </Box>
-
-                        <ListItemSecondaryAction sx={{ display: 'flex', gap: 1 }}>
-                          <Tooltip title="Validar Dominio">
-                            <span>
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={
-                                  isValidating ? (
-                                    <CircularProgress size={16} />
-                                  ) : (
-                                    <VerifiedUser />
-                                  )
-                                }
-                                onClick={() => handleValidate(contact.id)}
-                                disabled={isValidating || isDeleting}
-                              >
-                                Validar
-                              </Button>
-                            </span>
-                          </Tooltip>
-                          <Tooltip title="Eliminar">
-                            <span>
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => handleDelete(contact.id)}
-                                disabled={isValidating || isDeleting}
-                              >
-                                {isDeleting ? (
-                                  <CircularProgress size={20} />
-                                ) : (
-                                  <Delete />
-                                )}
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                        </ListItemSecondaryAction>
-                      </Box>
-
-                      {/* Validation Result */}
-                      {contact.validation_status !== 'pending' && (
-                        <Box sx={{ width: '100%', mt: 1 }}>
-                          <FKEmailValidationResult
-                            validationStatus={contact.validation_status}
-                            validationResult={contact.validation_result}
-                          />
-                        </Box>
-                      )}
-                    </ListItem>
-                  </React.Fragment>
-                );
-              })}
-            </List>
+                        )}
+                      </ListItem>
+                    </React.Fragment>
+                  );
+                })}
+              </List>
+            </Box>
           )}
         </CardContent>
       </Card>

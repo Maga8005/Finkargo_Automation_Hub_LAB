@@ -837,3 +837,158 @@ class CrossValidationResponseWithValidations(CrossValidationResponse):
 
     class Config:
         from_attributes = True
+
+
+# ==================== External Communication Validation DTOs ====================
+
+class EmailChainDiscrepancyValidationRequest(BaseModel):
+    """Request to validate or remove validation from an email chain discrepancy"""
+    is_validated: bool = Field(..., description="Whether the discrepancy is validated")
+    validation_reason: Optional[DiscrepancyValidationReason] = Field(
+        None,
+        description="Reason for validation (required if is_validated=True)"
+    )
+    comments: Optional[str] = Field(
+        None,
+        max_length=2000,
+        description="Optional comments from the validator"
+    )
+
+    @validator('validation_reason')
+    def require_reason_when_validated(cls, v, values):
+        """Validation reason is required when is_validated is True"""
+        if values.get('is_validated') and v is None:
+            raise ValueError('validation_reason is required when is_validated is True')
+        return v
+
+
+class EmailChainDiscrepancyValidationResponse(BaseModel):
+    """Response for an email chain discrepancy validation record"""
+    id: str
+    email_chain_id: str
+    discrepancy_index: int
+    is_validated: bool
+    validation_reason: Optional[DiscrepancyValidationReason] = None
+    comments: Optional[str] = None
+    validated_by: Optional[str] = None
+    validated_by_name: Optional[str] = None
+    validated_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class EmailChainDiscrepancyWithValidation(EmailChainDiscrepancy):
+    """Extended email chain discrepancy that includes validation state"""
+    validation: Optional[EmailChainDiscrepancyValidationResponse] = None
+
+    class Config:
+        from_attributes = True
+
+
+class EmailChainValidationResultWithValidations(EmailChainValidationResult):
+    """Extended email chain validation result with discrepancy validations"""
+    discrepancies: List[EmailChainDiscrepancyWithValidation] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True
+
+
+class EmailChainWithValidations(EmailChainResponse):
+    """Extended email chain response that includes discrepancy validations"""
+    validation_result: Optional[EmailChainValidationResultWithValidations] = None
+
+    class Config:
+        from_attributes = True
+
+
+class EmailChainValidationProgressResponse(BaseModel):
+    """Response containing validation progress for email chain discrepancies"""
+    assessment_id: str
+    total_discrepancies: int = 0
+    validated_count: int = 0
+    pending_count: int = 0
+    all_validated: bool = False
+    validations: List[EmailChainDiscrepancyValidationResponse] = []
+
+
+class ExternalContactValidationRequest(BaseModel):
+    """Request to validate or remove validation from an external contact alert"""
+    is_validated: bool = Field(..., description="Whether the contact alert is validated")
+    validation_reason: Optional[DiscrepancyValidationReason] = Field(
+        None,
+        description="Reason for validation (required if is_validated=True)"
+    )
+    comments: Optional[str] = Field(
+        None,
+        max_length=2000,
+        description="Optional comments from the validator"
+    )
+
+    @validator('validation_reason')
+    def require_reason_when_validated(cls, v, values):
+        """Validation reason is required when is_validated is True"""
+        if values.get('is_validated') and v is None:
+            raise ValueError('validation_reason is required when is_validated is True')
+        return v
+
+
+class ExternalContactValidationResponse(BaseModel):
+    """Response for an external contact validation record"""
+    id: str
+    external_contact_id: str
+    is_validated: bool
+    validation_reason: Optional[DiscrepancyValidationReason] = None
+    comments: Optional[str] = None
+    validated_by: Optional[str] = None
+    validated_by_name: Optional[str] = None
+    validated_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ExternalContactWithValidation(ExternalContactResponse):
+    """Extended external contact response that includes validation state"""
+    validation: Optional[ExternalContactValidationResponse] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ExternalContactValidationProgressResponse(BaseModel):
+    """Response containing validation progress for external contact alerts"""
+    assessment_id: str
+    total_alerts: int = 0
+    validated_count: int = 0
+    pending_count: int = 0
+    all_validated: bool = False
+    validations: List[ExternalContactValidationResponse] = []
+
+
+class ExternalContactListWithValidationsResponse(BaseModel):
+    """Response containing all external contacts with validation state"""
+    assessment_id: str
+    total_contacts: int = 0
+    pending_count: int = 0
+    validated_count: int = 0
+    suspicious_count: int = 0
+    critical_count: int = 0
+    contacts: List[ExternalContactWithValidation] = []
+    validation_progress: Optional[ExternalContactValidationProgressResponse] = None
+
+
+class EmailChainListWithValidationsResponse(BaseModel):
+    """Response containing all email chains with validation state"""
+    assessment_id: str
+    total_chains: int = 0
+    pending_count: int = 0
+    validated_count: int = 0
+    suspicious_count: int = 0
+    critical_count: int = 0
+    chains: List[EmailChainWithValidations] = []
+    validation_progress: Optional[EmailChainValidationProgressResponse] = None

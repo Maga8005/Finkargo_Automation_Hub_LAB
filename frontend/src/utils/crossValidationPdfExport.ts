@@ -13,6 +13,9 @@ import type {
   ClientInfo,
   FraudIndicator,
   ExternalContact,
+  ExternalContactWithValidation,
+  EmailChainWithValidations,
+  EmailChainDiscrepancyWithValidation,
   VerificationStatus,
   RiskLevel,
   DiscrepancyValidationProgress,
@@ -26,6 +29,7 @@ import {
   RISK_LEVEL_CONFIG,
   EXTERNAL_CONTACT_VALIDATION_STATUS_CONFIG,
   DISCREPANCY_VALIDATION_REASON_CONFIG,
+  EMAIL_CHAIN_FIELD_LABELS,
 } from '../types/risk';
 
 // Finkargo brand colors (consistent with pdfExport.ts)
@@ -569,7 +573,8 @@ export interface ComprehensiveReportContext extends AssessmentContext {
   risk_level: RiskLevel;
   verification_status: VerificationStatus;
   fraud_indicators: FraudIndicator[];
-  external_contacts?: ExternalContact[];
+  external_contacts?: ExternalContact[] | ExternalContactWithValidation[];
+  email_chains?: EmailChainWithValidations[];
 }
 
 /**
@@ -859,6 +864,134 @@ export const exportComprehensiveEvaluationReport = (
       yPosition += 18;
     }
 
+    // ==================== EMAIL CHAIN DISCREPANCIES ====================
+    // Collect all discrepancies from email chains
+    const allEmailChainDiscrepancies: (EmailChainDiscrepancyWithValidation & { chainIdentifier?: string })[] = [];
+    assessment.email_chains?.forEach(chain => {
+      if (chain.validation_result?.discrepancies) {
+        chain.validation_result.discrepancies.forEach(disc => {
+          allEmailChainDiscrepancies.push({
+            ...disc,
+            chainIdentifier: chain.original_filename || chain.id.substring(0, 8),
+          });
+        });
+      }
+    });
+
+    // Filter to high/critical discrepancies only (significant findings)
+    const significantEmailDiscrepancies = allEmailChainDiscrepancies.filter(
+      d => d.severity === 'high' || d.severity === 'critical' || d.severity === 'medium'
+    );
+
+    if (significantEmailDiscrepancies.length > 0) {
+      if (yPosition > 200) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(FINKARGO_COLORS.warning);
+      doc.text(`Discrepancias en Cadenas de Email (${significantEmailDiscrepancies.length})`, 14, yPosition);
+      yPosition += 5;
+
+      const emailDiscrepancyData = significantEmailDiscrepancies.map((disc) => {
+        const fieldLabel = EMAIL_CHAIN_FIELD_LABELS[disc.field] || disc.field;
+        const severityConfig = disc.severity ? DISCREPANCY_SEVERITY_CONFIG[disc.severity] : null;
+        const baseData = [
+          disc.chainIdentifier || '-',
+          fieldLabel,
+          severityConfig?.label || '-',
+          disc.email_value || '-',
+          disc.description || '-',
+        ];
+
+        // Add validation status and comments
+        if (disc.validation?.is_validated) {
+          const reasonConfig = disc.validation.validation_reason
+            ? DISCREPANCY_VALIDATION_REASON_CONFIG[disc.validation.validation_reason]
+            : null;
+          baseData.push(reasonConfig?.label || 'Validado');
+        } else {
+          baseData.push('Pendiente');
+        }
+        // Add comments column
+        const comments = disc.validation?.comments;
+        baseData.push(truncateComment(comments));
+
+        return baseData;
+      });
+
+      autoTable(doc, {
+        head: [['Cadena', 'Campo', 'Severidad', 'Valor', 'Descripción', 'Validación', 'Comentarios']],
+        body: emailDiscrepancyData,
+        startY: yPosition,
+        theme: 'grid',
+        styles: {
+          fontSize: 7,
+          cellPadding: 2,
+          overflow: 'linebreak',
+          halign: 'left',
+          valign: 'middle',
+        },
+        headStyles: {
+          fillColor: FINKARGO_COLORS.warning,
+          textColor: FINKARGO_COLORS.white,
+          fontStyle: 'bold',
+          fontSize: 7,
+          halign: 'center',
+        },
+        alternateRowStyles: {
+          fillColor: FINKARGO_COLORS.grey50,
+        },
+        columnStyles: {
+          0: { cellWidth: 28 },
+          1: { cellWidth: 22 },
+          2: { cellWidth: 16, halign: 'center' as const },
+          3: { cellWidth: 22 },
+          4: { cellWidth: 'auto' as const },
+          5: { cellWidth: 20, halign: 'center' as const },
+          6: { cellWidth: 28 },
+        },
+        margin: { left: 14, right: 14 },
+        didParseCell: (data) => {
+          // Color-code severity column
+          if (data.section === 'body' && data.column.index === 2) {
+            const severityLabel = data.cell.raw as string;
+            if (severityLabel === 'Crítico') {
+              data.cell.styles.fillColor = SEVERITY_PDF_COLORS.critical.bg;
+              data.cell.styles.textColor = SEVERITY_PDF_COLORS.critical.text;
+              data.cell.styles.fontStyle = 'bold';
+            } else if (severityLabel === 'Alto') {
+              data.cell.styles.fillColor = SEVERITY_PDF_COLORS.high.bg;
+              data.cell.styles.textColor = SEVERITY_PDF_COLORS.high.text;
+            } else if (severityLabel === 'Medio') {
+              data.cell.styles.fillColor = SEVERITY_PDF_COLORS.medium.bg;
+              data.cell.styles.textColor = SEVERITY_PDF_COLORS.medium.text;
+            }
+          }
+
+          // Color-code validation status column
+          if (data.section === 'body' && data.column.index === 5) {
+            const statusLabel = data.cell.raw as string;
+            if (statusLabel === 'Pendiente') {
+              data.cell.styles.fillColor = [255, 244, 229]; // warning bg
+              data.cell.styles.textColor = [184, 110, 0]; // warning text
+            } else {
+              // Validated
+              data.cell.styles.fillColor = [224, 247, 230]; // success bg
+              data.cell.styles.textColor = [44, 161, 77]; // success text
+            }
+          }
+        },
+        didDrawPage: (data) => {
+          addPageFooter(doc, data.pageNumber);
+        },
+      });
+
+      yPosition = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+    }
+
     // ==================== EXTERNAL CONTACT ALERTS ====================
     const suspiciousContacts = assessment.external_contacts?.filter(
       c => c.validation_status === 'suspicious' || c.validation_status === 'critical'
@@ -876,20 +1009,67 @@ export const exportComprehensiveEvaluationReport = (
       doc.text(`Alertas de Contactos Externos (${suspiciousContacts.length})`, 14, yPosition);
       yPosition += 5;
 
+      // Check if contacts have validation data
+      const hasContactValidations = suspiciousContacts.some(
+        c => 'validation' in c && (c as ExternalContactWithValidation).validation
+      );
+
       const contactData = suspiciousContacts.map((contact) => {
         const statusConfig = EXTERNAL_CONTACT_VALIDATION_STATUS_CONFIG[contact.validation_status];
         const detectionType = contact.validation_result?.detection_type || '-';
-        return [
+        const baseData = [
           contact.email,
           contact.sender_name || '-',
           statusConfig.label,
           detectionType.replace(/_/g, ' '),
           contact.validation_result?.description || '-',
         ];
+
+        // Add validation status and comments if available
+        if (hasContactValidations) {
+          const contactWithValidation = contact as ExternalContactWithValidation;
+          if (contactWithValidation.validation?.is_validated) {
+            const reasonConfig = contactWithValidation.validation.validation_reason
+              ? DISCREPANCY_VALIDATION_REASON_CONFIG[contactWithValidation.validation.validation_reason]
+              : null;
+            baseData.push(reasonConfig?.label || 'Validado');
+          } else {
+            baseData.push('Pendiente');
+          }
+          // Add comments column
+          const comments = contactWithValidation.validation?.comments;
+          baseData.push(truncateComment(comments));
+        }
+
+        return baseData;
       });
 
+      // Table headers
+      const contactHeaders = hasContactValidations
+        ? [['Email', 'Remitente', 'Estado', 'Tipo', 'Descripción', 'Validación', 'Comentarios']]
+        : [['Email', 'Remitente', 'Estado', 'Tipo', 'Descripción']];
+
+      // Column styles - adjusted for 7 columns when validations present
+      const baseContactColumnStyles = {
+        0: { cellWidth: 40 },
+        1: { cellWidth: 25 },
+        2: { cellWidth: 20, halign: 'center' as const },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 'auto' as const },
+      };
+
+      const validationContactColumnStyles = {
+        0: { cellWidth: 32 },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 18, halign: 'center' as const },
+        3: { cellWidth: 22 },
+        4: { cellWidth: 'auto' as const },
+        5: { cellWidth: 22, halign: 'center' as const },
+        6: { cellWidth: 30 },
+      };
+
       autoTable(doc, {
-        head: [['Email', 'Remitente', 'Estado', 'Tipo', 'Descripción']],
+        head: contactHeaders,
         body: contactData,
         startY: yPosition,
         theme: 'grid',
@@ -910,14 +1090,22 @@ export const exportComprehensiveEvaluationReport = (
         alternateRowStyles: {
           fillColor: FINKARGO_COLORS.grey50,
         },
-        columnStyles: {
-          0: { cellWidth: 40 },
-          1: { cellWidth: 25 },
-          2: { cellWidth: 20, halign: 'center' },
-          3: { cellWidth: 25 },
-          4: { cellWidth: 'auto' },
-        },
+        columnStyles: hasContactValidations ? validationContactColumnStyles : baseContactColumnStyles,
         margin: { left: 14, right: 14 },
+        didParseCell: (data) => {
+          // Color-code validation status column (column 5 when validations present)
+          if (hasContactValidations && data.section === 'body' && data.column.index === 5) {
+            const statusLabel = data.cell.raw as string;
+            if (statusLabel === 'Pendiente') {
+              data.cell.styles.fillColor = [255, 244, 229]; // warning bg
+              data.cell.styles.textColor = [184, 110, 0]; // warning text
+            } else {
+              // Validated
+              data.cell.styles.fillColor = [224, 247, 230]; // success bg
+              data.cell.styles.textColor = [44, 161, 77]; // success text
+            }
+          }
+        },
         didDrawPage: (data) => {
           addPageFooter(doc, data.pageNumber);
         },

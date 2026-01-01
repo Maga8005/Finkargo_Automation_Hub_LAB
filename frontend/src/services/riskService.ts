@@ -32,6 +32,12 @@ import type {
   DiscrepancyValidationProgress,
   DiscrepancyValidationRequest,
   CrossValidationResponseWithValidations,
+  EmailChainListWithValidationsResponse,
+  EmailChainDiscrepancyValidationRequest,
+  EmailChainDiscrepancyValidationResponse,
+  ExternalContactListWithValidationsResponse,
+  ExternalContactValidationRequest,
+  ExternalContactValidationResponse,
 } from '../types/risk';
 
 export const riskService = {
@@ -458,5 +464,78 @@ export const riskService = {
    */
   removeDiscrepancyValidation: async (evaluationId: string, resultId: string): Promise<void> => {
     await apiClient.delete(`/risk/evaluations/${evaluationId}/discrepancy-validations/${resultId}`);
+  },
+
+  // ==================== External Communication Validation ====================
+
+  /**
+   * Get email chains with their discrepancy validation state
+   */
+  getEmailChainsWithValidations: async (evaluationId: string): Promise<EmailChainListWithValidationsResponse> => {
+    const response = await apiClient.get<EmailChainListWithValidationsResponse>(
+      `/risk/evaluations/${evaluationId}/email-chains-with-validations`
+    );
+    return response.data;
+  },
+
+  /**
+   * Validate or remove validation from an email chain discrepancy
+   */
+  validateEmailChainDiscrepancy: async (
+    evaluationId: string,
+    chainId: string,
+    discrepancyIndex: number,
+    request: EmailChainDiscrepancyValidationRequest
+  ): Promise<EmailChainDiscrepancyValidationResponse> => {
+    const response = await apiClient.put<EmailChainDiscrepancyValidationResponse>(
+      `/risk/evaluations/${evaluationId}/email-chain-validations/${chainId}/${discrepancyIndex}`,
+      request
+    );
+    return response.data;
+  },
+
+  /**
+   * Remove validation from an email chain discrepancy
+   */
+  removeEmailChainDiscrepancyValidation: async (
+    evaluationId: string,
+    chainId: string,
+    discrepancyIndex: number
+  ): Promise<void> => {
+    await apiClient.delete(
+      `/risk/evaluations/${evaluationId}/email-chain-validations/${chainId}/${discrepancyIndex}`
+    );
+  },
+
+  /**
+   * Get external contacts with their validation state
+   */
+  getExternalContactsWithValidations: async (evaluationId: string): Promise<ExternalContactListWithValidationsResponse> => {
+    const response = await apiClient.get<ExternalContactListWithValidationsResponse>(
+      `/risk/evaluations/${evaluationId}/external-contacts-with-validations`
+    );
+    return response.data;
+  },
+
+  /**
+   * Validate or remove validation from an external contact alert
+   */
+  validateExternalContactAlert: async (
+    evaluationId: string,
+    contactId: string,
+    request: ExternalContactValidationRequest
+  ): Promise<ExternalContactValidationResponse> => {
+    const response = await apiClient.put<ExternalContactValidationResponse>(
+      `/risk/evaluations/${evaluationId}/external-contact-validations/${contactId}`,
+      request
+    );
+    return response.data;
+  },
+
+  /**
+   * Remove validation from an external contact alert
+   */
+  removeExternalContactValidation: async (evaluationId: string, contactId: string): Promise<void> => {
+    await apiClient.delete(`/risk/evaluations/${evaluationId}/external-contact-validations/${contactId}`);
   },
 };

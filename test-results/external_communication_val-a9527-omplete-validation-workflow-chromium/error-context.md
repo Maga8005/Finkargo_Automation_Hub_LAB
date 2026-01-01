@@ -1,0 +1,227 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - heading [level=1] [ref=e7]: Finkargo Automation HUB
+        - button [ref=e9] [cursor=pointer]:
+          - generic [ref=e10]: AD
+          - generic [ref=e11]:
+            - paragraph [ref=e12]: Admin
+            - text: Administrador
+          - img [ref=e13]
+    - generic [ref=e18]:
+      - text: Departamentos
+      - list [ref=e19]:
+        - listitem [ref=e20]:
+          - button [ref=e21] [cursor=pointer]:
+            - img [ref=e23]
+            - generic [ref=e26]: Operaciones
+            - img [ref=e27]
+        - listitem [ref=e29]:
+          - button [ref=e30] [cursor=pointer]:
+            - img [ref=e32]
+            - generic [ref=e35]: Ventas
+        - listitem [ref=e36]:
+          - button [ref=e37] [cursor=pointer]:
+            - img [ref=e39]
+            - generic [ref=e42]: Finanzas
+            - img [ref=e43]
+        - listitem [ref=e45]:
+          - button [ref=e46] [cursor=pointer]:
+            - img [ref=e48]
+            - generic [ref=e51]: Tesorería
+            - img [ref=e52]
+        - listitem [ref=e54]:
+          - button [ref=e55] [cursor=pointer]:
+            - img [ref=e57]
+            - generic [ref=e60]: Alianzas
+            - img [ref=e61]
+        - listitem [ref=e63]:
+          - button [ref=e64] [cursor=pointer]:
+            - img [ref=e66]
+            - generic [ref=e69]: Recursos Humanos
+        - listitem [ref=e70]:
+          - button [ref=e71] [cursor=pointer]:
+            - img [ref=e73]
+            - generic [ref=e76]: Tecnología
+        - listitem [ref=e77]:
+          - button [ref=e78] [cursor=pointer]:
+            - img [ref=e80]
+            - generic [ref=e83]: Atención al Cliente
+        - listitem [ref=e84]:
+          - button [ref=e85] [cursor=pointer]:
+            - img [ref=e87]
+            - generic [ref=e90]: Legal
+        - listitem [ref=e91]:
+          - button [ref=e92] [cursor=pointer]:
+            - img [ref=e94]
+            - generic [ref=e97]: Riesgos
+        - listitem [ref=e98]:
+          - button [ref=e99] [cursor=pointer]:
+            - img [ref=e101]
+            - generic [ref=e104]: Collections
+    - main [ref=e105]:
+      - generic [ref=e107]:
+        - generic [ref=e108]:
+          - button [ref=e109] [cursor=pointer]:
+            - img [ref=e110]
+          - generic [ref=e112]:
+            - generic [ref=e113]:
+              - heading [level=5] [ref=e114]: RISK-2025-052
+              - generic [ref=e116]: Completado
+            - paragraph [ref=e117]: Evaluación creada el 31 de diciembre de 2025, 04:48 p. m.
+        - tablist [ref=e121]:
+          - tab [ref=e122] [cursor=pointer]:
+            - img [ref=e123]
+            - text: Documentos
+          - tab [ref=e125] [cursor=pointer]:
+            - img [ref=e126]
+            - text: Validación Cruzada
+          - tab [selected] [ref=e128] [cursor=pointer]:
+            - img [ref=e129]
+            - text: Contacto Externo
+          - tab [ref=e131] [cursor=pointer]:
+            - img [ref=e132]
+            - text: Evaluación
+        - generic [ref=e135]:
+          - alert [ref=e136]:
+            - img [ref=e138]
+            - paragraph [ref=e141]:
+              - img [ref=e142]
+              - text: "Empresa: GLOBAL IMPORTS LATAM S.A.S"
+          - generic [ref=e144]:
+            - heading [level=3] [ref=e145]:
+              - button [expanded] [ref=e146] [cursor=pointer]:
+                - heading [level=6] [ref=e148]:
+                  - img [ref=e149]
+                  - text: Cadenas de Email
+                - img [ref=e152]
+            - region [ref=e157]:
+              - generic [ref=e159]:
+                - alert [ref=e160]:
+                  - img [ref=e162]
+                  - paragraph [ref=e165]: Suba cadenas de email recibidas durante negociaciones comerciales para validar automáticamente la información del remitente contra los documentos de la empresa. El sistema detectará discrepancias en dominios, nombres de empresa, NITs y representantes legales.
+                - alert [ref=e166]:
+                  - img [ref=e168]
+                  - generic [ref=e170]: Error al cargar las cadenas de email
+                  - button [ref=e172] [cursor=pointer]:
+                    - img [ref=e173]
+                - generic [ref=e176]:
+                  - heading [level=6] [ref=e177]:
+                    - img [ref=e178]
+                    - text: Subir Cadena de Email
+                  - separator [ref=e180]
+                  - generic [ref=e181]:
+                    - button [ref=e182] [cursor=pointer]:
+                      - img [ref=e184]
+                      - text: Pegar Texto
+                    - button [ref=e186] [cursor=pointer]:
+                      - img [ref=e188]
+                      - text: Subir Archivo
+                  - generic [ref=e191]:
+                    - textbox [ref=e192]:
+                      - /placeholder: "Pegue aquí el contenido del email...\n\nEjemplo:\nFrom: contacto@empresa.com\nTo: comercial@finkargo.com\nDate: Mon, 23 Dec 2024 10:00:00 -0500\nSubject: Solicitud de Pago\n\nEstimados,\nPor favor proceder con el pago..."
+                    - group
+                  - generic [ref=e193]:
+                    - button [disabled]:
+                      - generic:
+                        - img
+                      - text: Subir
+                - generic [ref=e195]:
+                  - heading [level=6] [ref=e197]:
+                    - img [ref=e198]
+                    - text: Cadenas de Email
+                  - separator [ref=e200]
+                  - generic [ref=e201]:
+                    - img [ref=e202]
+                    - paragraph [ref=e204]: No hay cadenas de email cargadas
+                    - paragraph [ref=e205]: Suba emails para validar contra los documentos
+          - generic [ref=e206]:
+            - heading [level=3] [ref=e207]:
+              - button [expanded] [ref=e208] [cursor=pointer]:
+                - heading [level=6] [ref=e210]:
+                  - img [ref=e211]
+                  - text: Contactos Externos Individuales
+                - img [ref=e214]
+            - region [ref=e219]:
+              - generic [ref=e220]:
+                - alert [ref=e221]:
+                  - img [ref=e223]
+                  - paragraph [ref=e226]: Ingrese los emails de contacto recibidos a través de canales comerciales para validar si el dominio coincide con la empresa evaluada. El sistema detectará posibles intentos de typosquatting (dominios similares pero fraudulentos).
+                - alert [ref=e227]:
+                  - img [ref=e229]
+                  - generic [ref=e231]: Error al cargar los contactos externos
+                  - button [ref=e233] [cursor=pointer]:
+                    - img [ref=e234]
+                - generic [ref=e237]:
+                  - heading [level=6] [ref=e238]:
+                    - img [ref=e239]
+                    - text: Agregar Contacto Externo
+                  - separator [ref=e241]
+                  - generic [ref=e243]:
+                    - generic [ref=e244]:
+                      - generic [ref=e245]:
+                        - generic [ref=e246]: Email del Remitente
+                        - generic [ref=e247]:
+                          - img [ref=e248]
+                          - textbox [ref=e250]:
+                            - /placeholder: contacto@empresa.com
+                          - group:
+                            - generic: Email del Remitente
+                      - generic [ref=e251]:
+                        - generic [ref=e252]: Nombre del Remitente (Opcional)
+                        - generic [ref=e253]:
+                          - img [ref=e254]
+                          - textbox [ref=e256]:
+                            - /placeholder: Juan Pérez
+                          - group:
+                            - generic: Nombre del Remitente (Opcional)
+                    - generic [ref=e257]:
+                      - generic [ref=e258]:
+                        - generic [ref=e259]: Fuente
+                        - generic [ref=e260]:
+                          - combobox [expanded] [ref=e261] [cursor=pointer]: Equipo Comercial
+                          - textbox: comercial_team
+                          - img
+                          - group:
+                            - generic: Fuente
+                      - generic [ref=e262]:
+                        - generic [ref=e263]: Notas (Opcional)
+                        - generic [ref=e264]:
+                          - img [ref=e265]
+                          - textbox [ref=e267]:
+                            - /placeholder: Información adicional...
+                          - group:
+                            - generic: Notas (Opcional)
+                    - button [ref=e269] [cursor=pointer]:
+                      - img [ref=e271]
+                      - text: Agregar Contacto
+                - generic [ref=e274]:
+                  - heading [level=6] [ref=e276]:
+                    - img [ref=e277]
+                    - text: Contactos Externos
+                  - separator [ref=e279]
+                  - generic [ref=e280]:
+                    - img [ref=e281]
+                    - paragraph [ref=e283]: No hay contactos externos registrados
+                    - paragraph [ref=e284]: Agregue emails recibidos via canales comerciales para validar
+                - alert [ref=e285]:
+                  - img [ref=e287]
+                  - generic [ref=e289]:
+                    - heading [level=6] [ref=e290]: Ejemplo de Typosquatting (Caso Azelis)
+                    - paragraph [ref=e291]:
+                      - text: Un caso real de fraude utilizó el dominio
+                      - code [ref=e292]: azelis.com.co
+                      - text: para hacerse pasar por la empresa legítima
+                      - code [ref=e293]: azelis.com
+                      - text: . La variación de TLD (.com vs .com.co) pasó desapercibida y resultó en pérdidas significativas. Este sistema detectaría automáticamente esta variación como sospechosa.
+  - listbox [ref=e296]:
+    - option "Equipo Comercial" [active] [selected] [ref=e297] [cursor=pointer]: Equipo Comercial
+    - option "WhatsApp" [ref=e298] [cursor=pointer]
+    - option "Correo Electrónico" [ref=e299] [cursor=pointer]
+    - option "Teléfono" [ref=e300] [cursor=pointer]
+    - option "Otro" [ref=e301] [cursor=pointer]
+```
