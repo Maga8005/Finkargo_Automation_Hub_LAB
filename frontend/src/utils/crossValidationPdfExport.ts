@@ -84,6 +84,15 @@ const formatDocumentsCompared = (docs: string[]): string => {
   return docs.map(getDocumentLabel).join(', ');
 };
 
+/**
+ * Truncate comment text for PDF display
+ */
+const truncateComment = (text?: string, maxLength = 80): string => {
+  if (!text) return '-';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength - 3) + '...';
+};
+
 interface AssessmentContext {
   assessment_id: string;
   client_nit: string;
@@ -316,7 +325,7 @@ export const exportCrossValidationToPDF = (
       const hasValidations = 'validation_progress' in results &&
         (results as CrossValidationResponseWithValidations).validation_progress?.validations?.length;
 
-      // Build discrepancy data with optional validation column
+      // Build discrepancy data with optional validation columns (status and comments)
       const discrepancyData = discrepancies.map((r) => {
         const baseData = [
           formatValidationType(r.validation_type),
@@ -326,7 +335,7 @@ export const exportCrossValidationToPDF = (
           r.description || '-',
         ];
 
-        // Add validation status if available
+        // Add validation status and comments if available
         if (hasValidations) {
           const resultsWithValidations = results as CrossValidationResponseWithValidations;
           const resultWithValidation = resultsWithValidations.results.find(res => res.id === r.id);
@@ -338,6 +347,9 @@ export const exportCrossValidationToPDF = (
           } else {
             baseData.push('Pendiente');
           }
+          // Add comments column
+          const comments = resultWithValidation?.validation?.comments;
+          baseData.push(truncateComment(comments));
         }
 
         return baseData;
@@ -345,7 +357,7 @@ export const exportCrossValidationToPDF = (
 
       // Table headers
       const headers = hasValidations
-        ? [['Tipo de Validación', 'Campo', 'Severidad', 'Impacto', 'Descripción', 'Estado']]
+        ? [['Tipo de Validación', 'Campo', 'Severidad', 'Impacto', 'Descripción', 'Estado', 'Comentarios']]
         : [['Tipo de Validación', 'Campo', 'Severidad', 'Impacto', 'Descripción']];
 
       // Column styles
@@ -357,13 +369,15 @@ export const exportCrossValidationToPDF = (
         4: { cellWidth: 'auto' as const },
       };
 
+      // Adjusted column widths for 7 columns: Tipo(25), Campo(18), Severidad(16), Impacto(14), Descripción(auto), Estado(22), Comentarios(35)
       const validationColumnStyles = {
-        0: { cellWidth: 30 },
-        1: { cellWidth: 20 },
-        2: { cellWidth: 18, halign: 'center' as const },
-        3: { cellWidth: 15, halign: 'center' as const, textColor: FINKARGO_COLORS.error },
+        0: { cellWidth: 25 },
+        1: { cellWidth: 18 },
+        2: { cellWidth: 16, halign: 'center' as const },
+        3: { cellWidth: 14, halign: 'center' as const, textColor: FINKARGO_COLORS.error },
         4: { cellWidth: 'auto' as const },
-        5: { cellWidth: 25, halign: 'center' as const },
+        5: { cellWidth: 22, halign: 'center' as const },
+        6: { cellWidth: 35 },
       };
 
       autoTable(doc, {
