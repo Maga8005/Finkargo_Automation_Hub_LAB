@@ -572,7 +572,7 @@ const VERIFICATION_PDF_COLORS: Record<VerificationStatus, { bg: [number, number,
  * Includes: evaluation summary, fraud indicators, cross-validation results, external contact alerts
  */
 export const exportComprehensiveEvaluationReport = (
-  results: CrossValidationResponse,
+  results: CrossValidationResponseWithValidations,
   assessment: ComprehensiveReportContext
 ): void => {
   try {
@@ -757,16 +757,30 @@ export const exportComprehensiveEvaluationReport = (
     yPosition += 5;
 
     if (discrepancies.length > 0) {
-      const discrepancyData = discrepancies.map((r) => [
-        formatValidationType(r.validation_type),
-        r.field_compared || '-',
-        formatSeverity(r.severity).label,
-        `+${Number(r.score_impact).toFixed(0)}`,
-        r.description || '-',
-      ]);
+      // Helper to truncate comments for display
+      const truncateComment = (text?: string, maxLength = 100): string => {
+        if (!text) return '-';
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength - 3) + '...';
+      };
+
+      const discrepancyData = discrepancies.map((r) => {
+        // Find the result with validation to get comments
+        const resultWithValidation = results.results.find(res => res.id === r.id);
+        const comments = resultWithValidation?.validation?.comments;
+
+        return [
+          formatValidationType(r.validation_type),
+          r.field_compared || '-',
+          formatSeverity(r.severity).label,
+          `+${Number(r.score_impact).toFixed(0)}`,
+          r.description || '-',
+          truncateComment(comments),
+        ];
+      });
 
       autoTable(doc, {
-        head: [['Tipo', 'Campo', 'Severidad', 'Impacto', 'Descripción']],
+        head: [['Tipo', 'Campo', 'Severidad', 'Impacto', 'Descripción', 'Comentarios']],
         body: discrepancyData,
         startY: yPosition,
         theme: 'grid',
@@ -788,11 +802,12 @@ export const exportComprehensiveEvaluationReport = (
           fillColor: FINKARGO_COLORS.grey50,
         },
         columnStyles: {
-          0: { cellWidth: 30 },
-          1: { cellWidth: 25 },
-          2: { cellWidth: 20, halign: 'center' },
-          3: { cellWidth: 18, halign: 'center', textColor: FINKARGO_COLORS.error },
-          4: { cellWidth: 'auto' },
+          0: { cellWidth: 25 },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 18, halign: 'center' },
+          3: { cellWidth: 15, halign: 'center', textColor: FINKARGO_COLORS.error },
+          4: { cellWidth: 35 },
+          5: { cellWidth: 40 },
         },
         margin: { left: 14, right: 14 },
         didParseCell: (data) => {
