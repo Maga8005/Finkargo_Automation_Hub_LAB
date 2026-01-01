@@ -77,6 +77,9 @@ const RiskEvaluationDetail: React.FC = () => {
   // Check if user is risk manager
   const isRiskManager = userProfile?.role === 'risk_manager' || userProfile?.role === 'admin';
 
+  // Check if user can validate individual discrepancies (mesa_control, risk_manager, or admin)
+  const canValidateDiscrepancies = userProfile?.role && ['mesa_control', 'risk_manager', 'admin'].includes(userProfile.role);
+
   // Check if decision can be made
   const canMakeDecision = isRiskManager &&
     assessment &&
@@ -394,6 +397,7 @@ const RiskEvaluationDetail: React.FC = () => {
           clientInfo={assessment?.client_info}
           finalizedBy={assessment?.finalized_by}
           finalizedAt={assessment?.finalized_at}
+          canValidateDiscrepancies={!!canValidateDiscrepancies}
         />
       )}
 
