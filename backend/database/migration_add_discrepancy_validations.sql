@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS discrepancy_validations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Foreign key to cross-validation result
-    cross_validation_result_id UUID NOT NULL REFERENCES cross_validation_results(id) ON DELETE CASCADE,
+    cross_validation_result_id UUID NOT NULL REFERENCES risk_cross_validation_results(id) ON DELETE CASCADE,
 
     -- Validation data
     is_validated BOOLEAN NOT NULL DEFAULT FALSE,
