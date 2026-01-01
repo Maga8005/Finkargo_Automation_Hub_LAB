@@ -2565,7 +2565,7 @@ async def get_email_chains_with_validations(
                     field=disc.get('field', ''),
                     email_value=disc.get('email_value', ''),
                     document_value=disc.get('document_value'),
-                    severity=DiscrepancySeverity(disc['severity']) if disc.get('severity') else DiscrepancySeverity.low,
+                    severity=DiscrepancySeverity(disc['severity']) if disc.get('severity') else DiscrepancySeverity.LOW,
                     description=disc.get('description', ''),
                     is_typosquatting=disc.get('is_typosquatting', False),
                     similarity_score=disc.get('similarity_score'),

@@ -54,10 +54,12 @@ import { useAuth } from '../../hooks/useAuth';
 
 interface FKEmailChainUploaderProps {
   evaluationId: string;
+  onEmailChainsUpdate?: (chains: EmailChainWithValidations[]) => void;
 }
 
 const FKEmailChainUploader: React.FC<FKEmailChainUploaderProps> = ({
   evaluationId,
+  onEmailChainsUpdate,
 }) => {
   // Auth context to check user roles
   const { userProfile } = useAuth();
@@ -105,6 +107,13 @@ const FKEmailChainUploader: React.FC<FKEmailChainUploaderProps> = ({
   useEffect(() => {
     loadChains();
   }, [loadChains]);
+
+  // Notify parent when chains update
+  useEffect(() => {
+    if (onEmailChainsUpdate) {
+      onEmailChainsUpdate(chains);
+    }
+  }, [chains, onEmailChainsUpdate]);
 
   // Handle text upload
   const handleTextUpload = async () => {

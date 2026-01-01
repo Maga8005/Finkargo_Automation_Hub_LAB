@@ -54,6 +54,7 @@ import type {
   ExternalContactWithValidation,
   ExternalContactListWithValidationsResponse,
   ExternalContactValidationRequest,
+  EmailChainWithValidations,
 } from '../../types/risk';
 import { EXTERNAL_CONTACT_SOURCE_LABELS, EXTERNAL_CONTACT_VALIDATION_STATUS_CONFIG } from '../../types/risk';
 import { useAuth } from '../../hooks/useAuth';
@@ -63,6 +64,7 @@ interface FKExternalContactTabProps {
   evaluationId: string;
   assessmentId?: string;
   clientInfo?: ClientInfo;
+  onEmailChainsUpdate?: (chains: EmailChainWithValidations[]) => void;
 }
 
 interface ContactFormData {
@@ -75,6 +77,7 @@ interface ContactFormData {
 const FKExternalContactTab: React.FC<FKExternalContactTabProps> = ({
   evaluationId,
   clientInfo,
+  onEmailChainsUpdate,
 }) => {
   // Auth context to check user roles
   const { userProfile } = useAuth();
@@ -261,7 +264,7 @@ const FKExternalContactTab: React.FC<FKExternalContactTabProps> = ({
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
-          <FKEmailChainUploader evaluationId={evaluationId} />
+          <FKEmailChainUploader evaluationId={evaluationId} onEmailChainsUpdate={onEmailChainsUpdate} />
         </AccordionDetails>
       </Accordion>
 

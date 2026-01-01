@@ -33,7 +33,6 @@ SlashCommand = Literal[
     "/pull_request",
     "/implement",
     "/test",
-    "/test_static",  # Static analysis for semantic bugs (enum case, field access)
     "/test_api",
     "/resolve_failed_test",
     "/test_e2e",
@@ -186,38 +185,6 @@ class E2ETestResult(BaseModel):
     def passed(self) -> bool:
         """Check if test passed."""
         return self.status == "passed"
-
-
-# Static analysis check types
-StaticAnalysisCheckType = Literal[
-    "enum_validation",
-    "field_access",
-    "import_validation",
-    "type_check"
-]
-
-
-class StaticAnalysisResult(BaseModel):
-    """Result from static analysis check.
-
-    Used to catch semantic bugs that pass linting but fail at runtime:
-    - Enum case mismatches (Status.pending vs Status.PENDING)
-    - Wrong field access (user_type vs role)
-    - Import errors that manifest at runtime
-    """
-
-    check_name: str
-    passed: bool
-    check_type: StaticAnalysisCheckType
-    file_path: Optional[str] = None
-    line_number: Optional[int] = None
-    error: Optional[str] = None
-    suggestion: Optional[str] = None
-
-    @property
-    def failed(self) -> bool:
-        """Check if analysis failed."""
-        return not self.passed
 
 
 class ADWStateData(BaseModel):
