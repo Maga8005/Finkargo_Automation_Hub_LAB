@@ -89,3 +89,11 @@ This prompt helps you determine what documentation you should read based on the 
     - When working with email_chain_discrepancy_validations or external_contact_validations tables
     - When extending PDF export with external communication validation data
     - When troubleshooting mesa de control validation workflows for external communications
+
+- app_docs/feature-5aa7591c-email-chain-alerts-pdf-table.md
+  - Conditions:
+    - When working with email chain alerts in PDF reports
+    - When modifying the comprehensive evaluation report (Reporte de Evaluacion Completa)
+    - When implementing data flow from FKEmailChainUploader to PDF export
+    - When troubleshooting email chain discrepancies not appearing in PDF exports
+    - When extending crossValidationPdfExport.ts with new email chain data
