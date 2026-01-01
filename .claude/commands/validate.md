@@ -49,9 +49,44 @@ Run in order, top to bottom. If any command fails:
    cd frontend && npm run build
    ```
 
+## Semantic Validation (Catches Runtime Bugs)
+
+These checks catch bugs that pass linting but fail at runtime.
+
+7. **Backend Enum Validation**
+   ```bash
+   cd backend && python -c "
+from pathlib import Path
+import re
+import sys
+enums = {
+    'EmailChainValidationStatus': ['PENDING', 'VALIDATED', 'SUSPICIOUS', 'CRITICAL'],
+    'ExternalContactValidationStatus': ['PENDING', 'VALIDATED', 'SUSPICIOUS', 'CRITICAL'],
+    'ContractType': ['ACTA_DE_CONSTITUCION', 'CONTRATO_SUMINISTRO', 'PAGARE', 'OTROSI', 'INVENTARIO_BODEGA', 'PAGA_LOCAL', 'K_CREDITO'],
+    'ContractStatus': ['PENDING', 'APPROVED', 'REJECTED'],
+}
+errors = []
+for py_file in Path('src').rglob('*.py'):
+    content = py_file.read_text()
+    for enum_name, members in enums.items():
+        for m in re.finditer(rf'{enum_name}\.(\w+)', content):
+            if m.group(1) not in members + ['value', 'name']:
+                errors.append(f'{py_file}: Invalid {enum_name}.{m.group(1)}')
+if errors:
+    for e in errors: print(e)
+    sys.exit(1)
+print('Enum validation: OK')
+"
+   ```
+
+8. **Frontend Role Field Check**
+   ```bash
+   cd frontend && ! grep -rn "user_type" src/ --include="*.tsx" | grep -v "// user_type" | grep "includes" | grep -E "admin|risk_manager|mesa_control" || echo "Role check: OK"
+   ```
+
 ## E2E Validation (if UI changed)
 
-7. If changes affected UI components:
+9. If changes affected UI components:
    - Read `.claude/commands/test_e2e.md`
    - Execute relevant e2e test from `.claude/commands/e2e/`
 

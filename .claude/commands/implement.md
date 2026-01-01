@@ -78,6 +78,43 @@ If the plan involves data queries/reports:
 2. **Check pagination** implementation matches frontend expectations
 3. **Verify filter parameters** are correctly typed
 
+### F. Enum and Field Access Verification (ALL Features)
+
+**CRITICAL:** These bugs pass linting but cause runtime errors masked as CORS issues.
+
+Before using enums or permission checks:
+
+1. **Enum Member Case (Python)**:
+   - Python enums use **UPPERCASE** member names: `Status.PENDING`
+   - NOT lowercase: `Status.pending` (WRONG - causes AttributeError!)
+   - The **value** is lowercase, the **member name** is UPPERCASE
+   - Example: `EmailChainValidationStatus.PENDING` (correct)
+   - Example: `EmailChainValidationStatus.pending` (WRONG!)
+
+2. **Role vs UserType Field (Frontend/TypeScript)**:
+   - `userProfile.role` = 'admin', 'risk_manager', 'mesa_control', 'legal', 'operations', 'analyst'
+   - `userProfile.user_type` = 'funcionario' or 'cliente' ONLY
+   - For permission checks, ALWAYS use `.role`, NEVER `.user_type`
+   - Example: `['admin', 'risk_manager'].includes(userProfile.role)` (correct)
+   - Example: `['admin', 'risk_manager'].includes(userProfile.user_type)` (WRONG - always false!)
+
+3. **Post-Implementation Verification**:
+   ```bash
+   # Check for lowercase enum member access
+   git diff --cached | grep -E "(Status|Type)\.[a-z]+" && echo "WARN: lowercase enum member?"
+
+   # Check for user_type in role checks
+   git diff --cached | grep "user_type.*includes" && echo "WARN: user_type for role check?"
+   ```
+
+4. **Test New Endpoints**:
+   Before committing, verify new endpoints don't return 500:
+   ```bash
+   # Start backend and test endpoint
+   curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/api/your/new/endpoint
+   # Must return 2xx or expected 4xx, NOT 500
+   ```
+
 ## Handling Discrepancies
 
 If you discover the plan has incorrect assumptions:

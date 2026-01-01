@@ -54,12 +54,14 @@ from adw_modules.workflow_ops import format_issue_message, create_commit, ensure
 AGENT_TESTER = "test_runner"
 AGENT_E2E_TESTER = "e2e_test_runner"
 AGENT_API_TESTER = "api_integration_tester"
+AGENT_STATIC_ANALYZER = "static_analyzer"  # Static analysis for semantic bugs
 AGENT_BRANCH_GENERATOR = "branch_generator"
 
 # Maximum number of test retry attempts after resolution
 MAX_TEST_RETRY_ATTEMPTS = 4
 MAX_E2E_TEST_RETRY_ATTEMPTS = 2  # E2E ui tests
 MAX_API_TEST_RETRY_ATTEMPTS = 2  # API integration tests
+MAX_STATIC_ANALYSIS_RETRY_ATTEMPTS = 2  # Static analysis retries
 
 # API test configuration
 API_TEST_BASE_URL = os.getenv("API_TEST_BASE_URL", "http://localhost:8000")
@@ -203,6 +205,7 @@ def format_issue_message(
 
 def log_test_results(
     state: ADWState,
+    static_results: List[TestResult],
     results: List[TestResult],
     e2e_results: List[E2ETestResult],
     logger: logging.Logger
@@ -210,26 +213,43 @@ def log_test_results(
     """Log comprehensive test results summary to the issue."""
     issue_number = state.get("issue_number")
     adw_id = state.get("adw_id")
-    
+
     if not issue_number:
         logger.warning("No issue number in state, skipping test results logging")
         return
-    
+
     # Calculate counts
+    static_passed = sum(1 for r in static_results if r.passed)
+    static_failed = len(static_results) - static_passed
     passed_count = sum(1 for r in results if r.passed)
     failed_count = len(results) - passed_count
     e2e_passed_count = sum(1 for r in e2e_results if r.passed)
     e2e_failed_count = len(e2e_results) - e2e_passed_count
-    
+
     # Create comprehensive summary
     summary = f"## 📊 Test Run Summary\n\n"
-    
+
+    # Static analysis summary
+    if static_results:
+        summary += f"### Static Analysis\n"
+        summary += f"**Total Checks:** {len(static_results)}\n"
+        summary += f"**Passed:** {static_passed} ✅\n"
+        summary += f"**Failed:** {static_failed} ❌\n\n"
+
+        if static_failed > 0:
+            summary += "#### Failed Checks:\n"
+            for result in static_results:
+                if not result.passed:
+                    summary += f"- ❌ **{result.test_name}**\n"
+                    if result.error:
+                        summary += f"  - Error: {result.error[:200]}...\n"
+
     # Unit tests summary
     summary += f"### Unit Tests\n"
     summary += f"**Total Tests:** {len(results)}\n"
     summary += f"**Passed:** {passed_count} ✅\n"
     summary += f"**Failed:** {failed_count} ❌\n\n"
-    
+
     if results:
         summary += "#### Details:\n"
         for result in results:
@@ -237,14 +257,14 @@ def log_test_results(
             summary += f"- {status} **{result.test_name}**\n"
             if not result.passed and result.error:
                 summary += f"  - Error: {result.error[:200]}...\n"
-    
+
     # E2E tests summary if they were run
     if e2e_results:
         summary += f"\n### E2E Tests\n"
         summary += f"**Total Tests:** {len(e2e_results)}\n"
         summary += f"**Passed:** {e2e_passed_count} ✅\n"
         summary += f"**Failed:** {e2e_failed_count} ❌\n\n"
-        
+
         summary += "#### Details:\n"
         for result in e2e_results:
             status = "✅" if result.passed else "❌"
@@ -253,22 +273,23 @@ def log_test_results(
                 summary += f"  - Error: {result.error[:200]}...\n"
             if result.screenshots:
                 summary += f"  - Screenshots: {', '.join(result.screenshots)}\n"
-    
+
     # Overall status
-    total_failures = failed_count + e2e_failed_count
+    total_failures = static_failed + failed_count + e2e_failed_count
     if total_failures > 0:
         summary += f"\n### ❌ Overall Status: FAILED\n"
         summary += f"Total failures: {total_failures}\n"
     else:
+        total_tests = len(static_results) + len(results) + len(e2e_results)
         summary += f"\n### ✅ Overall Status: PASSED\n"
-        summary += f"All {len(results) + len(e2e_results)} tests passed successfully!\n"
-    
+        summary += f"All {total_tests} tests passed successfully!\n"
+
     # Post the summary to the issue
     make_issue_comment(
         issue_number,
         format_issue_message(adw_id, "test_summary", summary)
     )
-    
+
     logger.info(f"Posted comprehensive test results summary to issue #{issue_number}")
 
 
@@ -750,6 +771,91 @@ def format_api_test_results_comment(
     return "\n".join(comment_parts)
 
 
+# ============================================================================
+# Static Analysis Tests (semantic validation)
+# ============================================================================
+
+def run_static_analysis_tests(
+    adw_id: str,
+    issue_number: str,
+    logger: logging.Logger,
+) -> Tuple[List[TestResult], int, int]:
+    """
+    Run static analysis tests to catch semantic bugs.
+
+    This catches bugs like:
+    - Enum case mismatches (Status.pending vs Status.PENDING)
+    - Wrong field access (user_type vs role)
+    - Import errors that only manifest at runtime
+
+    Returns (results, passed_count, failed_count).
+    """
+    logger.info("Running static analysis tests...")
+
+    # Execute /test_static command via Claude
+    request = AgentTemplateRequest(
+        agent_name=AGENT_STATIC_ANALYZER,
+        slash_command="/test_static",
+        args=[],
+        adw_id=adw_id,
+        model="sonnet",  # Use faster model for static analysis
+    )
+
+    response = execute_template(request)
+
+    if not response.success:
+        logger.error(f"Static analysis failed: {response.output}")
+        return [TestResult(
+            test_name="static_analysis_execution",
+            passed=False,
+            execution_command="/test_static",
+            test_purpose="Execute static analysis for semantic bugs",
+            error=response.output[:500],
+        )], 0, 1
+
+    # Parse results
+    results, passed_count, failed_count = parse_test_results(response.output, logger)
+    return results, passed_count, failed_count
+
+
+def format_static_analysis_results_comment(
+    results: List[TestResult], passed_count: int, failed_count: int
+) -> str:
+    """Format static analysis results for GitHub issue comment."""
+    if not results:
+        return "ℹ️ No static analysis results"
+
+    comment_parts = []
+    comment_parts.append(f"**Total:** {len(results)} | **Passed:** {passed_count} | **Failed:** {failed_count}")
+    comment_parts.append("")
+
+    # Failed checks first
+    failed_checks = [t for t in results if not t.passed]
+    if failed_checks:
+        comment_parts.append("### ❌ Failed Checks")
+        comment_parts.append("")
+        for check in failed_checks:
+            comment_parts.append(f"- **{check.test_name}**")
+            if check.error:
+                comment_parts.append(f"  - Error: {check.error[:300]}")
+            comment_parts.append(f"  - Purpose: {check.test_purpose}")
+        comment_parts.append("")
+
+    # Passed checks
+    passed_checks = [t for t in results if t.passed]
+    if passed_checks:
+        comment_parts.append("### ✅ Passed Checks")
+        comment_parts.append("")
+        for check in passed_checks:
+            comment_parts.append(f"- {check.test_name}")
+
+    return "\n".join(comment_parts)
+
+
+# ============================================================================
+# E2E Tests (browser automation)
+# ============================================================================
+
 def run_e2e_tests(
     adw_id: str,
     issue_number: str,
@@ -1183,17 +1289,67 @@ def main():
         issue_number, format_issue_message(adw_id, "ops", "✅ Starting test suite")
     )
 
-    # Run tests with automatic resolution and retry
-    logger.info("\n=== Running test suite ===")
+    # ============================================================
+    # PHASE 0: Static Analysis (runs before all other tests)
+    # Catches enum case mismatches, field access errors, import issues
+    # ============================================================
+    logger.info("\n=== Running static analysis ===")
     make_issue_comment(
         issue_number,
-        format_issue_message(adw_id, AGENT_TESTER, "✅ Running application tests..."),
+        format_issue_message(adw_id, AGENT_STATIC_ANALYZER, "🔍 Running static analysis..."),
     )
 
-    # Run tests with resolution and retry logic
-    results, passed_count, failed_count, test_response = run_tests_with_resolution(
+    static_results, static_passed, static_failed = run_static_analysis_tests(
         adw_id, issue_number, logger
     )
+
+    # Format and post static analysis results
+    static_results_comment = format_static_analysis_results_comment(
+        static_results, static_passed, static_failed
+    )
+    make_issue_comment(
+        issue_number,
+        format_issue_message(
+            adw_id, AGENT_STATIC_ANALYZER, f"📊 Static analysis results:\n{static_results_comment}"
+        ),
+    )
+
+    logger.info(f"Static analysis results: {static_passed} passed, {static_failed} failed")
+
+    # If static analysis fails, skip all other tests (fail fast)
+    if static_failed > 0:
+        logger.error("Static analysis failed, skipping remaining tests")
+        make_issue_comment(
+            issue_number,
+            format_issue_message(
+                adw_id, "ops", "⚠️ Skipping unit/API/E2E tests due to static analysis failures"
+            ),
+        )
+        # Initialize empty results for skipped test phases
+        results = []
+        passed_count = 0
+        failed_count = 0
+        test_response = None
+        api_results = []
+        api_passed_count = 0
+        api_failed_count = 0
+        e2e_results = []
+        e2e_passed_count = 0
+        e2e_failed_count = 0
+    else:
+        # ============================================================
+        # PHASE 1: Unit Tests (only runs if static analysis passes)
+        # ============================================================
+        logger.info("\n=== Running test suite ===")
+        make_issue_comment(
+            issue_number,
+            format_issue_message(adw_id, AGENT_TESTER, "✅ Running application tests..."),
+        )
+
+        # Run tests with resolution and retry logic
+        results, passed_count, failed_count, test_response = run_tests_with_resolution(
+            adw_id, issue_number, logger
+        )
 
     # Format and post final results
     results_comment = format_test_results_comment(results, passed_count, failed_count)
@@ -1212,8 +1368,10 @@ def main():
     api_passed_count = 0
     api_failed_count = 0
 
-    # Run API integration tests if unit tests passed
-    if failed_count > 0:
+    # Run API integration tests if static analysis and unit tests passed
+    if static_failed > 0:
+        logger.warning("Skipping API integration tests due to static analysis failures")
+    elif failed_count > 0:
         logger.warning("Skipping API integration tests due to unit test failures")
     elif skip_api:
         logger.info("Skipping API integration tests as requested via --skip-api flag")
@@ -1247,8 +1405,14 @@ def main():
 
         logger.info(f"API integration test results: {api_passed_count} passed, {api_failed_count} failed")
 
-    # If unit tests or API tests failed, skip E2E tests
-    if failed_count > 0 or api_failed_count > 0:
+    # If static analysis, unit tests, or API tests failed, skip E2E tests
+    if static_failed > 0:
+        skip_reason = "static analysis failures"
+        logger.warning(f"Skipping E2E tests due to {skip_reason}")
+        e2e_results = []
+        e2e_passed_count = 0
+        e2e_failed_count = 0
+    elif failed_count > 0 or api_failed_count > 0:
         skip_reason = "unit test failures" if failed_count > 0 else "API integration test failures"
         logger.warning(f"Skipping E2E tests due to {skip_reason}")
         make_issue_comment(
@@ -1337,7 +1501,7 @@ def main():
         logger.info(f"Test results committed: {commit_msg}")
 
     # Log comprehensive test results to the issue
-    log_test_results(state, results, e2e_results, logger)
+    log_test_results(state, static_results, results, e2e_results, logger)
     
     # Finalize git operations (push and create/update PR)
     logger.info("\n=== Finalizing git operations ===")
@@ -1351,10 +1515,12 @@ def main():
     state.to_stdout()
     
     # Exit with appropriate code
-    total_failures = failed_count + api_failed_count + e2e_failed_count
+    total_failures = static_failed + failed_count + api_failed_count + e2e_failed_count
     if total_failures > 0:
         logger.info(f"Test suite completed with failures for issue #{issue_number}")
         failure_msg = f"❌ Test suite completed with failures:\n"
+        if static_failed > 0:
+            failure_msg += f"- Static analysis: {static_failed} failures\n"
         if failed_count > 0:
             failure_msg += f"- Unit tests: {failed_count} failures\n"
         if api_failed_count > 0:
@@ -1369,6 +1535,7 @@ def main():
     else:
         logger.info(f"Test suite completed successfully for issue #{issue_number}")
         success_msg = f"✅ All tests passed successfully!\n"
+        success_msg += f"- Static analysis: {static_passed} passed\n"
         success_msg += f"- Unit tests: {passed_count} passed\n"
         if api_results:
             success_msg += f"- API integration tests: {api_passed_count} passed\n"

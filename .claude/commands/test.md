@@ -102,6 +102,48 @@ TEST_COMMAND_TIMEOUT: 5 minutes
     - test_name: "frontend_types_validation"
     - test_purpose: "Validates frontend type definitions specifically, catching interface mismatches early"
 
+### Semantic Validation Tests (Catches Runtime Bugs)
+
+These tests catch bugs that pass linting but fail at runtime (e.g., enum case mismatches, wrong field names).
+
+11. **Backend Enum Reference Validation**
+    - Preparation Command: None
+    - Command: `cd backend && python tests/test_enum_references.py`
+    - test_name: "enum_reference_validation"
+    - test_purpose: "Validates all enum references use correct UPPERCASE member names, catching case mismatches like Status.pending vs Status.PENDING that cause AttributeError at runtime"
+
+12. **Backend Route Import Validation**
+    - Preparation Command: None
+    - Command: `cd backend && python -c "import sys; sys.path.insert(0, '.'); from src.adapter.rest.risk_routes import router; from src.adapter.rest.legal_routes import router; print('Routes OK')"`
+    - test_name: "route_import_validation"
+    - test_purpose: "Validates all route modules can be imported without AttributeError or similar runtime errors that may be masked as CORS errors in production"
+
+13. **Frontend Role Field Check**
+    - Preparation Command: None
+    - Command: `cd frontend && python3 -c "
+import os
+import sys
+errors = []
+role_values = ['admin', 'risk_manager', 'mesa_control', 'legal', 'operations', 'analyst']
+for root, dirs, files in os.walk('src'):
+    dirs[:] = [d for d in dirs if d != 'node_modules']
+    for file in files:
+        if file.endswith(('.tsx', '.ts')):
+            filepath = os.path.join(root, file)
+            with open(filepath, 'r') as f:
+                lines = f.read().split('\n')
+                for i, line in enumerate(lines, 1):
+                    if 'user_type' in line and any(r in line for r in role_values):
+                        if 'includes' in line or '===' in line:
+                            errors.append(f'{filepath}:{i}')
+if errors:
+    print('user_type/role confusion found:', errors)
+    sys.exit(1)
+print('Role field usage: OK')
+"`
+    - test_name: "role_field_check"
+    - test_purpose: "Detects accidental use of user_type field for role-based permission checks (user_type only contains 'funcionario'|'cliente', use role for permission checks)"
+
 ## Report
 
 - IMPORTANT: Return results exclusively as a JSON array based on the `Output Structure` section below.
