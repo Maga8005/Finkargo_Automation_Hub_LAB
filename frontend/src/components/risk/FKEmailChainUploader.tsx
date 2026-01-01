@@ -78,8 +78,8 @@ const FKEmailChainUploader: React.FC<FKEmailChainUploaderProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if user can validate discrepancies
-  const canValidate = userProfile?.user_type &&
-    ['admin', 'risk_manager', 'mesa_control'].includes(userProfile.user_type);
+  const canValidate = userProfile?.role &&
+    ['admin', 'risk_manager', 'mesa_control'].includes(userProfile.role);
 
   // Load email chains with validations
   const loadChains = useCallback(async () => {

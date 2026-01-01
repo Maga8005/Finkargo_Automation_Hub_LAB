@@ -90,8 +90,8 @@ const FKExternalContactTab: React.FC<FKExternalContactTabProps> = ({
   const [validationProgress, setValidationProgress] = useState<{ validated: number; total: number } | null>(null);
 
   // Check if user can validate alerts
-  const canValidateAlert = userProfile?.user_type &&
-    ['admin', 'risk_manager', 'mesa_control'].includes(userProfile.user_type);
+  const canValidateAlert = userProfile?.role &&
+    ['admin', 'risk_manager', 'mesa_control'].includes(userProfile.role);
 
   // Form setup
   const {
