@@ -816,11 +816,11 @@ export const exportComprehensiveEvaluationReport = (
           fillColor: FINKARGO_COLORS.grey50,
         },
         columnStyles: {
-          0: { cellWidth: 25 },
+          0: { cellWidth: 40 },
           1: { cellWidth: 20 },
           2: { cellWidth: 18, halign: 'center' },
           3: { cellWidth: 15, halign: 'center', textColor: FINKARGO_COLORS.error },
-          4: { cellWidth: 35 },
+          4: { cellWidth: 'auto' },
           5: { cellWidth: 40 },
         },
         margin: { left: 14, right: 14 },
