@@ -36,22 +36,21 @@ import {
   ExpandLess,
   Warning,
   CheckCircle,
-  Error,
+  Error as ErrorIcon,
   AttachFile,
   ContentPaste,
 } from '@mui/icons-material';
 import { riskService } from '../../services/riskService';
 import { extractErrorMessage } from '../../utils/errorUtils';
 import type {
-  EmailChain,
-  EmailChainListResponse,
   EmailChainValidationStatus,
+  EmailChainWithValidations,
+  EmailChainListWithValidationsResponse,
+  EmailChainDiscrepancyValidationRequest,
 } from '../../types/risk';
-import {
-  EMAIL_CHAIN_VALIDATION_STATUS_CONFIG,
-  EMAIL_CHAIN_FIELD_LABELS,
-  DISCREPANCY_SEVERITY_CONFIG,
-} from '../../types/risk';
+import { EMAIL_CHAIN_VALIDATION_STATUS_CONFIG } from '../../types/risk';
+import FKEmailChainValidationItem from './FKEmailChainValidationItem';
+import { useAuth } from '../../hooks/useAuth';
 
 interface FKEmailChainUploaderProps {
   evaluationId: string;
@@ -60,8 +59,11 @@ interface FKEmailChainUploaderProps {
 const FKEmailChainUploader: React.FC<FKEmailChainUploaderProps> = ({
   evaluationId,
 }) => {
+  // Auth context to check user roles
+  const { userProfile } = useAuth();
+
   // State
-  const [chains, setChains] = useState<EmailChain[]>([]);
+  const [chains, setChains] = useState<EmailChainWithValidations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -71,16 +73,27 @@ const FKEmailChainUploader: React.FC<FKEmailChainUploaderProps> = ({
   const [textContent, setTextContent] = useState('');
   const [expandedChainId, setExpandedChainId] = useState<string | null>(null);
   const [uploadMode, setUploadMode] = useState<'text' | 'file'>('text');
+  const [validationProgress, setValidationProgress] = useState<{ validated: number; total: number } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load email chains
+  // Check if user can validate discrepancies
+  const canValidate = userProfile?.user_type &&
+    ['admin', 'risk_manager', 'mesa_control'].includes(userProfile.user_type);
+
+  // Load email chains with validations
   const loadChains = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const response: EmailChainListResponse = await riskService.getEmailChains(evaluationId);
+      const response: EmailChainListWithValidationsResponse = await riskService.getEmailChainsWithValidations(evaluationId);
       setChains(response.chains);
+      if (response.validation_progress) {
+        setValidationProgress({
+          validated: response.validation_progress.validated_count,
+          total: response.validation_progress.total_discrepancies,
+        });
+      }
     } catch (err) {
       console.error('Error loading email chains:', err);
       setError('Error al cargar las cadenas de email');
@@ -199,6 +212,34 @@ const FKEmailChainUploader: React.FC<FKEmailChainUploaderProps> = ({
     setExpandedChainId((prev) => (prev === chainId ? null : chainId));
   };
 
+  // Handle discrepancy validation
+  const handleValidateDiscrepancy = async (
+    chainId: string,
+    discrepancyIndex: number,
+    request: EmailChainDiscrepancyValidationRequest
+  ) => {
+    try {
+      await riskService.validateEmailChainDiscrepancy(evaluationId, chainId, discrepancyIndex, request);
+      setSuccessMessage('Discrepancia validada correctamente');
+      await loadChains(); // Reload to get updated validation state
+    } catch (err) {
+      console.error('Error validating discrepancy:', err);
+      throw new Error(extractErrorMessage(err) || 'Error al validar discrepancia');
+    }
+  };
+
+  // Handle remove discrepancy validation
+  const handleRemoveDiscrepancyValidation = async (chainId: string, discrepancyIndex: number) => {
+    try {
+      await riskService.removeEmailChainDiscrepancyValidation(evaluationId, chainId, discrepancyIndex);
+      setSuccessMessage('Validación removida correctamente');
+      await loadChains(); // Reload to get updated validation state
+    } catch (err) {
+      console.error('Error removing validation:', err);
+      throw new Error(extractErrorMessage(err) || 'Error al remover validación');
+    }
+  };
+
   // Get status icon
   const getStatusIcon = (status: EmailChainValidationStatus) => {
     switch (status) {
@@ -207,7 +248,7 @@ const FKEmailChainUploader: React.FC<FKEmailChainUploaderProps> = ({
       case 'suspicious':
         return <Warning sx={{ color: '#B86E00' }} />;
       case 'critical':
-        return <Error sx={{ color: '#CC071E' }} />;
+        return <ErrorIcon sx={{ color: '#CC071E' }} />;
       default:
         return null;
     }
@@ -357,6 +398,14 @@ Por favor proceder con el pago...`}
                 color="error"
                 size="small"
                 icon={<Warning />}
+              />
+            )}
+            {validationProgress && validationProgress.total > 0 && (
+              <Chip
+                label={`Validados: ${validationProgress.validated}/${validationProgress.total}`}
+                size="small"
+                color={validationProgress.validated >= validationProgress.total ? 'success' : 'default'}
+                icon={<CheckCircle />}
               />
             )}
           </Box>
@@ -516,48 +565,22 @@ Por favor proceder con el pago...`}
                               </Alert>
 
                               {chain.validation_result.discrepancies?.length > 0 && (
-                                <List dense>
-                                  {chain.validation_result.discrepancies.map((disc, i) => {
-                                    const severityConfig = DISCREPANCY_SEVERITY_CONFIG[disc.severity];
-                                    return (
-                                      <ListItem key={i} sx={{ py: 1, px: 0 }}>
-                                        <Box sx={{ width: '100%' }}>
-                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                            <Chip
-                                              label={severityConfig.label}
-                                              size="small"
-                                              sx={{
-                                                backgroundColor: severityConfig.bgColor,
-                                                color: severityConfig.textColor,
-                                                fontSize: '0.65rem',
-                                              }}
-                                            />
-                                            <Chip
-                                              label={EMAIL_CHAIN_FIELD_LABELS[disc.field] || disc.field}
-                                              size="small"
-                                              variant="outlined"
-                                            />
-                                            {disc.is_typosquatting && (
-                                              <Chip
-                                                label="TYPOSQUATTING"
-                                                size="small"
-                                                color="error"
-                                              />
-                                            )}
-                                          </Box>
-                                          <Typography variant="body2">
-                                            {disc.description}
-                                          </Typography>
-                                          {disc.similarity_score !== undefined && disc.similarity_score !== null && (
-                                            <Typography variant="caption" color="text.secondary">
-                                              Similitud: {(disc.similarity_score * 100).toFixed(0)}%
-                                            </Typography>
-                                          )}
-                                        </Box>
-                                      </ListItem>
-                                    );
-                                  })}
-                                </List>
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                                    {chain.validation_result.discrepancies.length} discrepancia{chain.validation_result.discrepancies.length > 1 ? 's' : ''} encontrada{chain.validation_result.discrepancies.length > 1 ? 's' : ''}
+                                  </Typography>
+                                  {chain.validation_result.discrepancies.map((disc, i) => (
+                                    <FKEmailChainValidationItem
+                                      key={i}
+                                      discrepancy={disc}
+                                      discrepancyIndex={i}
+                                      chainId={chain.id}
+                                      canValidate={canValidate ?? false}
+                                      onValidate={handleValidateDiscrepancy}
+                                      onRemoveValidation={handleRemoveDiscrepancyValidation}
+                                    />
+                                  ))}
+                                </Box>
                               )}
                             </Box>
                           )}

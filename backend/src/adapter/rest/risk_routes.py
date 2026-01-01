@@ -18,6 +18,8 @@ from src.repositorio.risk_repository import (
     ExternalContactRepository,
     EmailChainRepository,
     DiscrepancyValidationRepository,
+    EmailChainDiscrepancyValidationRepository,
+    ExternalContactValidationRepository,
 )
 from src.repositorio.risk_settings_repository import RiskSettingsRepository
 from src.repositorio.client_repository import ClientRepository
@@ -77,6 +79,17 @@ from src.interface.risk_dtos import (
     DiscrepancyValidationReason,
     CrossValidationResultWithValidation,
     CrossValidationResponseWithValidations,
+    EmailChainDiscrepancyValidationRequest,
+    EmailChainDiscrepancyValidationResponse,
+    EmailChainDiscrepancyWithValidation,
+    EmailChainValidationProgressResponse,
+    EmailChainWithValidations,
+    EmailChainListWithValidationsResponse,
+    ExternalContactValidationRequest,
+    ExternalContactValidationResponse,
+    ExternalContactWithValidation,
+    ExternalContactValidationProgressResponse,
+    ExternalContactListWithValidationsResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -202,6 +215,18 @@ def get_discrepancy_validation_repo():
     """Get discrepancy validation repository"""
     supabase = get_supabase()
     return DiscrepancyValidationRepository(supabase.admin_client)
+
+
+def get_email_chain_validation_repo():
+    """Get email chain discrepancy validation repository"""
+    supabase = get_supabase()
+    return EmailChainDiscrepancyValidationRepository(supabase.admin_client)
+
+
+def get_external_contact_validation_repo():
+    """Get external contact validation repository"""
+    supabase = get_supabase()
+    return ExternalContactValidationRepository(supabase.admin_client)
 
 
 # ==================== Settings Endpoints ====================
@@ -2178,6 +2203,60 @@ def _map_to_email_chain_response(data: dict) -> EmailChainResponse:
     )
 
 
+def _build_email_chain_parsed_data(pd: Optional[dict]) -> Optional[EmailChainParsedData]:
+    """Build EmailChainParsedData from raw dict"""
+    if not pd:
+        return None
+
+    # Map messages
+    messages = []
+    for msg in pd.get('messages', []):
+        messages.append(EmailMessage(
+            sender_email=msg.get('sender_email', ''),
+            sender_name=msg.get('sender_name'),
+            sender_domain=msg.get('sender_domain', ''),
+            date=msg.get('date'),
+            subject=msg.get('subject'),
+            body_excerpt=msg.get('body_excerpt'),
+        ))
+
+    # Map mentions
+    mentions_data = pd.get('mentions', {})
+    mentions = ExtractedMentions(
+        company_names=mentions_data.get('company_names', []),
+        nits=mentions_data.get('nits', []),
+        representative_names=mentions_data.get('representative_names', []),
+        domains=mentions_data.get('domains', []),
+        extraction_method=mentions_data.get('extraction_method', 'regex'),
+    )
+
+    return EmailChainParsedData(
+        messages=messages,
+        mentions=mentions,
+        parse_errors=pd.get('parse_errors', []),
+    )
+
+
+def _build_email_validation_result(vr: Optional[dict]) -> Optional[EmailValidationResult]:
+    """Build EmailValidationResult from raw dict"""
+    if not vr:
+        return None
+    return EmailValidationResult(
+        is_suspicious=vr.get('is_suspicious', False),
+        similar_domain=vr.get('similar_domain'),
+        similarity_score=vr.get('similarity_score', 0.0),
+        levenshtein_distance=vr.get('levenshtein_distance', 0),
+        detection_type=vr.get('detection_type', 'no_match'),
+        description=vr.get('description', ''),
+        is_free_provider=vr.get('is_free_provider', False),
+        domain_exists=vr.get('domain_exists'),
+        domain_age_days=vr.get('domain_age_days'),
+        domain_creation_date=_parse_datetime(vr.get('domain_creation_date')),
+        age_lookup_status=vr.get('age_lookup_status', 'pending'),
+        domain_registrar=vr.get('domain_registrar'),
+    )
+
+
 # ==================== Discrepancy Validation Endpoints ====================
 
 @router.get("/evaluations/{id}/discrepancies-with-validations", response_model=CrossValidationResponseWithValidations)
@@ -2415,6 +2494,477 @@ def _map_to_discrepancy_validation_response(data: dict) -> DiscrepancyValidation
     return DiscrepancyValidationResponse(
         id=data['id'],
         cross_validation_result_id=data['cross_validation_result_id'],
+        is_validated=data.get('is_validated', False),
+        validation_reason=validation_reason,
+        comments=data.get('comments'),
+        validated_by=data.get('validated_by'),
+        validated_by_name=None,  # Could be enriched with user lookup if needed
+        validated_at=_parse_datetime(data.get('validated_at')),
+        created_at=_parse_datetime(data.get('created_at')) or datetime.utcnow(),
+        updated_at=_parse_datetime(data.get('updated_at')) or datetime.utcnow(),
+    )
+
+
+# ==================== External Communication Validation Endpoints ====================
+
+@router.get("/evaluations/{id}/email-chains-with-validations", response_model=EmailChainListWithValidationsResponse)
+async def get_email_chains_with_validations(
+    id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Get email chains with their discrepancy validation state.
+    Returns email chains with validation information for each discrepancy.
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Getting email chains with validations for evaluation {id}")
+
+    email_chain_repo = get_email_chain_repo()
+    chains = await email_chain_repo.get_by_assessment_id(id)
+
+    email_chain_validation_repo = get_email_chain_validation_repo()
+
+    chains_with_validations = []
+    total_discrepancies = 0
+    total_validated = 0
+    pending_count = 0
+    suspicious_count = 0
+    critical_count = 0
+
+    for chain in chains:
+        if not chain.get('is_active', True):
+            continue
+
+        if chain.get('validation_status') == 'suspicious':
+            suspicious_count += 1
+        elif chain.get('validation_status') == 'critical':
+            critical_count += 1
+
+        # Get validations for this chain
+        validations = await email_chain_validation_repo.get_by_email_chain(chain['id'])
+        validation_map = {v['discrepancy_index']: v for v in validations}
+
+        # Build discrepancies with validations
+        discrepancies_with_validations = []
+        if chain.get('validation_result') and chain['validation_result'].get('discrepancies'):
+            for idx, disc in enumerate(chain['validation_result']['discrepancies']):
+                validation = validation_map.get(idx)
+                validation_response = None
+                if validation:
+                    validation_response = _map_to_email_chain_discrepancy_validation_response(validation)
+                    if validation.get('is_validated'):
+                        total_validated += 1
+                    else:
+                        pending_count += 1
+                else:
+                    pending_count += 1
+
+                total_discrepancies += 1
+
+                disc_with_validation = EmailChainDiscrepancyWithValidation(
+                    field=disc.get('field', ''),
+                    email_value=disc.get('email_value', ''),
+                    document_value=disc.get('document_value'),
+                    severity=DiscrepancySeverity(disc['severity']) if disc.get('severity') else DiscrepancySeverity.low,
+                    description=disc.get('description', ''),
+                    is_typosquatting=disc.get('is_typosquatting', False),
+                    similarity_score=disc.get('similarity_score'),
+                    domain_exists=disc.get('domain_exists'),
+                    domain_age_days=disc.get('domain_age_days'),
+                    domain_creation_date=disc.get('domain_creation_date'),
+                    domain_registrar=disc.get('domain_registrar'),
+                    validation=validation_response,
+                )
+                discrepancies_with_validations.append(disc_with_validation)
+
+        # Build validation result with validations
+        validation_result_with_validations = None
+        if chain.get('validation_result'):
+            vr = chain['validation_result']
+            validation_result_with_validations = EmailChainValidationResult(
+                total_discrepancies=vr.get('total_discrepancies', 0),
+                info_count=vr.get('info_count', 0),
+                critical_count=vr.get('critical_count', 0),
+                high_count=vr.get('high_count', 0),
+                medium_count=vr.get('medium_count', 0),
+                low_count=vr.get('low_count', 0),
+                discrepancies=discrepancies_with_validations,
+                summary=vr.get('summary', ''),
+                validated_at=_parse_datetime(vr.get('validated_at')),
+            )
+
+        chain_response = EmailChainWithValidations(
+            id=chain['id'],
+            assessment_id=chain['assessment_id'],
+            original_filename=chain.get('original_filename'),
+            parsed_data=_build_email_chain_parsed_data(chain.get('parsed_data')),
+            validation_status=EmailChainValidationStatus(chain['validation_status']) if chain.get('validation_status') else EmailChainValidationStatus.pending,
+            validation_result=validation_result_with_validations,
+            validated_at=_parse_datetime(chain.get('validated_at')),
+            created_at=_parse_datetime(chain.get('created_at')) or datetime.utcnow(),
+            created_by=chain.get('created_by'),
+            is_active=chain.get('is_active', True),
+        )
+        chains_with_validations.append(chain_response)
+
+    # Build validation progress
+    validation_progress = EmailChainValidationProgressResponse(
+        assessment_id=id,
+        total_discrepancies=total_discrepancies,
+        validated_count=total_validated,
+        pending_count=pending_count,
+        all_validated=total_discrepancies > 0 and total_validated >= total_discrepancies,
+        validations=[],  # Individual validations are included in chain responses
+    )
+
+    return EmailChainListWithValidationsResponse(
+        assessment_id=id,
+        total_chains=len(chains_with_validations),
+        pending_count=sum(1 for c in chains_with_validations if c.validation_status == EmailChainValidationStatus.pending),
+        validated_count=sum(1 for c in chains_with_validations if c.validation_status == EmailChainValidationStatus.validated),
+        suspicious_count=suspicious_count,
+        critical_count=critical_count,
+        chains=chains_with_validations,
+        validation_progress=validation_progress,
+    )
+
+
+@router.put("/evaluations/{id}/email-chain-validations/{chain_id}/{discrepancy_index}", response_model=EmailChainDiscrepancyValidationResponse)
+async def validate_email_chain_discrepancy(
+    id: str,
+    chain_id: str,
+    discrepancy_index: int,
+    request: EmailChainDiscrepancyValidationRequest,
+    current_user: dict = Depends(require_roles(['risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Validate or remove validation from a specific email chain discrepancy.
+    Only mesa_control, risk_manager, or admin can validate discrepancies.
+
+    Args:
+        id: Assessment UUID
+        chain_id: Email chain UUID
+        discrepancy_index: Index of discrepancy in validation_result.discrepancies array
+        request: Validation request with is_validated, validation_reason, comments
+    """
+    logger.info(f"Validating email chain discrepancy {chain_id}[{discrepancy_index}] for evaluation {id}: validated={request.is_validated}")
+
+    # Verify email chain exists and belongs to this assessment
+    email_chain_repo = get_email_chain_repo()
+    chain = await email_chain_repo.get_by_id(chain_id)
+
+    if not chain or chain.get('assessment_id') != id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Email chain {chain_id} not found for evaluation {id}"
+        )
+
+    # Verify discrepancy index is valid
+    if not chain.get('validation_result') or not chain['validation_result'].get('discrepancies'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Email chain {chain_id} has no discrepancies to validate"
+        )
+
+    discrepancies = chain['validation_result']['discrepancies']
+    if discrepancy_index < 0 or discrepancy_index >= len(discrepancies):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid discrepancy index {discrepancy_index}. Valid range: 0-{len(discrepancies)-1}"
+        )
+
+    user_id = current_user.get('id')
+
+    email_chain_validation_repo = get_email_chain_validation_repo()
+
+    if request.is_validated:
+        # Create or update validation
+        validation_data = {
+            'is_validated': True,
+            'validation_reason': request.validation_reason.value if request.validation_reason else None,
+            'comments': request.comments,
+            'validated_by': user_id,
+            'validated_at': datetime.utcnow().isoformat(),
+        }
+        validation = await email_chain_validation_repo.upsert(chain_id, discrepancy_index, validation_data)
+    else:
+        # Remove validation
+        existing = await email_chain_validation_repo.get_by_email_chain_and_index(chain_id, discrepancy_index)
+        if existing:
+            validation_data = {
+                'is_validated': False,
+                'validation_reason': None,
+                'comments': request.comments,
+                'validated_by': None,
+                'validated_at': None,
+            }
+            validation = await email_chain_validation_repo.upsert(chain_id, discrepancy_index, validation_data)
+        else:
+            # Create unvalidated record
+            validation_data = {
+                'email_chain_id': chain_id,
+                'discrepancy_index': discrepancy_index,
+                'is_validated': False,
+                'validation_reason': None,
+                'comments': request.comments,
+            }
+            validation = await email_chain_validation_repo.create(validation_data)
+
+    logger.info(f"Email chain discrepancy {chain_id}[{discrepancy_index}] validation updated: validated={request.is_validated}")
+
+    return _map_to_email_chain_discrepancy_validation_response(validation)
+
+
+@router.delete("/evaluations/{id}/email-chain-validations/{chain_id}/{discrepancy_index}")
+async def remove_email_chain_discrepancy_validation(
+    id: str,
+    chain_id: str,
+    discrepancy_index: int,
+    current_user: dict = Depends(require_roles(['risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Remove validation from a specific email chain discrepancy.
+    Only mesa_control, risk_manager, or admin can remove validations.
+    """
+    logger.info(f"Removing validation for email chain discrepancy {chain_id}[{discrepancy_index}] in evaluation {id}")
+
+    email_chain_validation_repo = get_email_chain_validation_repo()
+
+    existing = await email_chain_validation_repo.get_by_email_chain_and_index(chain_id, discrepancy_index)
+
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No validation found for email chain discrepancy {chain_id}[{discrepancy_index}]"
+        )
+
+    await email_chain_validation_repo.delete(existing['id'])
+
+    return {"message": "Email chain discrepancy validation removed successfully"}
+
+
+@router.get("/evaluations/{id}/external-contacts-with-validations", response_model=ExternalContactListWithValidationsResponse)
+async def get_external_contacts_with_validations(
+    id: str,
+    current_user: dict = Depends(require_roles(['risk_analyst', 'risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Get external contacts with their validation state.
+    Returns external contacts with validation information for suspicious/critical alerts.
+    Requires risk_analyst, risk_manager, admin, or mesa_control role.
+    """
+    logger.info(f"Getting external contacts with validations for evaluation {id}")
+
+    external_contact_repo = get_external_contact_repo()
+    contacts = await external_contact_repo.get_by_assessment_id(id)
+
+    external_contact_validation_repo = get_external_contact_validation_repo()
+
+    contacts_with_validations = []
+    suspicious_count = 0
+    critical_count = 0
+    total_alerts = 0
+    validated_count = 0
+
+    for contact in contacts:
+        if not contact.get('is_active', True):
+            continue
+
+        if contact.get('validation_status') == 'suspicious':
+            suspicious_count += 1
+        elif contact.get('validation_status') == 'critical':
+            critical_count += 1
+
+        # Get validation for this contact (only for suspicious/critical)
+        validation_response = None
+        if contact.get('validation_status') in ['suspicious', 'critical']:
+            total_alerts += 1
+            validation = await external_contact_validation_repo.get_by_external_contact_id(contact['id'])
+            if validation:
+                validation_response = _map_to_external_contact_validation_response(validation)
+                if validation.get('is_validated'):
+                    validated_count += 1
+
+        contact_response = ExternalContactWithValidation(
+            id=contact['id'],
+            assessment_id=contact['assessment_id'],
+            email=contact['email'],
+            sender_name=contact.get('sender_name'),
+            source=contact['source'],
+            validation_status=ExternalContactValidationStatus(contact['validation_status']) if contact.get('validation_status') else ExternalContactValidationStatus.pending,
+            validation_result=_build_email_validation_result(contact.get('validation_result')),
+            validated_at=_parse_datetime(contact.get('validated_at')),
+            created_at=_parse_datetime(contact.get('created_at')) or datetime.utcnow(),
+            created_by=contact.get('created_by'),
+            notes=contact.get('notes'),
+            is_active=contact.get('is_active', True),
+            validation=validation_response,
+        )
+        contacts_with_validations.append(contact_response)
+
+    # Build validation progress
+    validation_progress = ExternalContactValidationProgressResponse(
+        assessment_id=id,
+        total_alerts=total_alerts,
+        validated_count=validated_count,
+        pending_count=total_alerts - validated_count,
+        all_validated=total_alerts > 0 and validated_count >= total_alerts,
+        validations=[],  # Individual validations are included in contact responses
+    )
+
+    return ExternalContactListWithValidationsResponse(
+        assessment_id=id,
+        total_contacts=len(contacts_with_validations),
+        pending_count=sum(1 for c in contacts_with_validations if c.validation_status == ExternalContactValidationStatus.pending),
+        validated_count=sum(1 for c in contacts_with_validations if c.validation_status == ExternalContactValidationStatus.validated),
+        suspicious_count=suspicious_count,
+        critical_count=critical_count,
+        contacts=contacts_with_validations,
+        validation_progress=validation_progress,
+    )
+
+
+@router.put("/evaluations/{id}/external-contact-validations/{contact_id}", response_model=ExternalContactValidationResponse)
+async def validate_external_contact_alert(
+    id: str,
+    contact_id: str,
+    request: ExternalContactValidationRequest,
+    current_user: dict = Depends(require_roles(['risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Validate or remove validation from a specific external contact alert.
+    Only mesa_control, risk_manager, or admin can validate alerts.
+
+    Args:
+        id: Assessment UUID
+        contact_id: External contact UUID
+        request: Validation request with is_validated, validation_reason, comments
+    """
+    logger.info(f"Validating external contact alert {contact_id} for evaluation {id}: validated={request.is_validated}")
+
+    # Verify external contact exists and belongs to this assessment
+    external_contact_repo = get_external_contact_repo()
+    contact = await external_contact_repo.get_by_id(contact_id)
+
+    if not contact or contact.get('assessment_id') != id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"External contact {contact_id} not found for evaluation {id}"
+        )
+
+    # Only allow validation for suspicious/critical contacts
+    if contact.get('validation_status') not in ['suspicious', 'critical']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"External contact {contact_id} is not suspicious or critical and cannot be validated"
+        )
+
+    user_id = current_user.get('id')
+
+    external_contact_validation_repo = get_external_contact_validation_repo()
+
+    if request.is_validated:
+        # Create or update validation
+        validation_data = {
+            'is_validated': True,
+            'validation_reason': request.validation_reason.value if request.validation_reason else None,
+            'comments': request.comments,
+            'validated_by': user_id,
+            'validated_at': datetime.utcnow().isoformat(),
+        }
+        validation = await external_contact_validation_repo.upsert(contact_id, validation_data)
+    else:
+        # Remove validation
+        existing = await external_contact_validation_repo.get_by_external_contact_id(contact_id)
+        if existing:
+            validation_data = {
+                'is_validated': False,
+                'validation_reason': None,
+                'comments': request.comments,
+                'validated_by': None,
+                'validated_at': None,
+            }
+            validation = await external_contact_validation_repo.upsert(contact_id, validation_data)
+        else:
+            # Create unvalidated record
+            validation_data = {
+                'external_contact_id': contact_id,
+                'is_validated': False,
+                'validation_reason': None,
+                'comments': request.comments,
+            }
+            validation = await external_contact_validation_repo.create(validation_data)
+
+    logger.info(f"External contact {contact_id} validation updated: validated={request.is_validated}")
+
+    return _map_to_external_contact_validation_response(validation)
+
+
+@router.delete("/evaluations/{id}/external-contact-validations/{contact_id}")
+async def remove_external_contact_validation(
+    id: str,
+    contact_id: str,
+    current_user: dict = Depends(require_roles(['risk_manager', 'admin', 'mesa_control']))
+):
+    """
+    Remove validation from a specific external contact.
+    Only mesa_control, risk_manager, or admin can remove validations.
+    """
+    logger.info(f"Removing validation for external contact {contact_id} in evaluation {id}")
+
+    external_contact_validation_repo = get_external_contact_validation_repo()
+
+    existing = await external_contact_validation_repo.get_by_external_contact_id(contact_id)
+
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No validation found for external contact {contact_id}"
+        )
+
+    await external_contact_validation_repo.delete(existing['id'])
+
+    return {"message": "External contact validation removed successfully"}
+
+
+# ==================== External Communication Validation Helper Functions ====================
+
+def _map_to_email_chain_discrepancy_validation_response(data: dict) -> EmailChainDiscrepancyValidationResponse:
+    """Map database record to email chain discrepancy validation response model"""
+    validation_reason = None
+    if data.get('validation_reason'):
+        try:
+            validation_reason = DiscrepancyValidationReason(data['validation_reason'])
+        except ValueError:
+            validation_reason = None
+
+    return EmailChainDiscrepancyValidationResponse(
+        id=data['id'],
+        email_chain_id=data['email_chain_id'],
+        discrepancy_index=data['discrepancy_index'],
+        is_validated=data.get('is_validated', False),
+        validation_reason=validation_reason,
+        comments=data.get('comments'),
+        validated_by=data.get('validated_by'),
+        validated_by_name=None,  # Could be enriched with user lookup if needed
+        validated_at=_parse_datetime(data.get('validated_at')),
+        created_at=_parse_datetime(data.get('created_at')) or datetime.utcnow(),
+        updated_at=_parse_datetime(data.get('updated_at')) or datetime.utcnow(),
+    )
+
+
+def _map_to_external_contact_validation_response(data: dict) -> ExternalContactValidationResponse:
+    """Map database record to external contact validation response model"""
+    validation_reason = None
+    if data.get('validation_reason'):
+        try:
+            validation_reason = DiscrepancyValidationReason(data['validation_reason'])
+        except ValueError:
+            validation_reason = None
+
+    return ExternalContactValidationResponse(
+        id=data['id'],
+        external_contact_id=data['external_contact_id'],
         is_validated=data.get('is_validated', False),
         validation_reason=validation_reason,
         comments=data.get('comments'),

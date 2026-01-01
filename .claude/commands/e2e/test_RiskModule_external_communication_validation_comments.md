@@ -10,8 +10,8 @@ So that I can document my review of email domain discrepancies, typosquatting al
 
 ## Prerequisites
 
-- Backend server running at http://localhost:8000
-- Frontend server running at http://localhost:5173
+- Backend server running at http://localhost:8003
+- Frontend server running at http://localhost:5175
 - Database migrations applied (including migration_add_external_communication_validations.sql)
 - Admin or mesa_control account exists with access to risk module
 - At least one risk evaluation with email chains or external contacts that have validation results

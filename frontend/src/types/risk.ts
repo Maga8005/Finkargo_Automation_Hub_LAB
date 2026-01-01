@@ -837,3 +837,108 @@ export const DISCREPANCY_VALIDATION_REASON_CONFIG: Record<DiscrepancyValidationR
     description: 'El cliente proporcionó una justificación válida',
   },
 };
+
+// ==================== External Communication Validation Types ====================
+
+export interface EmailChainDiscrepancyValidationRequest {
+  is_validated: boolean;
+  validation_reason?: DiscrepancyValidationReason;
+  comments?: string;
+}
+
+export interface EmailChainDiscrepancyValidationResponse {
+  id: string;
+  email_chain_id: string;
+  discrepancy_index: number;
+  is_validated: boolean;
+  validation_reason?: DiscrepancyValidationReason;
+  comments?: string;
+  validated_by?: string;
+  validated_by_name?: string;
+  validated_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmailChainDiscrepancyWithValidation extends EmailChainDiscrepancy {
+  validation?: EmailChainDiscrepancyValidationResponse;
+}
+
+export interface EmailChainValidationResultWithValidations {
+  total_discrepancies: number;
+  info_count?: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+  discrepancies: EmailChainDiscrepancyWithValidation[];
+  summary: string;
+  validated_at?: string;
+}
+
+export interface EmailChainWithValidations extends EmailChain {
+  validation_result?: EmailChainValidationResultWithValidations;
+}
+
+export interface EmailChainValidationProgressResponse {
+  assessment_id: string;
+  total_discrepancies: number;
+  validated_count: number;
+  pending_count: number;
+  all_validated: boolean;
+  validations: EmailChainDiscrepancyValidationResponse[];
+}
+
+export interface EmailChainListWithValidationsResponse {
+  assessment_id: string;
+  total_chains: number;
+  pending_count: number;
+  validated_count: number;
+  suspicious_count: number;
+  critical_count: number;
+  chains: EmailChainWithValidations[];
+  validation_progress?: EmailChainValidationProgressResponse;
+}
+
+export interface ExternalContactValidationRequest {
+  is_validated: boolean;
+  validation_reason?: DiscrepancyValidationReason;
+  comments?: string;
+}
+
+export interface ExternalContactValidationResponse {
+  id: string;
+  external_contact_id: string;
+  is_validated: boolean;
+  validation_reason?: DiscrepancyValidationReason;
+  comments?: string;
+  validated_by?: string;
+  validated_by_name?: string;
+  validated_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExternalContactWithValidation extends ExternalContact {
+  validation?: ExternalContactValidationResponse;
+}
+
+export interface ExternalContactValidationProgressResponse {
+  assessment_id: string;
+  total_alerts: number;
+  validated_count: number;
+  pending_count: number;
+  all_validated: boolean;
+  validations: ExternalContactValidationResponse[];
+}
+
+export interface ExternalContactListWithValidationsResponse {
+  assessment_id: string;
+  total_contacts: number;
+  pending_count: number;
+  validated_count: number;
+  suspicious_count: number;
+  critical_count: number;
+  contacts: ExternalContactWithValidation[];
+  validation_progress?: ExternalContactValidationProgressResponse;
+}

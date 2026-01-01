@@ -1340,3 +1340,422 @@ class DiscrepancyValidationRepository:
             'pending_count': total_discrepancies - validated_count,
             'all_validated': validated_count >= total_discrepancies,
         }
+
+
+class EmailChainDiscrepancyValidationRepository:
+    """Repository for email chain discrepancy validation operations"""
+
+    def __init__(self, supabase_client: Client):
+        """Initialize repository with Supabase client"""
+        self.db = supabase_client
+
+    async def create(self, data: dict) -> dict:
+        """
+        Create new email chain discrepancy validation record
+
+        Args:
+            data: Validation data
+
+        Returns:
+            dict: Created validation record
+        """
+        logger.info(f"Creating email chain discrepancy validation for chain: {data.get('email_chain_id')}, index: {data.get('discrepancy_index')}")
+
+        response = self.db.table('email_chain_discrepancy_validations') \
+            .insert(data) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_id(self, id: str) -> Optional[dict]:
+        """
+        Get validation by UUID
+
+        Args:
+            id: Validation UUID
+
+        Returns:
+            Optional[dict]: Validation record
+        """
+        response = self.db.table('email_chain_discrepancy_validations') \
+            .select('*') \
+            .eq('id', id) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_email_chain_and_index(self, email_chain_id: str, discrepancy_index: int) -> Optional[dict]:
+        """
+        Get validation by email chain ID and discrepancy index
+
+        Args:
+            email_chain_id: Email chain UUID
+            discrepancy_index: Index of discrepancy in validation_result.discrepancies array
+
+        Returns:
+            Optional[dict]: Validation record
+        """
+        response = self.db.table('email_chain_discrepancy_validations') \
+            .select('*') \
+            .eq('email_chain_id', email_chain_id) \
+            .eq('discrepancy_index', discrepancy_index) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_email_chain(self, email_chain_id: str) -> List[dict]:
+        """
+        Get all validations for an email chain
+
+        Args:
+            email_chain_id: Email chain UUID
+
+        Returns:
+            List[dict]: Validation records
+        """
+        response = self.db.table('email_chain_discrepancy_validations') \
+            .select('*') \
+            .eq('email_chain_id', email_chain_id) \
+            .order('discrepancy_index', desc=False) \
+            .execute()
+
+        return response.data if response.data else []
+
+    async def get_by_assessment(self, assessment_id: str) -> List[dict]:
+        """
+        Get all validations for an assessment's email chain discrepancies
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            List[dict]: Validation records
+        """
+        # First get all email chain IDs for this assessment
+        ec_response = self.db.table('risk_email_chains') \
+            .select('id') \
+            .eq('assessment_id', assessment_id) \
+            .eq('is_active', True) \
+            .execute()
+
+        if not ec_response.data:
+            return []
+
+        ec_ids = [r['id'] for r in ec_response.data]
+
+        # Then get validations for those chains
+        response = self.db.table('email_chain_discrepancy_validations') \
+            .select('*') \
+            .in_('email_chain_id', ec_ids) \
+            .order('created_at', desc=False) \
+            .execute()
+
+        return response.data if response.data else []
+
+    async def upsert(self, email_chain_id: str, discrepancy_index: int, data: dict) -> dict:
+        """
+        Create or update validation for an email chain discrepancy
+
+        Args:
+            email_chain_id: Email chain UUID
+            discrepancy_index: Index of discrepancy
+            data: Validation data
+
+        Returns:
+            dict: Created or updated validation record
+        """
+        # Check if validation already exists
+        existing = await self.get_by_email_chain_and_index(email_chain_id, discrepancy_index)
+
+        if existing:
+            # Update existing validation
+            data['updated_at'] = datetime.utcnow().isoformat()
+            response = self.db.table('email_chain_discrepancy_validations') \
+                .update(data) \
+                .eq('id', existing['id']) \
+                .execute()
+            return response.data[0] if response.data else None
+        else:
+            # Create new validation
+            data['email_chain_id'] = email_chain_id
+            data['discrepancy_index'] = discrepancy_index
+            return await self.create(data)
+
+    async def delete(self, id: str) -> bool:
+        """
+        Delete validation record
+
+        Args:
+            id: Validation UUID
+
+        Returns:
+            bool: True if deleted
+        """
+        self.db.table('email_chain_discrepancy_validations') \
+            .delete() \
+            .eq('id', id) \
+            .execute()
+
+        return True
+
+    async def delete_by_email_chain_and_index(self, email_chain_id: str, discrepancy_index: int) -> bool:
+        """
+        Delete validation for a specific email chain discrepancy
+
+        Args:
+            email_chain_id: Email chain UUID
+            discrepancy_index: Index of discrepancy
+
+        Returns:
+            bool: True if deleted
+        """
+        self.db.table('email_chain_discrepancy_validations') \
+            .delete() \
+            .eq('email_chain_id', email_chain_id) \
+            .eq('discrepancy_index', discrepancy_index) \
+            .execute()
+
+        return True
+
+    async def get_validation_progress(self, assessment_id: str) -> Dict[str, Any]:
+        """
+        Get validation progress for an assessment's email chain discrepancies
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            Dict with total_discrepancies, validated_count, pending_count, all_validated
+        """
+        # Get all email chains with discrepancies for assessment
+        ec_response = self.db.table('risk_email_chains') \
+            .select('id, validation_result') \
+            .eq('assessment_id', assessment_id) \
+            .eq('is_active', True) \
+            .in_('validation_status', ['suspicious', 'critical']) \
+            .execute()
+
+        if not ec_response.data:
+            return {
+                'total_discrepancies': 0,
+                'validated_count': 0,
+                'pending_count': 0,
+                'all_validated': True,
+            }
+
+        # Count total discrepancies across all chains
+        total_discrepancies = 0
+        for chain in ec_response.data:
+            if chain.get('validation_result') and chain['validation_result'].get('discrepancies'):
+                total_discrepancies += len(chain['validation_result']['discrepancies'])
+
+        if total_discrepancies == 0:
+            return {
+                'total_discrepancies': 0,
+                'validated_count': 0,
+                'pending_count': 0,
+                'all_validated': True,
+            }
+
+        # Get validated count
+        validations = await self.get_by_assessment(assessment_id)
+        validated_count = sum(1 for v in validations if v.get('is_validated', False))
+
+        return {
+            'total_discrepancies': total_discrepancies,
+            'validated_count': validated_count,
+            'pending_count': total_discrepancies - validated_count,
+            'all_validated': validated_count >= total_discrepancies,
+        }
+
+
+class ExternalContactValidationRepository:
+    """Repository for external contact validation operations"""
+
+    def __init__(self, supabase_client: Client):
+        """Initialize repository with Supabase client"""
+        self.db = supabase_client
+
+    async def create(self, data: dict) -> dict:
+        """
+        Create new external contact validation record
+
+        Args:
+            data: Validation data
+
+        Returns:
+            dict: Created validation record
+        """
+        logger.info(f"Creating external contact validation for contact: {data.get('external_contact_id')}")
+
+        response = self.db.table('external_contact_validations') \
+            .insert(data) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_id(self, id: str) -> Optional[dict]:
+        """
+        Get validation by UUID
+
+        Args:
+            id: Validation UUID
+
+        Returns:
+            Optional[dict]: Validation record
+        """
+        response = self.db.table('external_contact_validations') \
+            .select('*') \
+            .eq('id', id) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_external_contact_id(self, external_contact_id: str) -> Optional[dict]:
+        """
+        Get validation by external contact ID
+
+        Args:
+            external_contact_id: External contact UUID
+
+        Returns:
+            Optional[dict]: Validation record
+        """
+        response = self.db.table('external_contact_validations') \
+            .select('*') \
+            .eq('external_contact_id', external_contact_id) \
+            .execute()
+
+        return response.data[0] if response.data else None
+
+    async def get_by_assessment(self, assessment_id: str) -> List[dict]:
+        """
+        Get all validations for an assessment's external contacts
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            List[dict]: Validation records
+        """
+        # First get all external contact IDs for this assessment (suspicious or critical)
+        ec_response = self.db.table('risk_external_contacts') \
+            .select('id') \
+            .eq('assessment_id', assessment_id) \
+            .eq('is_active', True) \
+            .in_('validation_status', ['suspicious', 'critical']) \
+            .execute()
+
+        if not ec_response.data:
+            return []
+
+        ec_ids = [r['id'] for r in ec_response.data]
+
+        # Then get validations for those contacts
+        response = self.db.table('external_contact_validations') \
+            .select('*') \
+            .in_('external_contact_id', ec_ids) \
+            .order('created_at', desc=False) \
+            .execute()
+
+        return response.data if response.data else []
+
+    async def upsert(self, external_contact_id: str, data: dict) -> dict:
+        """
+        Create or update validation for an external contact
+
+        Args:
+            external_contact_id: External contact UUID
+            data: Validation data
+
+        Returns:
+            dict: Created or updated validation record
+        """
+        # Check if validation already exists
+        existing = await self.get_by_external_contact_id(external_contact_id)
+
+        if existing:
+            # Update existing validation
+            data['updated_at'] = datetime.utcnow().isoformat()
+            response = self.db.table('external_contact_validations') \
+                .update(data) \
+                .eq('id', existing['id']) \
+                .execute()
+            return response.data[0] if response.data else None
+        else:
+            # Create new validation
+            data['external_contact_id'] = external_contact_id
+            return await self.create(data)
+
+    async def delete(self, id: str) -> bool:
+        """
+        Delete validation record
+
+        Args:
+            id: Validation UUID
+
+        Returns:
+            bool: True if deleted
+        """
+        self.db.table('external_contact_validations') \
+            .delete() \
+            .eq('id', id) \
+            .execute()
+
+        return True
+
+    async def delete_by_external_contact_id(self, external_contact_id: str) -> bool:
+        """
+        Delete validation for a specific external contact
+
+        Args:
+            external_contact_id: External contact UUID
+
+        Returns:
+            bool: True if deleted
+        """
+        self.db.table('external_contact_validations') \
+            .delete() \
+            .eq('external_contact_id', external_contact_id) \
+            .execute()
+
+        return True
+
+    async def get_validation_progress(self, assessment_id: str) -> Dict[str, Any]:
+        """
+        Get validation progress for an assessment's external contact alerts
+
+        Args:
+            assessment_id: Assessment UUID
+
+        Returns:
+            Dict with total_alerts, validated_count, pending_count, all_validated
+        """
+        # Get count of suspicious/critical contacts for assessment
+        ec_response = self.db.table('risk_external_contacts') \
+            .select('id', count='exact') \
+            .eq('assessment_id', assessment_id) \
+            .eq('is_active', True) \
+            .in_('validation_status', ['suspicious', 'critical']) \
+            .execute()
+
+        total_alerts = ec_response.count or 0
+
+        if total_alerts == 0:
+            return {
+                'total_alerts': 0,
+                'validated_count': 0,
+                'pending_count': 0,
+                'all_validated': True,
+            }
+
+        # Get validated count
+        validations = await self.get_by_assessment(assessment_id)
+        validated_count = sum(1 for v in validations if v.get('is_validated', False))
+
+        return {
+            'total_alerts': total_alerts,
+            'validated_count': validated_count,
+            'pending_count': total_alerts - validated_count,
+            'all_validated': validated_count >= total_alerts,
+        }
