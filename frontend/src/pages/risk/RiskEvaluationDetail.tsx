@@ -49,6 +49,7 @@ import type {
   CrossValidationResponse,
   CrossValidationResponseWithValidations,
   ExternalContact,
+  EmailChainWithValidations,
 } from '../../types/risk';
 import { ASSESSMENT_STATUS_CONFIG } from '../../types/risk';
 import { exportComprehensiveEvaluationReport } from '../../utils/crossValidationPdfExport';
@@ -73,6 +74,7 @@ const RiskEvaluationDetail: React.FC = () => {
   const [validationResults, setValidationResults] = useState<CrossValidationResponse | null>(null);
   const [scoreUpdatedMessage, setScoreUpdatedMessage] = useState<string | null>(null);
   const [externalContacts, setExternalContacts] = useState<ExternalContact[]>([]);
+  const [emailChains, setEmailChains] = useState<EmailChainWithValidations[]>([]);
   const [generatingReport, setGeneratingReport] = useState(false);
 
   // Check if user is risk manager
@@ -174,6 +176,7 @@ const RiskEvaluationDetail: React.FC = () => {
         verification_status: assessment.verification_status || 'pending',
         fraud_indicators: assessment.fraud_indicators || [],
         external_contacts: externalContacts,
+        email_chains: emailChains,
       };
 
       exportComprehensiveEvaluationReport(cvResults, reportContext);
@@ -183,7 +186,7 @@ const RiskEvaluationDetail: React.FC = () => {
     } finally {
       setGeneratingReport(false);
     }
-  }, [assessment, externalContacts]);
+  }, [assessment, externalContacts, emailChains]);
 
   // Handle comprehensive report generation
   const handleGenerateReport = useCallback(async () => {
@@ -403,6 +406,7 @@ const RiskEvaluationDetail: React.FC = () => {
           evaluationId={id}
           assessmentId={assessment?.assessment_id}
           clientInfo={assessment?.client_info}
+          onEmailChainsUpdate={setEmailChains}
         />
       )}
 
