@@ -2520,7 +2520,7 @@ async def get_email_chains_with_validations(
     logger.info(f"Getting email chains with validations for evaluation {id}")
 
     email_chain_repo = get_email_chain_repo()
-    chains = await email_chain_repo.get_by_assessment_id(id)
+    chains = await email_chain_repo.get_by_assessment(id)
 
     email_chain_validation_repo = get_email_chain_validation_repo()
 
@@ -2756,7 +2756,7 @@ async def get_external_contacts_with_validations(
     logger.info(f"Getting external contacts with validations for evaluation {id}")
 
     external_contact_repo = get_external_contact_repo()
-    contacts = await external_contact_repo.get_by_assessment_id(id)
+    contacts = await external_contact_repo.get_by_assessment(id)
 
     external_contact_validation_repo = get_external_contact_validation_repo()
 
