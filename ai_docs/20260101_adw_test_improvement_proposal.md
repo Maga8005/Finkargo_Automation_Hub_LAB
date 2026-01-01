@@ -557,12 +557,315 @@ src/components/risk/FKEmailChainUploader.tsx:81:user_type...includes
 
 ---
 
+## Solution 8: Integrate Static Analysis into `adw_test.py` (CRITICAL)
+
+The core ADW test workflow is in `adws/adw_test.py`. This is where we need to add the static analysis phase to ensure it runs automatically during every ADW SDLC execution.
+
+### 8.1 Add New Agent Constant
+
+**File:** `adws/adw_test.py` (line ~54)
+
+```python
+# Agent name constants
+AGENT_TESTER = "test_runner"
+AGENT_E2E_TESTER = "e2e_test_runner"
+AGENT_API_TESTER = "api_integration_tester"
+AGENT_STATIC_ANALYZER = "static_analyzer"  # NEW
+AGENT_BRANCH_GENERATOR = "branch_generator"
+
+# Maximum retry attempts
+MAX_TEST_RETRY_ATTEMPTS = 4
+MAX_E2E_TEST_RETRY_ATTEMPTS = 2
+MAX_API_TEST_RETRY_ATTEMPTS = 2
+MAX_STATIC_ANALYSIS_RETRY_ATTEMPTS = 2  # NEW
+```
+
+### 8.2 Add `/test_static` to SlashCommand Type
+
+**File:** `adws/adw_modules/data_types.py` (line ~22)
+
+```python
+SlashCommand = Literal[
+    # Issue classification commands
+    "/chore",
+    "/bug",
+    "/feature",
+    # ADW workflow commands
+    "/classify_issue",
+    "/classify_adw",
+    "/find_plan_file",
+    "/generate_branch_name",
+    "/commit",
+    "/pull_request",
+    "/implement",
+    "/test",
+    "/test_static",  # NEW - Static analysis for semantic bugs
+    "/test_api",
+    "/resolve_failed_test",
+    "/test_e2e",
+    "/resolve_failed_e2e_test",
+    # Review and documentation commands
+    "/review",
+    "/patch",
+    "/document",
+]
+```
+
+### 8.3 Add New Data Type for Static Analysis Results
+
+**File:** `adws/adw_modules/data_types.py` (add after `E2ETestResult`)
+
+```python
+class StaticAnalysisResult(BaseModel):
+    """Result from static analysis check."""
+
+    check_name: str
+    passed: bool
+    check_type: Literal["enum_validation", "field_access", "import_validation", "type_check"]
+    file_path: Optional[str] = None
+    line_number: Optional[int] = None
+    error: Optional[str] = None
+    suggestion: Optional[str] = None
+
+    @property
+    def failed(self) -> bool:
+        """Check if analysis failed."""
+        return not self.passed
+```
+
+### 8.4 Add Static Analysis Function to `adw_test.py`
+
+**File:** `adws/adw_test.py` (add after `run_api_integration_tests` function, ~line 714)
+
+```python
+# ============================================================================
+# Static Analysis Tests (semantic validation)
+# ============================================================================
+
+def run_static_analysis_tests(
+    adw_id: str,
+    issue_number: str,
+    logger: logging.Logger,
+) -> Tuple[List[TestResult], int, int]:
+    """
+    Run static analysis tests to catch semantic bugs.
+
+    This catches bugs like:
+    - Enum case mismatches (Status.pending vs Status.PENDING)
+    - Wrong field access (user_type vs role)
+    - Import errors that only manifest at runtime
+
+    Returns (results, passed_count, failed_count).
+    """
+    logger.info("Running static analysis tests...")
+
+    # Execute /test_static command via Claude
+    request = AgentTemplateRequest(
+        agent_name=AGENT_STATIC_ANALYZER,
+        slash_command="/test_static",
+        args=[],
+        adw_id=adw_id,
+        model="sonnet",  # Use faster model for static analysis
+    )
+
+    response = execute_template(request)
+
+    if not response.success:
+        logger.error(f"Static analysis failed: {response.output}")
+        return [TestResult(
+            test_name="static_analysis_execution",
+            passed=False,
+            execution_command="/test_static",
+            test_purpose="Execute static analysis for semantic bugs",
+            error=response.output[:500],
+        )], 0, 1
+
+    # Parse results
+    results, passed_count, failed_count = parse_test_results(response.output, logger)
+    return results, passed_count, failed_count
+
+
+def format_static_analysis_results_comment(
+    results: List[TestResult], passed_count: int, failed_count: int
+) -> str:
+    """Format static analysis results for GitHub issue comment."""
+    if not results:
+        return "ℹ️ No static analysis results"
+
+    comment_parts = []
+    comment_parts.append(f"**Total:** {len(results)} | **Passed:** {passed_count} | **Failed:** {failed_count}")
+    comment_parts.append("")
+
+    # Failed checks first
+    failed_checks = [t for t in results if not t.passed]
+    if failed_checks:
+        comment_parts.append("### ❌ Failed Checks")
+        comment_parts.append("")
+        for check in failed_checks:
+            comment_parts.append(f"- **{check.test_name}**")
+            if check.error:
+                comment_parts.append(f"  - Error: {check.error[:300]}")
+            comment_parts.append(f"  - Purpose: {check.test_purpose}")
+        comment_parts.append("")
+
+    # Passed checks
+    passed_checks = [t for t in results if t.passed]
+    if passed_checks:
+        comment_parts.append("### ✅ Passed Checks")
+        comment_parts.append("")
+        for check in passed_checks:
+            comment_parts.append(f"- {check.test_name}")
+
+    return "\n".join(comment_parts)
+```
+
+### 8.5 Integrate Static Analysis into Main Workflow
+
+**File:** `adws/adw_test.py` - Modify `main()` function
+
+Add static analysis phase **BEFORE** unit tests (after line ~1186):
+
+```python
+    # ============================================================
+    # PHASE 0: Static Analysis (NEW - runs before all other tests)
+    # ============================================================
+    logger.info("\n=== Running static analysis ===")
+    make_issue_comment(
+        issue_number,
+        format_issue_message(adw_id, AGENT_STATIC_ANALYZER, "🔍 Running static analysis..."),
+    )
+
+    static_results, static_passed, static_failed = run_static_analysis_tests(
+        adw_id, issue_number, logger
+    )
+
+    # Format and post static analysis results
+    static_results_comment = format_static_analysis_results_comment(
+        static_results, static_passed, static_failed
+    )
+    make_issue_comment(
+        issue_number,
+        format_issue_message(
+            adw_id, AGENT_STATIC_ANALYZER, f"📊 Static analysis results:\n{static_results_comment}"
+        ),
+    )
+
+    logger.info(f"Static analysis results: {static_passed} passed, {static_failed} failed")
+
+    # If static analysis fails, skip all other tests
+    if static_failed > 0:
+        logger.error("Static analysis failed, skipping remaining tests")
+        make_issue_comment(
+            issue_number,
+            format_issue_message(
+                adw_id, "ops", f"⚠️ Skipping unit/API/E2E tests due to static analysis failures"
+            ),
+        )
+        # Continue to commit and report, but mark overall as failed
+        results = []
+        passed_count = 0
+        failed_count = 0
+        api_results = []
+        api_passed_count = 0
+        api_failed_count = 0
+        e2e_results = []
+        e2e_passed_count = 0
+        e2e_failed_count = 0
+    else:
+        # Continue with existing test flow...
+        # (existing unit test code here)
+```
+
+### 8.6 Update Final Status Calculation
+
+**File:** `adws/adw_test.py` - Modify exit status calculation (around line ~1354)
+
+```python
+    # Exit with appropriate code
+    total_failures = static_failed + failed_count + api_failed_count + e2e_failed_count
+    if total_failures > 0:
+        logger.info(f"Test suite completed with failures for issue #{issue_number}")
+        failure_msg = f"❌ Test suite completed with failures:\n"
+        if static_failed > 0:
+            failure_msg += f"- Static analysis: {static_failed} failures\n"
+        if failed_count > 0:
+            failure_msg += f"- Unit tests: {failed_count} failures\n"
+        if api_failed_count > 0:
+            failure_msg += f"- API integration tests: {api_failed_count} failures\n"
+        if e2e_failed_count > 0:
+            failure_msg += f"- E2E tests: {e2e_failed_count} failures"
+        # ... rest of failure handling
+```
+
+### 8.7 Updated Test Execution Order
+
+The new test execution order in `adw_test.py` will be:
+
+```
+1. Static Analysis (/test_static)     <-- NEW: Catches enum/field bugs FIRST
+   ├── Enum reference validation
+   ├── Route import validation
+   └── Frontend role field check
+
+2. Unit Tests (/test)                  <-- Only runs if static analysis passes
+   ├── Python syntax check
+   ├── Backend linting
+   ├── All backend tests
+   ├── Frontend linting
+   ├── TypeScript check
+   └── Frontend build
+
+3. API Integration Tests (/test_api)   <-- Only runs if unit tests pass
+
+4. E2E Tests (/test_e2e)               <-- Only runs if API tests pass
+```
+
+---
+
+## Updated Implementation Priority
+
+| Solution | Effort | Impact | Priority |
+|----------|--------|--------|----------|
+| **8. adw_test.py integration** | Medium | **Critical** | **P0 - Do First** |
+| 3. New `/test_static` command | Medium | High | **P0 - Do First** |
+| 1. Enum validation test file | Medium | High | P0 |
+| 4. Enhanced `/test` command | Low | High | P1 |
+| 5. Enhanced `/validate` command | Low | High | P1 |
+| 6. Pre-impl checklist enhancement | Low | Medium | P2 |
+| 7. `/verify_implementation` command | Medium | Medium | P2 |
+| 2. Frontend ESLint/type utils | Medium | Medium | P2 |
+
+---
+
+## Files to Create/Modify (Updated)
+
+| File | Action | Purpose |
+|------|--------|---------|
+| **`adws/adw_test.py`** | **Modify** | **Add static analysis phase to main workflow** |
+| **`adws/adw_modules/data_types.py`** | **Modify** | **Add `/test_static` to SlashCommand, add StaticAnalysisResult** |
+| `.claude/commands/test_static.md` | Create | New static analysis slash command |
+| `backend/tests/test_enum_references.py` | Create | Enum validation test |
+| `.claude/commands/test.md` | Modify | Add new tests #11-13 |
+| `.claude/commands/validate.md` | Modify | Add semantic checks |
+| `.claude/commands/implement.md` | Modify | Add verification section |
+| `frontend/src/utils/roleUtils.ts` | Create | Type-safe role checking |
+
+---
+
 ## Conclusion
 
-The proposed improvements add **semantic validation** layers that catch bugs which syntactically valid but semantically incorrect. By implementing the P0 items (enhanced `/test` and `/validate` commands), future ADW runs will catch:
+The proposed improvements add **semantic validation** layers that catch bugs which are syntactically valid but semantically incorrect.
 
-1. **Enum case mismatches** - Before code reaches production
-2. **Field name confusion** - Before UI features silently break
-3. **Runtime import errors** - Before CORS-masked 500 errors
+**Key change:** By integrating static analysis directly into `adws/adw_test.py`, the checks will run automatically as part of every ADW SDLC execution, ensuring:
 
-Total estimated effort: 2-3 hours for P0 items.
+1. **Enum case mismatches** - Caught before unit tests even run
+2. **Field name confusion** - Caught before UI features silently break
+3. **Runtime import errors** - Caught before CORS-masked 500 errors
+
+**Workflow Impact:**
+- Static analysis runs **FIRST** in the test pipeline
+- If static analysis fails, other tests are skipped (fail fast)
+- Developers get immediate feedback on semantic bugs
+- No more time wasted debugging misleading CORS errors
+
+Total estimated effort: 3-4 hours for P0 items (including `adw_test.py` integration).
