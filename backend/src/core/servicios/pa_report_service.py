@@ -6,6 +6,7 @@ Handles:
 - Step 1: Data cleanup and filtering
 - Step 2: Classification application
 - Excel file generation for download
+- File persistence to Supabase Storage
 """
 
 import logging
@@ -26,6 +27,7 @@ from src.repositorio.pa_rules_repository import PARulesRepository
 from src.core.servicios.pa_classification_engine import (
     create_classification_engine
 )
+from src.config.supabase_config import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,9 @@ logger = logging.getLogger(__name__)
 # In-memory session storage (for development)
 # In production, use Redis or persistent storage
 _processing_sessions: Dict[str, Dict] = {}
+
+# Supabase Storage bucket for PA reports
+PA_REPORTS_BUCKET = "pa-reports"
 
 
 class PAReportService:
@@ -89,6 +94,86 @@ class PAReportService:
             repository: PA rules repository instance.
         """
         self.repository = repository
+        self._supabase = get_supabase_client()
+
+    async def _upload_excel_to_storage(
+        self,
+        excel_bytes: bytes,
+        session_id: str,
+        file_type: str
+    ) -> Optional[str]:
+        """
+        Upload Excel file to Supabase Storage.
+
+        Args:
+            excel_bytes: Excel file content as bytes.
+            session_id: Processing session ID.
+            file_type: Type of file ('cleaned' or 'classified').
+
+        Returns:
+            Public URL of uploaded file, or None if upload fails.
+        """
+        try:
+            # Generate unique file path
+            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            file_path = f"{session_id}/PA_{file_type.capitalize()}_{timestamp}.xlsx"
+
+            logger.info(f"Uploading {file_type} Excel to storage: {file_path}")
+
+            # Upload to Supabase Storage
+            response = self._supabase.storage.from_(PA_REPORTS_BUCKET).upload(
+                path=file_path,
+                file=excel_bytes,
+                file_options={
+                    "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "upsert": "true"
+                }
+            )
+
+            logger.debug(f"Storage upload response: {response}")
+
+            # Get public URL
+            public_url = self._supabase.storage.from_(PA_REPORTS_BUCKET).get_public_url(file_path)
+            logger.info(f"File uploaded successfully: {public_url}")
+
+            return public_url
+
+        except Exception as e:
+            logger.error(f"Error uploading {file_type} Excel to storage: {e}", exc_info=True)
+            return None
+
+    async def _download_from_storage(self, file_url: str) -> Optional[bytes]:
+        """
+        Download file from Supabase Storage.
+
+        Args:
+            file_url: Public URL of the file.
+
+        Returns:
+            File bytes, or None if download fails.
+        """
+        try:
+            # Extract file path from URL
+            # URL format: https://<project>.supabase.co/storage/v1/object/public/pa-reports/<path>
+            if PA_REPORTS_BUCKET not in file_url:
+                logger.error(f"Invalid storage URL: {file_url}")
+                return None
+
+            # Extract path after bucket name
+            path_start = file_url.find(f"{PA_REPORTS_BUCKET}/") + len(PA_REPORTS_BUCKET) + 1
+            file_path = file_url[path_start:]
+
+            logger.info(f"Downloading file from storage: {file_path}")
+
+            # Download from storage
+            file_bytes = self._supabase.storage.from_(PA_REPORTS_BUCKET).download(file_path)
+
+            logger.info(f"File downloaded successfully: {len(file_bytes)} bytes")
+            return file_bytes
+
+        except Exception as e:
+            logger.error(f"Error downloading from storage: {e}", exc_info=True)
+            return None
 
     async def upload_netsuite_file(
         self,
@@ -353,15 +438,36 @@ class PAReportService:
             session["cleaned_df"] = pa_df
             session["status"] = PAProcessingStatus.CLEANED
 
-            # Update database session
-            await self.repository.update_processing_session(
-                session_id,
-                {
-                    "status": "cleaned",
-                    "stats": stats.model_dump(),
-                    "cleaned_at": datetime.utcnow().isoformat()
-                }
-            )
+            # Generate and persist Excel file to storage
+            cleaned_file_url = None
+            try:
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                    pa_df.to_excel(writer, sheet_name="Reporte PA Limpio", index=False)
+                output.seek(0)
+                excel_bytes = output.getvalue()
+
+                # Upload to Supabase Storage
+                cleaned_file_url = await self._upload_excel_to_storage(
+                    excel_bytes, session_id, "cleaned"
+                )
+                if cleaned_file_url:
+                    logger.info(f"Cleaned Excel persisted to storage: {cleaned_file_url}")
+                else:
+                    logger.warning(f"Failed to persist cleaned Excel to storage for session {session_id}")
+            except Exception as excel_err:
+                logger.error(f"Error generating/persisting cleaned Excel: {excel_err}", exc_info=True)
+
+            # Update database session with file URL
+            update_data = {
+                "status": "cleaned",
+                "stats": stats.model_dump(),
+                "cleaned_at": datetime.utcnow().isoformat()
+            }
+            if cleaned_file_url:
+                update_data["cleaned_file_url"] = cleaned_file_url
+
+            await self.repository.update_processing_session(session_id, update_data)
 
             # Get sample rows for preview
             sample_rows = pa_df.head(10).to_dict("records")
@@ -482,15 +588,36 @@ class PAReportService:
             session["classified_df"] = classified_df
             session["status"] = PAProcessingStatus.CLASSIFIED
 
-            # Update database session
-            await self.repository.update_processing_session(
-                session_id,
-                {
-                    "status": "classified",
-                    "stats": stats.model_dump(),
-                    "classified_at": datetime.utcnow().isoformat()
-                }
-            )
+            # Generate and persist Excel file to storage
+            classified_file_url = None
+            try:
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                    classified_df.to_excel(writer, sheet_name="Reporte PA Clasificado", index=False)
+                output.seek(0)
+                excel_bytes = output.getvalue()
+
+                # Upload to Supabase Storage
+                classified_file_url = await self._upload_excel_to_storage(
+                    excel_bytes, session_id, "classified"
+                )
+                if classified_file_url:
+                    logger.info(f"Classified Excel persisted to storage: {classified_file_url}")
+                else:
+                    logger.warning(f"Failed to persist classified Excel to storage for session {session_id}")
+            except Exception as excel_err:
+                logger.error(f"Error generating/persisting classified Excel: {excel_err}", exc_info=True)
+
+            # Update database session with file URL
+            update_data = {
+                "status": "classified",
+                "stats": stats.model_dump(),
+                "classified_at": datetime.utcnow().isoformat()
+            }
+            if classified_file_url:
+                update_data["classified_file_url"] = classified_file_url
+
+            await self.repository.update_processing_session(session_id, update_data)
 
             # Get sample rows for preview
             sample_rows = classified_df.head(10).to_dict("records")
@@ -506,7 +633,7 @@ class PAReportService:
             )
 
         except Exception as e:
-            logger.error(f"Error classifying data: {e}")
+            logger.error(f"Error classifying data: {e}", exc_info=True)
             return PAClassifiedPreview(
                 session_id=session_id,
                 status=PAProcessingStatus.FAILED,
@@ -517,56 +644,126 @@ class PAReportService:
         """
         Generate cleaned Excel file for download.
 
+        First attempts to generate from in-memory session data.
+        Falls back to Supabase Storage if session is not found.
+
         Args:
             session_id: Processing session ID.
 
         Returns:
             Excel file bytes or None.
         """
+        logger.info(f"get_cleaned_excel called for session: {session_id}")
+
+        # Try in-memory session first
         session = _processing_sessions.get(session_id)
-        if not session or session.get("cleaned_df") is None:
-            return None
+        if session and session.get("cleaned_df") is not None:
+            logger.info(f"Found session {session_id} in memory, generating Excel from DataFrame")
+            try:
+                df = session["cleaned_df"]
+                output = BytesIO()
 
+                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                    df.to_excel(writer, sheet_name="Reporte PA Limpio", index=False)
+
+                output.seek(0)
+                excel_bytes = output.getvalue()
+                logger.info(f"Generated cleaned Excel from memory: {len(excel_bytes)} bytes")
+                return excel_bytes
+
+            except Exception as e:
+                logger.error(f"Error generating cleaned Excel from memory: {e}", exc_info=True)
+
+        # Log why in-memory failed
+        if not session:
+            logger.warning(f"Session {session_id} not found in memory. Available sessions: {list(_processing_sessions.keys())}")
+        elif session.get("cleaned_df") is None:
+            logger.warning(f"Session {session_id} found but cleaned_df is None. Session status: {session.get('status')}")
+
+        # Fallback to Supabase Storage
+        logger.info(f"Attempting to retrieve cleaned Excel from storage for session {session_id}")
         try:
-            df = session["cleaned_df"]
-            output = BytesIO()
+            session_data = await self.repository.get_processing_session(session_id)
+            if not session_data:
+                logger.error(f"Session {session_id} not found in database either")
+                return None
 
-            with pd.ExcelWriter(output, engine="openpyxl") as writer:
-                df.to_excel(writer, sheet_name="Reporte PA Limpio", index=False)
+            cleaned_file_url = session_data.get("cleaned_file_url")
+            if not cleaned_file_url:
+                logger.warning(f"Session {session_id} found in database but no cleaned_file_url stored")
+                return None
 
-            output.seek(0)
-            return output.getvalue()
+            logger.info(f"Found cleaned_file_url in database: {cleaned_file_url}")
+            file_bytes = await self._download_from_storage(cleaned_file_url)
+            if file_bytes:
+                logger.info(f"Successfully retrieved cleaned Excel from storage: {len(file_bytes)} bytes")
+            return file_bytes
 
         except Exception as e:
-            logger.error(f"Error generating cleaned Excel: {e}")
+            logger.error(f"Error retrieving cleaned Excel from storage: {e}", exc_info=True)
             return None
 
     async def get_classified_excel(self, session_id: str) -> Optional[bytes]:
         """
         Generate classified Excel file for download.
 
+        First attempts to generate from in-memory session data.
+        Falls back to Supabase Storage if session is not found.
+
         Args:
             session_id: Processing session ID.
 
         Returns:
             Excel file bytes or None.
         """
+        logger.info(f"get_classified_excel called for session: {session_id}")
+
+        # Try in-memory session first
         session = _processing_sessions.get(session_id)
-        if not session or session.get("classified_df") is None:
-            return None
+        if session and session.get("classified_df") is not None:
+            logger.info(f"Found session {session_id} in memory, generating Excel from DataFrame")
+            try:
+                df = session["classified_df"]
+                output = BytesIO()
 
+                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                    df.to_excel(writer, sheet_name="Reporte PA Clasificado", index=False)
+
+                output.seek(0)
+                excel_bytes = output.getvalue()
+                logger.info(f"Generated classified Excel from memory: {len(excel_bytes)} bytes")
+                return excel_bytes
+
+            except Exception as e:
+                logger.error(f"Error generating classified Excel from memory: {e}", exc_info=True)
+
+        # Log why in-memory failed
+        if not session:
+            logger.warning(f"Session {session_id} not found in memory. Available sessions: {list(_processing_sessions.keys())}")
+        elif session.get("classified_df") is None:
+            logger.warning(f"Session {session_id} found but classified_df is None. Session status: {session.get('status')}")
+
+        # Fallback to Supabase Storage
+        logger.info(f"Attempting to retrieve classified Excel from storage for session {session_id}")
         try:
-            df = session["classified_df"]
-            output = BytesIO()
+            session_data = await self.repository.get_processing_session(session_id)
+            if not session_data:
+                logger.error(f"Session {session_id} not found in database either")
+                return None
 
-            with pd.ExcelWriter(output, engine="openpyxl") as writer:
-                df.to_excel(writer, sheet_name="Reporte PA Clasificado", index=False)
+            classified_file_url = session_data.get("classified_file_url")
+            if not classified_file_url:
+                logger.warning(f"Session {session_id} found in database but no classified_file_url stored")
+                return None
 
-            output.seek(0)
-            return output.getvalue()
+            logger.info(f"Found classified_file_url in database: {classified_file_url}")
+            file_bytes = await self._download_from_storage(classified_file_url)
+            if file_bytes:
+                logger.info(f"Successfully retrieved classified Excel from storage: {len(file_bytes)} bytes")
+            return file_bytes
 
         except Exception as e:
-            logger.error(f"Error generating classified Excel: {e}")
+            logger.error(f"Error retrieving classified Excel from storage: {e}", exc_info=True)
             return None
 
     async def get_session_stats(self, session_id: str) -> Optional[PAProcessingStats]:
