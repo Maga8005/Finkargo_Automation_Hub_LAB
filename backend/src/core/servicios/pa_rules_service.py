@@ -129,10 +129,11 @@ class PARulesService:
         # Cuenta Finkargo variations
         for col in columns:
             col_lower = col.lower()
-            if "cuenta" in col_lower and ("finkargo" in col_lower or "netsuite" in col_lower or "linea" in col_lower):
+            # Match variations: cuenta_finkargo, cuenta finkargo, cuenta fk, cuenta netsuite, cuenta linea
+            if "cuenta" in col_lower and ("finkargo" in col_lower or "netsuite" in col_lower or "linea" in col_lower or col_lower.endswith(" fk") or col_lower == "cuenta fk"):
                 mapping[col] = "cuenta_finkargo"
                 break
-            if col_lower in ["cuenta_finkargo", "cuenta finkargo", "cuenta"]:
+            if col_lower in ["cuenta_finkargo", "cuenta finkargo", "cuenta fk", "cuenta"]:
                 mapping[col] = "cuenta_finkargo"
                 break
 

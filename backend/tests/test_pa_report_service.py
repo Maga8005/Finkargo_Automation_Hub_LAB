@@ -407,3 +407,53 @@ class TestErrorHandling:
 
         assert result.success is False
         assert "columna" in result.message.lower() or "Cuenta" in result.message
+
+
+# ==================== PA Rules Service Column Mapping Tests ====================
+
+class TestPARulesServiceColumnMapping:
+    """Tests for PA rules service column mapping"""
+
+    def test_catalog_column_mapping_cuenta_fk(self):
+        """Test that 'Cuenta Fk' column is recognized"""
+        from src.core.servicios.pa_rules_service import PARulesService
+        from unittest.mock import MagicMock
+
+        service = PARulesService(MagicMock())
+        columns = ['cuenta fk', 'cuenta auxiliar', 'homologacion cuenta', 'homologacion nombre cuenta']
+
+        mapping = service._get_catalog_column_mapping(columns)
+
+        assert mapping is not None
+        assert 'cuenta fk' in mapping
+        assert mapping['cuenta fk'] == 'cuenta_finkargo'
+        assert mapping['homologacion cuenta'] == 'cuenta_homologacion'
+        assert mapping['homologacion nombre cuenta'] == 'nombre_homologacion'
+
+    def test_catalog_column_mapping_cuenta_finkargo(self):
+        """Test that 'Cuenta Finkargo' column is recognized (original case)"""
+        from src.core.servicios.pa_rules_service import PARulesService
+        from unittest.mock import MagicMock
+
+        service = PARulesService(MagicMock())
+        columns = ['cuenta finkargo', 'cuenta homologacion', 'nombre homologacion']
+
+        mapping = service._get_catalog_column_mapping(columns)
+
+        assert mapping is not None
+        assert 'cuenta finkargo' in mapping
+        assert mapping['cuenta finkargo'] == 'cuenta_finkargo'
+
+    def test_catalog_column_mapping_cuenta_netsuite(self):
+        """Test that 'Cuenta NetSuite' column is recognized"""
+        from src.core.servicios.pa_rules_service import PARulesService
+        from unittest.mock import MagicMock
+
+        service = PARulesService(MagicMock())
+        columns = ['cuenta netsuite', 'cuenta homologacion', 'nombre homologacion']
+
+        mapping = service._get_catalog_column_mapping(columns)
+
+        assert mapping is not None
+        assert 'cuenta netsuite' in mapping
+        assert mapping['cuenta netsuite'] == 'cuenta_finkargo'
