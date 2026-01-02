@@ -12,7 +12,7 @@ This engine applies classification rules to NetSuite records to determine:
 
 import logging
 from typing import Dict, Any, Optional, List
-from datetime import date
+from datetime import date, datetime
 import re
 
 logger = logging.getLogger(__name__)
@@ -174,6 +174,18 @@ class PAClassificationEngine:
 
         if not fecha:
             return subcategoria_base
+
+        # Convert string dates to date objects
+        if isinstance(fecha, str):
+            try:
+                # Handle ISO format (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)
+                fecha = datetime.strptime(fecha.split()[0], "%Y-%m-%d").date()
+            except (ValueError, AttributeError):
+                logger.warning(f"Could not parse date string: {fecha}")
+                return subcategoria_base
+        elif hasattr(fecha, 'date') and callable(getattr(fecha, 'date', None)):
+            # Handle pandas Timestamp or datetime
+            fecha = fecha.date()
 
         # Check if this category uses date logic
         date_logic_categories = ["Diferencia en cambio", "Recaudo"]

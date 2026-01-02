@@ -90,7 +90,14 @@ class PARulesRepository:
                 .select("cuenta_finkargo")\
                 .execute()
 
-            return [r["cuenta_finkargo"] for r in (response.data or [])]
+            accounts = [r["cuenta_finkargo"] for r in (response.data or [])]
+            account_count = len(accounts)
+            logger.info(f"Retrieved {account_count} accounts from pa_account_catalog")
+            if account_count == 0:
+                logger.warning("PA account catalog is empty. Please upload catalog first.")
+            elif account_count > 0:
+                logger.debug(f"Sample catalog accounts: {accounts[:5]}")
+            return accounts
         except Exception as e:
             logger.error(f"Error getting catalog accounts: {e}")
             return []

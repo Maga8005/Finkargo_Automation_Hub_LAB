@@ -207,7 +207,8 @@ const ReportePA: React.FC = () => {
 
       if (response.status === 'cleaned') {
         setCleanedPreview(response);
-        setActiveStep(2);
+        // Do NOT advance step - keep StepContent visible so user can see results and download
+        // User will click "Continuar a Clasificar" button to proceed
       } else if (response.status === 'failed') {
         setError(response.stats.warnings.join(', ') || 'Error al limpiar datos');
       }
@@ -231,7 +232,8 @@ const ReportePA: React.FC = () => {
 
       if (response.status === 'classified') {
         setClassifiedPreview(response);
-        setActiveStep(3);
+        // Do NOT advance step - keep StepContent visible so user can see results and download
+        // This is the final step, so we stay here until user clicks "Nuevo Reporte"
       } else if (response.status === 'failed') {
         setError(response.stats.warnings.join(', ') || 'Error al clasificar datos');
       }
@@ -471,15 +473,23 @@ const ReportePA: React.FC = () => {
 
                       {renderStats(cleanedPreview.stats)}
 
-                      <Button
-                        variant="outlined"
-                        onClick={handleDownloadCleaned}
-                        startIcon={downloading === 'cleaned' ? <CircularProgress size={20} /> : <DownloadIcon />}
-                        disabled={downloading !== null}
-                        sx={{ mt: 2 }}
-                      >
-                        Descargar Archivo Limpio
-                      </Button>
+                      <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+                        <Button
+                          variant="outlined"
+                          onClick={handleDownloadCleaned}
+                          startIcon={downloading === 'cleaned' ? <CircularProgress size={20} /> : <DownloadIcon />}
+                          disabled={downloading !== null}
+                        >
+                          Descargar Archivo Limpio
+                        </Button>
+                        <Button
+                          variant="contained"
+                          onClick={() => setActiveStep(2)}
+                          startIcon={<PlayIcon />}
+                        >
+                          Continuar a Clasificar
+                        </Button>
+                      </Stack>
                     </Box>
                   )}
                 </StepContent>
