@@ -97,3 +97,11 @@ This prompt helps you determine what documentation you should read based on the 
     - When implementing data flow from FKEmailChainUploader to PDF export
     - When troubleshooting email chain discrepancies not appearing in PDF exports
     - When extending crossValidationPdfExport.ts with new email chain data
+
+- app_docs/feature-b13fe784-pa-csv-semicolon-delimiter.md
+  - Conditions:
+    - When working with PA (Patrimonio Autonomo) CSV file uploads
+    - When troubleshooting CSV encoding or delimiter detection issues
+    - When working with Latin-1 encoded files or semicolon-delimited CSVs
+    - When modifying pa_report_service.py CSV parsing logic
+    - When troubleshooting PA account matching failures

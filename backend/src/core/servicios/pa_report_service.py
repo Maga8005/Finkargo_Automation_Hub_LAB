@@ -158,7 +158,10 @@ class PAReportService:
                 )
 
             # Filter to PA accounts only
-            df["cuenta_linea_numero"] = df["cuenta_linea_numero"].astype(str).str.strip()
+            # Normalize account numbers to clean strings (handles float .0 suffix issue)
+            df["cuenta_linea_numero"] = df["cuenta_linea_numero"].apply(
+                self._normalize_account_number
+            )
             file_accounts = df["cuenta_linea_numero"].unique().tolist()
             file_account_count = len(file_accounts)
             logger.info(f"Found {file_account_count} unique accounts in uploaded file")
@@ -166,7 +169,7 @@ class PAReportService:
             # Log sample accounts for debugging
             if file_accounts:
                 sample_file_accounts = file_accounts[:5]
-                logger.debug(f"Sample accounts from file: {sample_file_accounts}")
+                logger.debug(f"Sample normalized accounts from file: {sample_file_accounts}")
             if catalog_accounts:
                 sample_catalog_accounts = catalog_accounts[:5]
                 logger.debug(f"Sample accounts from catalog: {sample_catalog_accounts}")
@@ -805,6 +808,35 @@ class PAReportService:
             normalized = self.COLUMN_ALIASES[normalized]
 
         return normalized
+
+    def _normalize_account_number(self, value) -> str:
+        """
+        Normalize account number to a clean string.
+
+        Handles:
+        - Float values (removes .0 suffix from pandas float parsing)
+        - Integer values
+        - String values (strips whitespace)
+        - NaN/None values (returns empty string)
+
+        Args:
+            value: Account number value (may be float, int, or str).
+
+        Returns:
+            Normalized account number as string.
+        """
+        if pd.isna(value):
+            return ""
+
+        # Convert to string first
+        str_value = str(value).strip()
+
+        # Remove trailing .0 from float representations
+        # This handles pandas parsing account numbers as floats
+        if str_value.endswith('.0'):
+            str_value = str_value[:-2]
+
+        return str_value
 
     def _validate_columns(self, columns: List[str]) -> List[str]:
         """
