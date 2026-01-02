@@ -39,6 +39,7 @@ class PAReportService:
     """Service for processing PA reports."""
 
     # Expected source file columns (mapping from Excel to internal names)
+    # Note: Column names are normalized before matching (whitespace collapsed, trimmed)
     SOURCE_COLUMN_MAPPING = {
         "Cuenta (línea): Número": "cuenta_linea_numero",
         "Cuenta (línea): Nombre": "cuenta_linea_nombre",
@@ -55,6 +56,17 @@ class PAReportService:
         "Moneda: Nombre": "moneda_nombre",
         "Tipo de cambio": "tipo_cambio",
         "Importe (moneda extranjera)": "importe_moneda_extranjera",  # Will be renamed to valor_usd
+    }
+
+    # Alternative column names (variations found in real CSV files)
+    # Maps alternative names to the canonical name in SOURCE_COLUMN_MAPPING
+    COLUMN_ALIASES = {
+        # Double space variant in "Tipo de Transacción"
+        "Tipo  de Transacción": "Tipo de Transacción",
+        # Singular variant of "Notas"
+        "Nota": "Notas",
+        # Alternative name for notes column
+        "Mensaje": "Notas",
     }
 
     # Output columns to add
@@ -768,9 +780,37 @@ class PAReportService:
         except Exception:
             return ","
 
+    def _normalize_column_name(self, col: str) -> str:
+        """
+        Normalize a column name for consistent matching.
+
+        - Strips leading/trailing whitespace
+        - Collapses multiple spaces to single space
+        - Applies column aliases to map variations to canonical names
+
+        Args:
+            col: Column name to normalize.
+
+        Returns:
+            Normalized column name.
+        """
+        import re
+
+        # Strip whitespace and collapse multiple spaces
+        normalized = col.strip()
+        normalized = re.sub(r'\s+', ' ', normalized)
+
+        # Apply aliases to map variations to canonical names
+        if normalized in self.COLUMN_ALIASES:
+            normalized = self.COLUMN_ALIASES[normalized]
+
+        return normalized
+
     def _validate_columns(self, columns: List[str]) -> List[str]:
         """
         Validate that required columns are present.
+
+        Uses normalized column matching to handle whitespace variations.
 
         Returns list of missing columns.
         """
@@ -782,26 +822,48 @@ class PAReportService:
             "Saldo"
         ]
 
-        # Normalize columns for comparison
-        normalized_cols = [c.strip() for c in columns]
+        # Normalize actual columns for comparison
+        normalized_actual = {self._normalize_column_name(c) for c in columns}
+
+        # Log actual vs expected for debugging
+        logger.debug(f"Validating columns. Actual (normalized): {sorted(normalized_actual)}")
+        logger.debug(f"Required columns: {required}")
 
         missing = []
         for req in required:
-            if req not in normalized_cols:
+            # Normalize the required column name as well
+            req_normalized = self._normalize_column_name(req)
+            if req_normalized not in normalized_actual:
                 missing.append(req)
+                logger.warning(f"Missing column: '{req}' (normalized: '{req_normalized}')")
 
         return missing
 
     def _rename_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Rename columns to internal names.
+
+        Uses normalized column matching to handle whitespace variations
+        and column aliases (e.g., "Nota" -> "Notas").
         """
         # Build mapping from actual columns to internal names
         mapping = {}
+
+        # Log original columns for debugging
+        logger.debug(f"Original columns before renaming: {df.columns.tolist()}")
+
         for col in df.columns:
-            col_stripped = col.strip()
-            if col_stripped in self.SOURCE_COLUMN_MAPPING:
-                mapping[col] = self.SOURCE_COLUMN_MAPPING[col_stripped]
+            # Normalize the column name (handles whitespace and aliases)
+            normalized = self._normalize_column_name(col)
+
+            # Check if normalized name exists in SOURCE_COLUMN_MAPPING
+            if normalized in self.SOURCE_COLUMN_MAPPING:
+                mapping[col] = self.SOURCE_COLUMN_MAPPING[normalized]
+                if col != normalized:
+                    logger.debug(f"Column '{col}' normalized to '{normalized}' -> '{self.SOURCE_COLUMN_MAPPING[normalized]}'")
+
+        # Log the mapping for debugging
+        logger.debug(f"Column rename mapping: {mapping}")
 
         return df.rename(columns=mapping)
 
