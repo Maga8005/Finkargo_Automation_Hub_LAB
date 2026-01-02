@@ -118,8 +118,24 @@ class PAReportService:
             # Rename columns to internal names
             df = self._rename_columns(df)
 
+            # Validate critical column exists after renaming
+            if "cuenta_linea_numero" not in df.columns:
+                actual_columns = df.columns.tolist()
+                logger.error(f"Critical column 'cuenta_linea_numero' not found after renaming. Columns present: {actual_columns}")
+                return PAUploadResponse(
+                    success=False,
+                    session_id="",
+                    filename=filename,
+                    message=f"La columna 'Cuenta (línea): Número' no se encontró en el archivo. "
+                           f"Columnas encontradas: {', '.join(actual_columns[:10])}{'...' if len(actual_columns) > 10 else ''}",
+                    errors=["Columna cuenta_linea_numero no encontrada"]
+                )
+
             # Get PA account catalog
             catalog_accounts = await self.repository.get_all_catalog_accounts()
+            catalog_count = len(catalog_accounts)
+            logger.info(f"Retrieved {catalog_count} accounts from PA catalog")
+
             if not catalog_accounts:
                 return PAUploadResponse(
                     success=False,
@@ -131,16 +147,40 @@ class PAReportService:
 
             # Filter to PA accounts only
             df["cuenta_linea_numero"] = df["cuenta_linea_numero"].astype(str).str.strip()
+            file_accounts = df["cuenta_linea_numero"].unique().tolist()
+            file_account_count = len(file_accounts)
+            logger.info(f"Found {file_account_count} unique accounts in uploaded file")
+
+            # Log sample accounts for debugging
+            if file_accounts:
+                sample_file_accounts = file_accounts[:5]
+                logger.debug(f"Sample accounts from file: {sample_file_accounts}")
+            if catalog_accounts:
+                sample_catalog_accounts = catalog_accounts[:5]
+                logger.debug(f"Sample accounts from catalog: {sample_catalog_accounts}")
+
             pa_df = df[df["cuenta_linea_numero"].isin(catalog_accounts)].copy()
             pa_rows = len(pa_df)
 
             if pa_rows == 0:
+                # Provide detailed error message to help diagnose the issue
+                message = (
+                    f"No se encontraron coincidencias. "
+                    f"Cuentas en archivo: {file_account_count}, "
+                    f"Cuentas en catálogo: {catalog_count}. "
+                    f"Verifique que el catálogo contenga las cuentas correctas."
+                )
+                logger.warning(
+                    f"No PA account matches found. "
+                    f"File accounts (sample): {file_accounts[:5]}, "
+                    f"Catalog accounts (sample): {catalog_accounts[:5]}"
+                )
                 return PAUploadResponse(
                     success=False,
                     session_id="",
                     filename=filename,
-                    message="No se encontraron registros que coincidan con cuentas PA del catálogo.",
-                    errors=["Sin registros PA"]
+                    message=message,
+                    errors=["Sin coincidencias de cuentas PA"]
                 )
 
             # Create session
@@ -569,6 +609,10 @@ class PAReportService:
         auto-detects header row position (skipping title rows if present).
         Optimized for large files (12+ MB) with memory-efficient parsing.
 
+        For semicolon-delimited CSVs (common in European/Latin regions),
+        prioritizes Latin-1 encoding since these regions typically use
+        Latin-1/ISO-8859-1 encoding.
+
         Args:
             file_content: CSV file content as bytes.
 
@@ -581,11 +625,17 @@ class PAReportService:
         file_size_mb = len(file_content) / (1024 * 1024)
         logger.info(f"Parsing CSV file ({file_size_mb:.2f} MB)")
 
-        # Encoding priority order
-        encodings = ["utf-8", "utf-8-sig", "latin-1", "iso-8859-1"]
-
         # Detect delimiter from file content
         delimiter = self._detect_csv_delimiter(file_content)
+        logger.info(f"Detected delimiter: '{delimiter}'")
+
+        # Encoding priority order - prioritize Latin-1 for semicolon-delimited files
+        # Semicolon CSVs are common in European/Latin regions that use Latin-1
+        if delimiter == ";":
+            encodings = ["latin-1", "iso-8859-1", "utf-8", "utf-8-sig"]
+            logger.info("Semicolon delimiter detected, prioritizing Latin-1 encoding")
+        else:
+            encodings = ["utf-8", "utf-8-sig", "latin-1", "iso-8859-1"]
 
         # Detect header row (may have title rows before actual headers)
         header_row = self._detect_header_row(file_content, delimiter)
@@ -595,6 +645,15 @@ class PAReportService:
         last_error = None
         for encoding in encodings:
             try:
+                # Pre-validate encoding by decoding first 1000 bytes
+                # This catches encoding issues early before pandas processing
+                sample_size = min(1000, len(file_content))
+                try:
+                    file_content[:sample_size].decode(encoding)
+                except UnicodeDecodeError as decode_err:
+                    logger.debug(f"Pre-validation failed for encoding={encoding}: {decode_err}")
+                    continue
+
                 # Use low_memory=False for consistent dtype inference
                 # This is actually more memory-efficient for large files with mixed types
                 df = pd.read_csv(
@@ -611,10 +670,12 @@ class PAReportService:
                 # Validate that we got meaningful data
                 if len(df.columns) > 1 and len(df) > 0:
                     logger.info(f"CSV parsed successfully: encoding={encoding}, delimiter='{delimiter}', skiprows={header_row}, rows={len(df)}, cols={len(df.columns)}")
+                    logger.debug(f"Columns found: {df.columns.tolist()}")
                     return df
 
             except UnicodeDecodeError as e:
                 last_error = e
+                logger.debug(f"UnicodeDecodeError with encoding={encoding}: {e}")
                 continue
             except pd.errors.ParserError as e:
                 logger.warning(f"CSV parser error with encoding={encoding}: {e}")
@@ -628,7 +689,7 @@ class PAReportService:
                 last_error = e
                 continue
 
-        error_msg = "Error de codificación en archivo CSV. Asegúrese de usar UTF-8."
+        error_msg = "Error de codificación en archivo CSV. Asegúrese de usar UTF-8 o Latin-1."
         if last_error:
             logger.error(f"CSV parsing failed after all attempts: {last_error}")
         raise ValueError(error_msg)
