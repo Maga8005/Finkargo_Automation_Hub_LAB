@@ -74,8 +74,23 @@ class PAReportService:
         "Mensaje": "Notas",
     }
 
-    # Output columns to add
+    # Columns to remove during cleanup
+    COLUMNS_TO_REMOVE = ["Fecha de vencimiento", "fecha_vencimiento"]
+
+    # Output columns to add (capitalized with spaces for proper Excel output)
     OUTPUT_COLUMNS = [
+        "PA",                    # AA - PA marker
+        "Categoria",             # AB - Classification category
+        "Subcategoria",          # AC - Classification subcategory
+        "Clasificacion",         # AD - Classification type
+        "Nexo",                  # AE - Related entity
+        "Comprobacion saldos",   # AF - Balance verification
+        "Cuenta Homologacion",   # AG - Homologation account
+        "Nombre Homologacion"    # AH - Homologation name
+    ]
+
+    # Internal column names (lowercase) used for data processing
+    INTERNAL_OUTPUT_COLUMNS = [
         "pa",
         "categoria",
         "subcategoria",
@@ -342,10 +357,13 @@ class PAReportService:
         """
         Step 1: Clean and prepare PA data.
 
-        - Renames columns (Saldo → Valor COP, Importe → Valor USD)
-        - Adds empty output columns
-        - Fills homologation from catalog
-        - Validates balance
+        Improvements:
+        - Preserves original column names (only renames Saldo → Valor COP, Importe → Valor USD)
+        - Removes "Fecha de vencimiento" column
+        - Parses Colombian number format ($37.634,41 → 37634.41)
+        - Preserves Débito/Crédito values (not cleared/zeroed)
+        - Applies USD sign correction (Débitos positive, Créditos negative)
+        - Adds 8 new columns (AA-AH) with proper capitalized names
 
         Args:
             session_id: Processing session ID.
@@ -377,43 +395,90 @@ class PAReportService:
                 for entry in catalog_entries
             }
 
-            # Rename columns
-            pa_df = pa_df.rename(columns={
-                "saldo": "valor_cop",
-                "importe_moneda_extranjera": "valor_usd"
-            })
+            # Step 1: Remove "Fecha de vencimiento" column (column E in original)
+            columns_to_drop = [col for col in pa_df.columns if col in self.COLUMNS_TO_REMOVE]
+            if columns_to_drop:
+                pa_df = pa_df.drop(columns=columns_to_drop)
+                logger.info(f"Removed columns: {columns_to_drop}")
 
-            # Clean numeric columns
-            for col in ["debito", "credito", "valor_cop", "valor_usd"]:
+            # Step 2: Rename only Saldo → Valor COP and Importe → Valor USD
+            # Map internal names to display names
+            column_rename_map = {
+                "saldo": "Valor COP",
+                "importe_moneda_extranjera": "Valor USD"
+            }
+            pa_df = pa_df.rename(columns=column_rename_map)
+            logger.debug(f"Renamed columns: {column_rename_map}")
+
+            # Step 3: Parse Colombian number format for financial columns
+            # Use _parse_colombian_number to convert text format to numeric
+            financial_columns = {
+                "debito": "debito",
+                "credito": "credito",
+                "Valor COP": "Valor COP",
+                "Valor USD": "Valor USD"
+            }
+
+            for col in financial_columns.values():
                 if col in pa_df.columns:
-                    pa_df[col] = pd.to_numeric(pa_df[col], errors="coerce").fillna(0)
+                    pa_df[col] = pa_df[col].apply(self._parse_colombian_number)
+                    logger.debug(f"Parsed Colombian numbers in column: {col}")
 
-            # Add PA marker column
-            pa_df["pa"] = "X"
+            # Step 4: Apply USD sign correction
+            # Rule: Débitos USD must be positive, Créditos USD must be negative
+            if "moneda_nombre" in pa_df.columns and "Valor USD" in pa_df.columns:
+                # Identify USD transactions
+                is_usd = pa_df["moneda_nombre"].str.upper() == "USD"
 
-            # Add empty classification columns
-            for col in ["categoria", "subcategoria", "clasificacion", "nexo", "comprobacion_saldos"]:
+                # Débito USD: ensure positive
+                # A row has Débito if debito column > 0
+                if "debito" in pa_df.columns:
+                    has_debito = (pa_df["debito"].notna()) & (pa_df["debito"] != 0)
+                    mask_debito_usd = is_usd & has_debito
+                    # Make Valor USD positive for Débito rows
+                    pa_df.loc[mask_debito_usd & (pa_df["Valor USD"] < 0), "Valor USD"] = \
+                        pa_df.loc[mask_debito_usd & (pa_df["Valor USD"] < 0), "Valor USD"].abs()
+                    logger.debug(f"Applied USD sign correction for {mask_debito_usd.sum()} Débito rows")
+
+                # Crédito USD: ensure negative
+                # A row has Crédito if credito column > 0
+                if "credito" in pa_df.columns:
+                    has_credito = (pa_df["credito"].notna()) & (pa_df["credito"] != 0)
+                    mask_credito_usd = is_usd & has_credito
+                    # Make Valor USD negative for Crédito rows
+                    pa_df.loc[mask_credito_usd & (pa_df["Valor USD"] > 0), "Valor USD"] = \
+                        -pa_df.loc[mask_credito_usd & (pa_df["Valor USD"] > 0), "Valor USD"].abs()
+                    logger.debug(f"Applied USD sign correction for {mask_credito_usd.sum()} Crédito rows")
+
+            # Step 5: Add PA marker column with proper name
+            pa_df["PA"] = "X"
+
+            # Step 6: Add empty classification columns with proper capitalized names
+            for col in ["Categoria", "Subcategoria", "Clasificacion", "Nexo", "Comprobacion saldos"]:
                 pa_df[col] = None
 
-            # Add homologation columns
-            pa_df["cuenta_homologacion"] = pa_df["cuenta_linea_numero"].apply(
+            # Step 7: Add homologation columns with proper names
+            pa_df["Cuenta Homologacion"] = pa_df["cuenta_linea_numero"].apply(
                 lambda x: catalog_dict.get(str(x), {}).get("cuenta_homologacion")
             )
-            pa_df["nombre_homologacion"] = pa_df["cuenta_linea_numero"].apply(
+            pa_df["Nombre Homologacion"] = pa_df["cuenta_linea_numero"].apply(
                 lambda x: catalog_dict.get(str(x), {}).get("nombre_homologacion")
             )
 
-            # Calculate stats
-            debito_sum = pa_df["debito"].sum()
-            credito_sum = pa_df["credito"].sum()
-            valor_cop_sum = pa_df["valor_cop"].sum()
-            valor_usd_sum = pa_df["valor_usd"].sum()
+            # Calculate stats using the correct column names
+            debito_col = "debito" if "debito" in pa_df.columns else "Débito"
+            credito_col = "credito" if "credito" in pa_df.columns else "Crédito"
+
+            debito_sum = pa_df[debito_col].sum() if debito_col in pa_df.columns else 0
+            credito_sum = pa_df[credito_col].sum() if credito_col in pa_df.columns else 0
+            valor_cop_sum = pa_df["Valor COP"].sum() if "Valor COP" in pa_df.columns else 0
+            valor_usd_sum = pa_df["Valor USD"].sum() if "Valor USD" in pa_df.columns else 0
 
             # Validate balance (allow small floating point differences)
             balance_valid = abs(valor_cop_sum) < 0.01 and abs(valor_usd_sum) < 0.01
 
             # Count missing homologation
-            missing_homologacion = pa_df["cuenta_homologacion"].isna().sum()
+            missing_homologacion = pa_df["Cuenta Homologacion"].isna().sum()
 
             warnings = []
             if not balance_valid:
@@ -495,6 +560,10 @@ class PAReportService:
         """
         Step 2: Apply classification rules to cleaned data.
 
+        Uses the new column naming convention:
+        - PA, Categoria, Subcategoria, Clasificacion, Nexo, Comprobacion saldos
+        - Cuenta Homologacion, Nombre Homologacion
+
         Args:
             session_id: Processing session ID.
 
@@ -538,6 +607,18 @@ class PAReportService:
                 nexo_rules=nexo_rules
             )
 
+            # Mapping from engine output (lowercase) to proper column names
+            output_column_mapping = {
+                "pa": "PA",
+                "categoria": "Categoria",
+                "subcategoria": "Subcategoria",
+                "clasificacion": "Clasificacion",
+                "nexo": "Nexo",
+                "comprobacion_saldos": "Comprobacion saldos",
+                "cuenta_homologacion": "Cuenta Homologacion",
+                "nombre_homologacion": "Nombre Homologacion"
+            }
+
             # Apply classification to each row
             classified_df = cleaned_df.copy()
 
@@ -545,19 +626,27 @@ class PAReportService:
                 record = row.to_dict()
                 classification = engine.classify_record(record)
 
-                for col, value in classification.items():
-                    classified_df.at[idx, col] = value
+                # Map engine output to proper column names
+                for engine_col, value in classification.items():
+                    proper_col = output_column_mapping.get(engine_col, engine_col)
+                    classified_df.at[idx, proper_col] = value
 
-            # Calculate classification stats
-            classified_count = classified_df["categoria"].notna().sum()
-            unclassified_count = classified_df["categoria"].isna().sum()
-            missing_homologacion = classified_df["cuenta_homologacion"].isna().sum()
+            # Calculate classification stats using proper column names
+            categoria_col = "Categoria"
+            homolog_col = "Cuenta Homologacion"
 
-            # Calculate balance stats
-            debito_sum = classified_df["debito"].sum()
-            credito_sum = classified_df["credito"].sum()
-            valor_cop_sum = classified_df["valor_cop"].sum()
-            valor_usd_sum = classified_df["valor_usd"].sum()
+            classified_count = classified_df[categoria_col].notna().sum() if categoria_col in classified_df.columns else 0
+            unclassified_count = classified_df[categoria_col].isna().sum() if categoria_col in classified_df.columns else len(classified_df)
+            missing_homologacion = classified_df[homolog_col].isna().sum() if homolog_col in classified_df.columns else 0
+
+            # Calculate balance stats using proper column names
+            debito_col = "debito" if "debito" in classified_df.columns else "Débito"
+            credito_col = "credito" if "credito" in classified_df.columns else "Crédito"
+
+            debito_sum = classified_df[debito_col].sum() if debito_col in classified_df.columns else 0
+            credito_sum = classified_df[credito_col].sum() if credito_col in classified_df.columns else 0
+            valor_cop_sum = classified_df["Valor COP"].sum() if "Valor COP" in classified_df.columns else 0
+            valor_usd_sum = classified_df["Valor USD"].sum() if "Valor USD" in classified_df.columns else 0
             balance_valid = abs(valor_cop_sum) < 0.01 and abs(valor_usd_sum) < 0.01
 
             warnings = []
@@ -566,8 +655,8 @@ class PAReportService:
             if missing_homologacion > 0:
                 warnings.append(f"{missing_homologacion} registros sin cuenta homologación")
 
-            # Calculate classification summary
-            classification_summary = classified_df["categoria"].value_counts().to_dict()
+            # Calculate classification summary using proper column name
+            classification_summary = classified_df["Categoria"].value_counts().to_dict() if "Categoria" in classified_df.columns else {}
 
             stats = PAProcessingStats(
                 total_rows=session["total_rows"],
@@ -1034,6 +1123,56 @@ class PAReportService:
             str_value = str_value[:-2]
 
         return str_value
+
+    def _parse_colombian_number(self, value) -> float:
+        """
+        Parse Colombian currency format to float.
+
+        Colombian format uses:
+        - Dot (.) as thousand separator
+        - Comma (,) as decimal separator
+        - Optional $ currency symbol
+
+        Examples:
+            '$37.634,41' -> 37634.41
+            '$1.234.567,89' -> 1234567.89
+            '1000,50' -> 1000.50
+            '' or None -> 0.0
+
+        Args:
+            value: Value in Colombian currency format (string, int, float, or None).
+
+        Returns:
+            Parsed float value.
+        """
+        if pd.isna(value) or value == '' or value is None:
+            return 0.0
+
+        # Already a number
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        # Convert to string and clean
+        str_value = str(value).strip()
+
+        # Remove currency symbol and whitespace
+        str_value = str_value.replace('$', '').replace(' ', '')
+
+        # Handle empty string after cleaning
+        if not str_value:
+            return 0.0
+
+        # Colombian format: dot=thousands, comma=decimal
+        # Remove thousand separators (dots)
+        str_value = str_value.replace('.', '')
+        # Convert decimal separator (comma) to dot
+        str_value = str_value.replace(',', '.')
+
+        try:
+            return float(str_value)
+        except ValueError:
+            logger.warning(f"Could not parse Colombian number: {value}")
+            return 0.0
 
     def _validate_columns(self, columns: List[str]) -> List[str]:
         """

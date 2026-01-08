@@ -457,3 +457,175 @@ class TestPARulesServiceColumnMapping:
         assert mapping is not None
         assert 'cuenta netsuite' in mapping
         assert mapping['cuenta netsuite'] == 'cuenta_finkargo'
+
+
+# ==================== PA Report Cleanup Improvements Tests ====================
+
+class TestPAReportCleanupImprovements:
+    """Tests for PA Report cleanup improvements.
+
+    Tests cover:
+    - Colombian number parsing
+    - Débito/Crédito value preservation
+    - Column name preservation
+    - Fecha de vencimiento removal
+    - New column names format
+    - PA column default value
+    - USD sign correction
+    """
+
+    def test_colombian_number_parsing_standard(self, pa_report_service):
+        """Test parsing standard Colombian currency format."""
+        # Standard format: $37.634,41
+        result = pa_report_service._parse_colombian_number("$37.634,41")
+        assert result == 37634.41
+
+    def test_colombian_number_parsing_large(self, pa_report_service):
+        """Test parsing large Colombian currency values."""
+        # Large value: $1.234.567,89
+        result = pa_report_service._parse_colombian_number("$1.234.567,89")
+        assert result == 1234567.89
+
+    def test_colombian_number_parsing_no_currency_symbol(self, pa_report_service):
+        """Test parsing Colombian format without currency symbol."""
+        # Without $ symbol: 1000,50
+        result = pa_report_service._parse_colombian_number("1000,50")
+        assert result == 1000.50
+
+    def test_colombian_number_parsing_empty(self, pa_report_service):
+        """Test parsing empty/null values returns 0."""
+        assert pa_report_service._parse_colombian_number("") == 0.0
+        assert pa_report_service._parse_colombian_number(None) == 0.0
+        assert pa_report_service._parse_colombian_number("   ") == 0.0
+
+    def test_colombian_number_parsing_already_numeric(self, pa_report_service):
+        """Test parsing values that are already numeric."""
+        assert pa_report_service._parse_colombian_number(1234.56) == 1234.56
+        assert pa_report_service._parse_colombian_number(1000) == 1000.0
+
+    def test_colombian_number_parsing_negative(self, pa_report_service):
+        """Test parsing negative Colombian values."""
+        result = pa_report_service._parse_colombian_number("-$1.000,00")
+        assert result == -1000.0
+
+    def test_colombian_number_parsing_invalid(self, pa_report_service):
+        """Test parsing invalid values returns 0."""
+        result = pa_report_service._parse_colombian_number("invalid")
+        assert result == 0.0
+
+    def test_columns_to_remove_constant(self, pa_report_service):
+        """Test that COLUMNS_TO_REMOVE constant is defined."""
+        assert hasattr(pa_report_service, 'COLUMNS_TO_REMOVE')
+        assert "Fecha de vencimiento" in pa_report_service.COLUMNS_TO_REMOVE
+        assert "fecha_vencimiento" in pa_report_service.COLUMNS_TO_REMOVE
+
+    def test_output_columns_proper_format(self, pa_report_service):
+        """Test that OUTPUT_COLUMNS use proper capitalized names with spaces."""
+        expected_columns = [
+            "PA",
+            "Categoria",
+            "Subcategoria",
+            "Clasificacion",
+            "Nexo",
+            "Comprobacion saldos",
+            "Cuenta Homologacion",
+            "Nombre Homologacion"
+        ]
+        assert pa_report_service.OUTPUT_COLUMNS == expected_columns
+
+
+class TestUSDSignCorrection:
+    """Tests for USD sign correction logic."""
+
+    @pytest.fixture
+    def df_with_usd_transactions(self):
+        """Create a DataFrame with USD transactions for testing sign correction."""
+        return pd.DataFrame({
+            "cuenta_linea_numero": ["11100530", "11100531", "11100532", "11100533"],
+            "moneda_nombre": ["USD", "USD", "COP", "USD"],
+            "debito": [1000.0, 0.0, 500.0, 0.0],
+            "credito": [0.0, 2000.0, 0.0, 3000.0],
+            "Valor USD": [-500.0, 1500.0, 100.0, 2500.0]  # Wrong signs to be corrected
+        })
+
+    def test_usd_debito_sign_correction(self, df_with_usd_transactions):
+        """Test that USD Débito transactions have positive Valor USD."""
+        df = df_with_usd_transactions.copy()
+
+        # Apply sign correction logic (same as in clean_data)
+        is_usd = df["moneda_nombre"].str.upper() == "USD"
+        has_debito = (df["debito"].notna()) & (df["debito"] != 0)
+        mask_debito_usd = is_usd & has_debito
+
+        # Make Valor USD positive for Débito rows
+        df.loc[mask_debito_usd & (df["Valor USD"] < 0), "Valor USD"] = \
+            df.loc[mask_debito_usd & (df["Valor USD"] < 0), "Valor USD"].abs()
+
+        # Row 0: USD Débito, was -500, should be 500
+        assert df.loc[0, "Valor USD"] == 500.0
+
+    def test_usd_credito_sign_correction(self, df_with_usd_transactions):
+        """Test that USD Crédito transactions have negative Valor USD."""
+        df = df_with_usd_transactions.copy()
+
+        # Apply sign correction logic (same as in clean_data)
+        is_usd = df["moneda_nombre"].str.upper() == "USD"
+        has_credito = (df["credito"].notna()) & (df["credito"] != 0)
+        mask_credito_usd = is_usd & has_credito
+
+        # Make Valor USD negative for Crédito rows
+        df.loc[mask_credito_usd & (df["Valor USD"] > 0), "Valor USD"] = \
+            -df.loc[mask_credito_usd & (df["Valor USD"] > 0), "Valor USD"].abs()
+
+        # Row 1: USD Crédito, was 1500, should be -1500
+        assert df.loc[1, "Valor USD"] == -1500.0
+        # Row 3: USD Crédito, was 2500, should be -2500
+        assert df.loc[3, "Valor USD"] == -2500.0
+
+    def test_cop_transactions_not_affected(self, df_with_usd_transactions):
+        """Test that COP transactions are not affected by sign correction."""
+        df = df_with_usd_transactions.copy()
+        original_cop_value = df.loc[2, "Valor USD"]
+
+        # Apply both sign corrections
+        is_usd = df["moneda_nombre"].str.upper() == "USD"
+        has_debito = (df["debito"].notna()) & (df["debito"] != 0)
+        has_credito = (df["credito"].notna()) & (df["credito"] != 0)
+
+        mask_debito_usd = is_usd & has_debito
+        mask_credito_usd = is_usd & has_credito
+
+        df.loc[mask_debito_usd & (df["Valor USD"] < 0), "Valor USD"] = \
+            df.loc[mask_debito_usd & (df["Valor USD"] < 0), "Valor USD"].abs()
+        df.loc[mask_credito_usd & (df["Valor USD"] > 0), "Valor USD"] = \
+            -df.loc[mask_credito_usd & (df["Valor USD"] > 0), "Valor USD"].abs()
+
+        # Row 2: COP transaction, should remain unchanged
+        assert df.loc[2, "Valor USD"] == original_cop_value
+
+
+class TestNewColumnNames:
+    """Tests for new column naming convention."""
+
+    def test_pa_column_uppercase(self, pa_report_service):
+        """Test that PA column uses uppercase name."""
+        assert "PA" in pa_report_service.OUTPUT_COLUMNS
+
+    def test_categoria_without_accent(self, pa_report_service):
+        """Test that Categoria is capitalized without accent in column name."""
+        assert "Categoria" in pa_report_service.OUTPUT_COLUMNS
+
+    def test_comprobacion_saldos_with_space(self, pa_report_service):
+        """Test that Comprobacion saldos uses space, not underscore."""
+        assert "Comprobacion saldos" in pa_report_service.OUTPUT_COLUMNS
+        assert "comprobacion_saldos" not in pa_report_service.OUTPUT_COLUMNS
+
+    def test_cuenta_homologacion_with_space(self, pa_report_service):
+        """Test that Cuenta Homologacion uses space, not underscore."""
+        assert "Cuenta Homologacion" in pa_report_service.OUTPUT_COLUMNS
+        assert "cuenta_homologacion" not in pa_report_service.OUTPUT_COLUMNS
+
+    def test_nombre_homologacion_with_space(self, pa_report_service):
+        """Test that Nombre Homologacion uses space, not underscore."""
+        assert "Nombre Homologacion" in pa_report_service.OUTPUT_COLUMNS
+        assert "nombre_homologacion" not in pa_report_service.OUTPUT_COLUMNS
