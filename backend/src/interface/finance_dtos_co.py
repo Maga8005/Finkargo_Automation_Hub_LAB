@@ -98,16 +98,18 @@ class ConsolidatedRecord(BaseModel):
     Netsuite (supplementary) data by numero_factura.
     """
     # From Noova (always present)
+    # fecha and numero_factura are required for data integrity
     fecha: date
     numero_factura: str
-    nit: str
-    nombre_cliente: str
-    email: str
-    estado: str
-    envio: str
-    codigo_operacion: str
-    codigo_producto: str
-    concepto: str
+    # Other Noova fields default to empty string to handle None from empty Excel cells
+    nit: str = ""
+    nombre_cliente: str = ""
+    email: str = ""
+    estado: str = ""
+    envio: str = ""
+    codigo_operacion: str = ""
+    codigo_producto: str = ""
+    concepto: str = ""
 
     # From Netsuite (may be None if not matched)
     moneda: Optional[str] = None
