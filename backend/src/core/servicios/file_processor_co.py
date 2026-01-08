@@ -236,17 +236,19 @@ class COFileProcessor:
                 normalized_noova = str(numero_factura).strip().upper().replace(" ", "")
                 netsuite_match = netsuite_normalized.get(normalized_noova)
 
+            # Use 'or ""' pattern to handle both missing keys AND keys with None values
+            # dict.get() only returns default for missing keys, not for keys with None values
             record = ConsolidatedRecord(
                 fecha=noova.get("fecha"),
                 numero_factura=numero_factura,
-                nit=noova.get("nit", ""),
-                nombre_cliente=noova.get("nombre_cliente", ""),
-                email=noova.get("email", ""),
-                estado=noova.get("estado", ""),
-                envio=noova.get("envio", ""),
-                codigo_operacion=noova.get("codigo_operacion", ""),
-                codigo_producto=noova.get("codigo_producto", ""),
-                concepto=noova.get("concepto", ""),
+                nit=noova.get("nit") or "",
+                nombre_cliente=noova.get("nombre_cliente") or "",
+                email=noova.get("email") or "",
+                estado=noova.get("estado") or "",
+                envio=noova.get("envio") or "",
+                codigo_operacion=noova.get("codigo_operacion") or "",
+                codigo_producto=noova.get("codigo_producto") or "",
+                concepto=noova.get("concepto") or "",
                 moneda=netsuite_match.get("moneda") if netsuite_match else None,
                 valor_netsuite=netsuite_match.get("valor") if netsuite_match else None
             )
